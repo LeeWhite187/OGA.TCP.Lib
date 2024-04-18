@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>02c5e3b6-ea28-42ca-bf80-23bda6d00b96</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>OGA.TCP</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)cBuffer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)cEndpoint_Metrics.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)cReceiveLoop.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DTO\ConnRegisterDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Encoding\cCustom_Serializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Enumerations.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ExpBackoff_wJitter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Messages\MessageEnvelope.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="$(MSBuildThisFileDirectory)DTO\" />
+  </ItemGroup>
+</Project>

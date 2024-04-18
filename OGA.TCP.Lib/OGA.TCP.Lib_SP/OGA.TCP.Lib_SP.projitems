@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>daa57c64-b267-42e5-bb7e-2666cefc4d15</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>OGA.TCP</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\cEndpoint_Ping_Tracking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_Abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\WSClient_v1_abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\LibVersions.cs" />
+  </ItemGroup>
+</Project>
