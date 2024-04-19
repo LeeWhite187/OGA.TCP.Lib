@@ -9,6 +9,7 @@
     <Import_RootNamespace>OGA.TCP</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Impl\TCPClient_v1.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\cEndpoint_Ping_Tracking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_abstract.cs" />

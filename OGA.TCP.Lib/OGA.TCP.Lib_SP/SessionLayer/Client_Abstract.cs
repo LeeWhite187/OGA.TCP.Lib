@@ -345,7 +345,7 @@ namespace OGA.TCP.SessionLayer
             GC.SuppressFinalize(this);
         }
 
-#endregion
+        #endregion
 
 
         #region Public Methods
@@ -516,7 +516,7 @@ namespace OGA.TCP.SessionLayer
             return 1;
         }
 
-#endregion
+        #endregion
 
 
         #region Connection Management

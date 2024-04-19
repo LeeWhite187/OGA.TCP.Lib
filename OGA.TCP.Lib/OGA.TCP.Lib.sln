@@ -47,7 +47,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OGA.TCP.Lib_NETStd21", "OGA
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OGA.TCP.Lib_NETStd21_Test", "OGA.TCP.Lib_NETStd21_Test\OGA.TCP.Lib_NETStd21_Test.csproj", "{7FFF1334-E354-4803-A1D1-89F3BE93798F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OGA.TCP.Server.Lib_Tests", "OGA.TCP.Server.Lib_Tests\OGA.TCP.Server.Lib_Tests.csproj", "{D4440665-4346-4B04-A768-F93EC41CEE9B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OGA.TCP.Server.Lib_Tests", "OGA.TCP.Server.Lib_Tests\OGA.TCP.Server.Lib_Tests.csproj", "{D4440665-4346-4B04-A768-F93EC41CEE9B}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Testing_CommonHelpers_SP", "Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.shproj", "{F5431793-8F98-4D65-B028-7BA313CD60A9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -149,21 +151,29 @@ Global
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{137140bd-bc74-4713-ba01-d062fe4674b2}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{137140bd-bc74-4713-ba01-d062fe4674b2}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{3dcfc488-7cff-4069-b7ee-5695dc08df83}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{3dcfc488-7cff-4069-b7ee-5695dc08df83}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{472fae9e-6bdc-4a43-8e1d-256b4f339779}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{472fae9e-6bdc-4a43-8e1d-256b4f339779}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{5d5f93e1-b726-4f5e-b11e-1e8966f2d977}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{5d5f93e1-b726-4f5e-b11e-1e8966f2d977}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{6b9ad33f-e2ff-48ef-be15-4d2b4ff064ee}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{6b9ad33f-e2ff-48ef-be15-4d2b4ff064ee}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{70c7079c-ec08-4682-b133-ddf6178f928b}*SharedItemsImports = 13
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{9b3af5ce-a6b8-47e0-bad3-e5b76d753ec0}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{9b3af5ce-a6b8-47e0-bad3-e5b76d753ec0}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{d4440665-4346-4b04-a768-f93ec41cee9b}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{daa57c64-b267-42e5-bb7e-2666cefc4d15}*SharedItemsImports = 13
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{e4e5b5e5-36bd-42e4-ad87-b04021872da9}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{f21e8d5f-3661-46c1-a7f2-9b0db92effbb}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{f21e8d5f-3661-46c1-a7f2-9b0db92effbb}*SharedItemsImports = 5
+		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{f5431793-8f98-4d65-b028-7ba313cd60a9}*SharedItemsImports = 13
 	EndGlobalSection
 EndGlobal

@@ -9,6 +9,8 @@
     <Import_RootNamespace>OGA.TCP_Test_SP</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)ReceiveLoop_Test.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TCPClient_v1_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cCustom_Serializer_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Testing_HelperBase.cs" />

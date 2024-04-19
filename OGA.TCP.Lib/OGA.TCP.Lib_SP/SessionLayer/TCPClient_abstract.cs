@@ -29,16 +29,16 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Need a local reference to the TCPClient so we can check if connected because the network stream class doesn't provide such a message.
         /// </summary>
-        private TcpClient _client;
+        protected TcpClient _client;
         /// <summary>
         /// Need a local reference to the underlying stream to exchange data.
         /// </summary>
-        private System.Net.Sockets.NetworkStream _conn_networkstream;
+        protected System.Net.Sockets.NetworkStream _conn_networkstream;
 
         /// <summary>
         /// Helper class that deals with the cruft of receiving data from a tcp socket.
         /// </summary>
-        private cReceiveLoop _receiveLoop;
+        protected cReceiveLoop _receiveLoop;
 
         /// <summary>
         /// host or IP of remote connection.
@@ -57,9 +57,15 @@ namespace OGA.TCP.SessionLayer
         #region Public Properties
 
         /// <summary>
+        /// Determines if a receiver loop is spawned.
+        /// This should be set for websockets, clear for tcpsockets.
+        /// </summary>
+        override public bool Cfg_TransportRequiresReceiverLoop { get; } = false;
+
+        /// <summary>
         /// Set this to the lowercase short name of the transport: tcp, ws, etc...
         /// </summary>
-        override public string TransportShortName { get; } = "wtcps";
+        override public string TransportShortName { get; } = "tcp";
 
         /// <summary>
         /// Set this to the name of the transport: TCPSocket, Websocket, etc...
@@ -183,7 +189,7 @@ namespace OGA.TCP.SessionLayer
             // Tcp socket connection info works similar, it's just not a url, but a host and port instead.
 
             //return await this.Get_ConnectionUrl();
-            // For a tcp socket, this may be a call to 
+            // For a tcp socket, this may be a call to get the host and port of listening server.
             return 1;
         }
 
@@ -425,19 +431,41 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Internal method used by the native websocket, when dealing with a host that doesn't include a good certificate.
+        /// In the implementation of this method, perform a close on the transport, and dispose of it.
+        /// Don't dereference the transport instance, yet.
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="certificate"></param>
-        /// <param name="chain"></param>
-        /// <param name="sslPolicyErrors"></param>
-        /// <returns></returns>
-        protected bool CALLBACK_Check_Server_Certificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        override protected async Task CloseandDisposeTransport()
         {
-            return true;
+            if (_client != null)
+            {
+                // Close the connection...
+                try
+                {
+                    this._client.Close();
+                }
+                catch (Exception) { }
+                try
+                {
+#if (NET452)
+                    this._client?.Close();
+#else
+                    this._client?.Dispose();
+#endif
+                }
+                catch (Exception) { }
+            }
         }
 
-#endregion
+        /// <summary>
+        /// In the implementation of this method, perform a dereference of the transport instance.
+        /// Don't dispose it or anything else, here.
+        /// </summary>
+        override protected void DereferenceTransport()
+        {
+            this._client = null;
+        }
+
+        #endregion
 
 
         #region Send Methods
@@ -518,66 +546,79 @@ namespace OGA.TCP.SessionLayer
 		/// <param name="start"></param>
 		/// <param name="length"></param>
 		/// <returns></returns>
-		private int Push_Buffer_to_Wire(byte[] buffer, int start, int length)
+		protected int Push_Buffer_to_Wire(byte[] buffer, int start, int length)
 		{
-			try
-			{
-				// Send the message buffer to the wire.
-				this._conn_networkstream.Write(buffer, start, length);
+            try
+            {
+                // Send the message buffer to the wire.
+                this._conn_networkstream.Write(buffer, start, length);
 
-				// If we made it here, we successfully sent a message over the wire.
-				// Otherwise, we would have thrown an exception.
-				// In case this is our first outgoing message, we need to upgrade our connection status.
-				this.PromoteStatus_from_NewlyOpen_to_Open();
+                // If we made it here, we successfully sent a message over the wire.
+                // Otherwise, we would have thrown an exception.
+                // In case this is our first outgoing message, we need to upgrade our connection status.
+                this.PromoteStatus_from_NewlyOpen_to_Open();
 
-				// Increment the write message counter.
-				this.Metrics.Sent_Message_Count++;
+                // Increment the write message counter.
+                this.Metrics.Sent_Message_Count++;
 
-				this.Logger?.Debug(
+                this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
-					"Message buffer was sent over the wire.");
+                    "Message buffer was sent over the wire.");
 
-				// Return success to the caller.
-				return length;
-			}
-			catch (System.IO.IOException ioe)
-			{
-				// IO Exception occurred.
-				// We can no longer trust the connection.
+                // Return success to the caller.
+                return length;
+            }
+            catch (System.Net.Sockets.SocketException se)
+            {
+                // IO Exception occurred.
+                // We can no longer trust the connection.
 
-				this.Logger?.Error(ioe,
+                this.Logger?.Error(se,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
-					"IO Exception occurred while attempting to send a message to the wire.");
+                    "Socket Exception occurred while attempting to send a message to the wire.");
 
-				this.UpdateState(eEndpoint_ConnectionStatus.Lost);
+                this.UpdateState(eEndpoint_ConnectionStatus.Lost);
 
-				return -3;
-			}
-			catch (System.ObjectDisposedException ode)
-			{
-				// Object disposed Exception occurred.
-				// We can no longer trust the connection.
+                return -6;
+            }
+            catch (System.IO.IOException ioe)
+            {
+                // IO Exception occurred.
+                // We can no longer trust the connection.
 
-				this.Logger?.Error(ode,
+                this.Logger?.Error(ioe,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
-					"Object Dispose Exception occurred while attempting to send a message to the wire.");
+                    "IO Exception occurred while attempting to send a message to the wire.");
 
-				this.UpdateState(eEndpoint_ConnectionStatus.Lost);
+                this.UpdateState(eEndpoint_ConnectionStatus.Lost);
 
-				return -4;
-			}
-			catch (Exception e)
-			{
-				// Error occurred.
+                return -3;
+            }
+            catch (System.ObjectDisposedException ode)
+            {
+                // Object disposed Exception occurred.
+                // We can no longer trust the connection.
 
-				this.Logger?.Error(e,
+                this.Logger?.Error(ode,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
-					"Standard Exception occurred while attempting to send a message to the wire.");
+                    "Object Dispose Exception occurred while attempting to send a message to the wire.");
 
-				this.UpdateState(eEndpoint_ConnectionStatus.Lost);
+                this.UpdateState(eEndpoint_ConnectionStatus.Lost);
 
-				return -5;
-			}
+                return -4;
+            }
+            catch (Exception e)
+            {
+                // Error occurred.
+
+                this.Logger?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
+                    "Standard Exception occurred while attempting to send a message to the wire.");
+
+                this.UpdateState(eEndpoint_ConnectionStatus.Lost);
+
+                return -5;
+            }
 		}
 
         #endregion
@@ -604,7 +645,7 @@ namespace OGA.TCP.SessionLayer
             return 1;
         }
 
-        private void CALLBACK_Receiver_Status_Change(cReceiveLoop rcloop, string statusupdate)
+        protected void CALLBACK_Receiver_Status_Change(cReceiveLoop rcloop, string statusupdate)
         {
             this.Logger?.Info(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receiver_Status_Change)} - " +
@@ -682,7 +723,7 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-        private void CALLBACK_Receiver_Conn_Went_Bad(cReceiveLoop mep)
+        protected void CALLBACK_Receiver_Conn_Went_Bad(cReceiveLoop mep)
         {
             // Clear the send flag, to prevent outgoing messages...
             this._allowsend = false;
@@ -702,7 +743,7 @@ namespace OGA.TCP.SessionLayer
             this.DereferenceTransport();
         }
 
-        private void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, string rawmsg)
+        protected void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, string rawmsg)
         {
             // Update our received timestamp...
             LastReceivedTime = DateTime.UtcNow;

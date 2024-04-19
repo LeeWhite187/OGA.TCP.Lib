@@ -23,4 +23,6 @@
     <ProjectReference Include="..\OGA.TCP.Server.Lib\OGA.TCP.Server.Lib.csproj" />
   </ItemGroup>
 
+  <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
+
 </Project>

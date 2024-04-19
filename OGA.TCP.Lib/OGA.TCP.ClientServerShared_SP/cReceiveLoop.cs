@@ -8,6 +8,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace OGA.TCP
 {
@@ -30,7 +31,7 @@ namespace OGA.TCP
 		protected volatile bool _Comms_Begun;
 		protected volatile bool _comms_ended;
 
-		private System.DateTime _last_received_timestamp;
+		private System.DateTime _last_received_timestampUTC;
 
 		private volatile int _received_byte_count;
 		private volatile int _number_of_expected_bytes;
@@ -51,10 +52,23 @@ namespace OGA.TCP
 
 		protected cBuffer _buffer;
 
+		protected CancellationTokenSource _readcts;
+
+		/// <summary>
+		/// 0 - non , 1 - length, 2 - data
+		/// </summary>
+		protected int frameread_section = 0;
+
 		#endregion
 
 
 		#region Public Properties
+
+		/// <summary>
+		/// Number of milliseconds allowed to read the frame body, once the frame size has been read.
+		/// This provides us with the ability to protect from a mid-frame connection loss, or malformed client message.
+		/// </summary>
+		public int FrameReadTimeout { get; set; } = 5000;
 
 		public eLoop_ConnectionStatus State { get; protected set; }
 
@@ -63,11 +77,11 @@ namespace OGA.TCP
         /// </summary>
         public int InstanceId { get; protected set; }
 
-		public System.DateTime Last_Received_Timestamp
+		public System.DateTime Last_Received_TimestampUTC
 		{
 			get
 			{
-				return _last_received_timestamp;
+				return _last_received_timestampUTC;
 			}
 		}
 
@@ -140,6 +154,8 @@ namespace OGA.TCP
 
 			this._classname = nameof(cReceiveLoop);
 
+			this._readcts = new CancellationTokenSource();
+
 			if(client == null || client.Connected == false)
 				throw new Exception("TCPClient instance is null.");
 
@@ -168,7 +184,8 @@ namespace OGA.TCP
 			this.Resize_Buffer_if_Needed(_default_buffer_size);
 
 			// Reset the last received timestamp to the initialization time for this endpoint.
-			this._last_received_timestamp = System.DateTime.Now;
+			this._last_received_timestampUTC = System.DateTime.UtcNow;
+			this._metrics.Last_Received_Message_Time = System.DateTime.UtcNow;
 
 			// Reset buffer pointers for a new message...
 			Reset_Buffer_Pointers();
@@ -185,7 +202,12 @@ namespace OGA.TCP
                     // TODO: dispose managed state (managed objects)
                 }
 
+				// Close down the receiver...
 				CloseDown();
+
+				// Disconnect all callbacks, now that we have closed down...
+				// We do this after close down, to ensure that any status change or closure callback can be called.
+				Teardown_Delegates();
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
                 // TODO: set large fields to null
@@ -218,6 +240,7 @@ namespace OGA.TCP
 		#endregion
 
 
+		#region Control Methods
 
 		/// <summary>
 		/// Public method used to startup the loop after construction.
@@ -294,7 +317,8 @@ namespace OGA.TCP
 
 				// Update the last ping time to the current time.
 				// We do this because we should have other message types to exchange when just beginning communications.
-				this._last_received_timestamp = System.DateTime.Now;
+				this._last_received_timestampUTC = System.DateTime.UtcNow;
+				this._metrics.Last_Received_Message_Time = System.DateTime.UtcNow;
 
 				// Update our status.
 				this.UpdateState(eLoop_ConnectionStatus.Newly_Opened);
@@ -324,6 +348,50 @@ namespace OGA.TCP
 				// Return success to the caller.
 				return 1;
 			}
+		}
+
+		public int CloseDown()
+		{
+			// Update our status that we are closing down.
+			// If we are already in a terminal state, we'd stay there, such as Lost, Error or Closed.
+			// The special case, here, is if we have NOT been started, and are still Initialized.
+			// If still Initialized, we stay in that state.
+			this.UpdateState(eLoop_ConnectionStatus.Shutting_Down, true);
+
+			// Clean up other resources...
+
+			this.Logger?.Debug(
+				$"{_classname}:{this.InstanceId.ToString()}::{nameof(CloseDown)} - " +
+				"Cleaning up other resources...");
+
+			this._comms_ended = true;
+			this._Comms_Begun = false;
+
+			// Release the read cancellation token...
+			if(this._readcts != null)
+			{
+				try { this._readcts?.Cancel(); } catch (Exception e) { }
+				try { this._readcts?.Dispose(); } catch (Exception e) { }
+				this._readcts = null;
+			}
+
+			// Dereference the buffers.
+			try { this._buffer?.Dispose(); } catch (Exception e) { }
+			this._buffer = null;
+
+			// Release connection references...
+			// But, don't dispose them.
+			// They were given to us by a parent endpoint. So, we are not the owner.
+			this._conn_networkstream = null;
+			this._client = null;
+
+			this.Logger?.Debug(
+				$"{_classname}:{this.InstanceId.ToString()}::{nameof(CloseDown)} - " +
+				"Resources released.");
+
+			this.UpdateState(eLoop_ConnectionStatus.Closed);
+
+			return 1;
 		}
 
 		private int Setup_Connection()
@@ -391,47 +459,10 @@ namespace OGA.TCP
 			return 1;
 		}
 		
-		public int CloseDown()
-		{
-			// Update our status that we are closing down.
-			if (this.State == eLoop_ConnectionStatus.Newly_Opened ||
-				this.State == eLoop_ConnectionStatus.Open ||
-				this.State == eLoop_ConnectionStatus.Lost ||
-				this.State == eLoop_ConnectionStatus.Initialized)
-			{
-				this.UpdateState(eLoop_ConnectionStatus.Shutting_Down, true);
-			}
-			// If we were in another state, we'd stay there, such as Error or Closed, or Initialized.
-
-			// Clean up other resources.
-
-			this.Logger?.Debug(
-				$"{_classname}:{this.InstanceId.ToString()}::{nameof(CloseDown)} - " +
-				"Cleaning up other resources...");
-
-			this._comms_ended = true;
-			this._Comms_Begun = false;
-
-			// Dereference delegates.
-			this.Teardown_Delegates();
-
-			// Dereference the buffers.
-			try { this._buffer.Dispose(); } catch (Exception e) { }
-			this._buffer = null;
-
-			this.Logger?.Debug(
-				$"{_classname}:{this.InstanceId.ToString()}::{nameof(CloseDown)} - " +
-				"Resources released.");
-
-			if (this.State == eLoop_ConnectionStatus.Shutting_Down)
-			{
-				this.UpdateState(eLoop_ConnectionStatus.Closed);
-			}
-
-			return 1;
-		}
+		#endregion
 
 
+		#region Message Receiving
 
 		/// <summary>
 		/// Called each time the endpoint should wait on new data to be received.
@@ -465,12 +496,28 @@ namespace OGA.TCP
 					}
 				}
 
+				// Create a timeout if we are waiting on the message data...
+				// NOTE: We only create a timeout, here, if we already know the message length, and are waiting on the actual message frame.
+				if(this.frameread_section == 2)
+				{
+					// We have already read in the frame size.
+					// Now, we are attempting to read the frame data, itself.
+					// So, we will start a timeout, to ensure we do either read the frame, or throw an error.
+
+					// Re arm the read token...
+					this._readcts?.Dispose();
+					this._readcts = new CancellationTokenSource();
+
+					// And, arm the frame read timeout logic...
+					_ = Task.Run(() => this.Arm_FrameReadTimeout());
+				}
+
 				// Start an async read to pull in what's left of the expected message.
-				System.IAsyncResult iar = this._conn_networkstream.BeginRead(this._buffer.Buffer,
-																			this._received_byte_count,
-																			this._number_of_expected_bytes - this._received_byte_count,
-																			this.CALLBACK_Receive_Read_Data,
-																			this);
+				var iar = this._conn_networkstream.BeginRead(this._buffer.Buffer,
+															 this._received_byte_count,
+															 this._number_of_expected_bytes - this._received_byte_count,
+															 this.CALLBACK_Receive_Read_Data,
+															 this);
 
 				this.Logger?.Trace(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Queue_Async_Read)} - " +
@@ -535,17 +582,74 @@ namespace OGA.TCP
 			}
 		}
 
-		/// <summary>
-		/// Internal callback used to respond to data received from the connection.
-		/// Will handle decoding and spawn any handling of each message.
-		/// </summary>
-		/// <param name="iar"></param>
-		private void CALLBACK_Receive_Read_Data(System.IAsyncResult iar)
+        private async Task Arm_FrameReadTimeout()
+        {
+			try
+			{
+				// Start the timeout...
+				await Task.Delay(FrameReadTimeout, this._readcts.Token);
+
+				// See if it was cancelled (the read finished).
+				if(this._readcts == null || this._readcts.IsCancellationRequested)
+				{
+					// The token was cancelled.
+					// This means, the read callback returned, or the receiver is closing down.
+
+					// In either case, we will simply leave, here...
+					return;
+				}
+				// If here, the task delay expired.
+				// Which means, we've waited too long to read the message frame.
+				// So, we must declare a connection lost, and close it.
+
+				this.Logger?.Error(
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Arm_FrameReadTimeout)} - " +
+					"Failed to read entire data frame.");
+				this.Logger?.Error(
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Arm_FrameReadTimeout)} - " +
+					"Closing down the message endpoint.");
+
+				// Sent a bad state...
+				this.UpdateState(eLoop_ConnectionStatus.Lost, true);
+
+				// Disconnect the client.
+				this.CloseDown();
+
+				// Call the handler for a connection gone bad, in case it is hooked up.
+				this.Call_del_dwent_bad();
+
+				this.Logger?.Error(
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Arm_FrameReadTimeout)} - " +
+					"Endpoint closed down.");
+			}
+			catch(Exception e)
+			{
+				int x = 0;
+			}
+        }
+
+        /// <summary>
+        /// Internal callback used to respond to data received from the connection.
+        /// Will handle decoding and spawn any handling of each message.
+        /// </summary>
+        /// <param name="iar"></param>
+        private void CALLBACK_Receive_Read_Data(System.IAsyncResult iar)
 		{
 			int Result = 0;
 			int Resulta = 0;
 			int tempint = 0;
 			int messagecount = 0;
+
+			// We are in the BeginRead callback.
+			// This means, we are no longer waiting for it to return.
+			// So, we can cancel our timeout logic...
+			// This cancellation will disarm the read timeout logic.
+			if(this._readcts != null)
+			{
+				try { this._readcts?.Cancel(); } catch (Exception) { }
+				try { this._readcts?.Dispose(); } catch (Exception) { }
+				this._readcts = null;
+			}
 
 			// See if we have begun shutting down, and need to stop processing incoming data.
 			if(this._comms_ended)
@@ -557,7 +661,7 @@ namespace OGA.TCP
 					cReceiveLoop cconn = (cReceiveLoop)iar.AsyncState;
 
 					// See how the read turned out.
-					Result = this._conn_networkstream.EndRead(iar);
+					Result = this._conn_networkstream?.EndRead(iar) ?? 0;
 				}
 				catch (Exception e) { }
 
@@ -571,15 +675,7 @@ namespace OGA.TCP
 				this.CloseDown();
 
 				// Call the handler for a connection gone bad, in case it is hooked up.
-				if (this._del_dwent_bad != null)
-				{
-					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-						"Calling the went bad delegate...");
-
-					// The delegate exists.
-					this._del_dwent_bad(this);
-				}
+				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -625,15 +721,7 @@ namespace OGA.TCP
 					this.CloseDown();
 
 					// Call the handler for a connection gone bad, in case it is hooked up.
-					if (this._del_dwent_bad != null)
-					{
-						this.Logger?.Trace(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-						// The delegate exists.
-						this._del_dwent_bad(this);
-					}
+					this.Call_del_dwent_bad();
 
 					this.Logger?.Info(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -662,15 +750,7 @@ namespace OGA.TCP
 				this.CloseDown();
 
 				// Call the handler for a connection gone bad, in case it is hooked up.
-				if (this._del_dwent_bad != null)
-				{
-					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-						"Calling the went bad delegate...");
-
-					// The delegate exists.
-					this._del_dwent_bad(this);
-				}
+				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -698,15 +778,7 @@ namespace OGA.TCP
 				this.CloseDown();
 
 				// Call the handler for a connection gone bad, in case it is hooked up.
-				if (this._del_dwent_bad != null)
-				{
-					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-						"Calling the went bad delegate...");
-
-					// The delegate exists.
-					this._del_dwent_bad(this);
-				}
+				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -734,15 +806,7 @@ namespace OGA.TCP
 				this.CloseDown();
 
 				// Call the handler for a connection gone bad, in case it is hooked up.
-				if (this._del_dwent_bad != null)
-				{
-					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-						"Calling the went bad delegate...");
-
-					// The delegate exists.
-					this._del_dwent_bad(this);
-				}
+				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -769,13 +833,17 @@ namespace OGA.TCP
 			this._received_byte_count = this._received_byte_count + Result;
 
 			// Update our last received timestamp.
-			this._last_received_timestamp = System.DateTime.Now;
+			this._last_received_timestampUTC = System.DateTime.UtcNow;
+			this._metrics.Last_Received_Message_Time = System.DateTime.UtcNow;
 
 			// See if we've received a message length yet.
 			if (this._currentmessagelength == -1)
 			{
 				// We have not marked a received message length yet.
 				// Check if we have enough data for it.
+
+				// Set the state that we're looking for the length...
+				this.frameread_section = 1;
 
 				this.Logger?.Debug(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -785,6 +853,9 @@ namespace OGA.TCP
 				{
 					// Not enough yet for a message length.
 					// We need to start a new begin read to pull some more data.
+
+					// Set the state that we're looking for the length...
+					this.frameread_section = 1;
 
 					this.Logger?.Trace(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -819,15 +890,7 @@ namespace OGA.TCP
 						this.CloseDown();
 
 						// Call the handler for a connection gone bad, in case it is hooked up.
-						if (this._del_dwent_bad != null)
-						{
-							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-							// The delegate exists.
-							this._del_dwent_bad(this);
-						}
+						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
 							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -879,15 +942,7 @@ namespace OGA.TCP
 						this.CloseDown();
 
 						// Call the handler for a connection gone bad, in case it is hooked up.
-						if (this._del_dwent_bad != null)
-						{
-							this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-							// The delegate exists.
-							this._del_dwent_bad(this);
-						}
+						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
 							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -917,7 +972,9 @@ namespace OGA.TCP
 							"Message length was zero. This is a special ping we need to process as such.");
 
 						// We need to update our last message received time here.
-						this._last_received_timestamp = System.DateTime.Now;
+						this._last_received_timestampUTC = System.DateTime.UtcNow;
+						this._metrics.Last_Received_Message_Time = System.DateTime.UtcNow;
+						this._metrics.Received_Message_Count++;
 
 						// We successfully processed the keepalive message from the sender.
 						// We can get ready to read another message from the socket.
@@ -954,15 +1011,7 @@ namespace OGA.TCP
 							this.CloseDown();
 
 							// Call the handler for a connection gone bad, in case it is hooked up.
-							if (this._del_dwent_bad != null)
-							{
-								this.Logger?.Error(
-									$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-									"Calling the went bad delegate...");
-
-								// The delegate exists.
-								this._del_dwent_bad(this);
-							}
+							this.Call_del_dwent_bad();
 
 							this.Logger?.Error(
 								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1006,15 +1055,7 @@ namespace OGA.TCP
 						this.CloseDown();
 
 						// Call the handler for a connection gone bad, in case it is hooked up.
-						if (this._del_dwent_bad != null)
-						{
-							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-								"Calling the went bad delegate...");
-
-							// The delegate exists.
-							this._del_dwent_bad(this);
-						}
+						this.Call_del_dwent_bad();
 
 						this.Logger?.Debug(
 							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1041,6 +1082,9 @@ namespace OGA.TCP
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
 						"Queueing another Async read to receive the message header and payload.");
 
+					// Set the state that we're looking for the data section...
+					this.frameread_section = 2;
+
 					// Make the call to setup another read.
 					Result = this.Queue_Async_Read();
 
@@ -1063,15 +1107,7 @@ namespace OGA.TCP
 						this.CloseDown();
 
 						// Call the handler for a connection gone bad, in case it is hooked up.
-						if (this._del_dwent_bad != null)
-						{
-							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-								"Calling the went bad delegate...");
-
-							// The delegate exists.
-							this._del_dwent_bad(this);
-						}
+						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
 							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1104,15 +1140,7 @@ namespace OGA.TCP
 					this.CloseDown();
 
 					// Call the handler for a connection gone bad, in case it is hooked up.
-					if (this._del_dwent_bad != null)
-					{
-						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-						// The delegate exists.
-						this._del_dwent_bad(this);
-					}
+					this.Call_del_dwent_bad();
 
 					this.Logger?.Error(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1147,6 +1175,9 @@ namespace OGA.TCP
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
 						"Queueing another Async read...");
 
+					// Set the state that we're looking for the data section...
+					this.frameread_section = 2;
+
 					Result = this.Queue_Async_Read();
 
 					// See if an error occurred.
@@ -1168,15 +1199,7 @@ namespace OGA.TCP
 						this.CloseDown();
 
 						// Call the handler for a connection gone bad, in case it is hooked up.
-						if (this._del_dwent_bad != null)
-						{
-							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-								"Calling the went bad delegate...");
-
-							// The delegate exists.
-							this._del_dwent_bad(this);
-						}
+						this.Call_del_dwent_bad();
 
 						this.Logger?.Info(
 							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1223,15 +1246,7 @@ namespace OGA.TCP
 					this.CloseDown();
 
 					// Call the handler for a connection gone bad, in case it is hooked up.
-					if (this._del_dwent_bad != null)
-					{
-						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-						// The delegate exists.
-						this._del_dwent_bad(this);
-					}
+					this.Call_del_dwent_bad();
 
 					this.Logger?.Info(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1287,15 +1302,7 @@ namespace OGA.TCP
 					this.CloseDown();
 
 					// Call the handler for a connection gone bad, in case it is hooked up.
-					if (this._del_dwent_bad != null)
-					{
-						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
-							"Calling the went bad delegate...");
-
-						// The delegate exists.
-						this._del_dwent_bad(this);
-					}
+					this.Call_del_dwent_bad();
 
 					this.Logger?.Error(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
@@ -1324,18 +1331,15 @@ namespace OGA.TCP
 			}
 		}
 
-
-
-		/// <summary>
-		/// Private method to handle a complete message received from the wire.
-		/// It will recover the message from the buffer, and send it along for processing.
-		/// Returns 1 for success.
-		/// Returns negatives for error.
-		/// </summary>
-		/// <returns></returns>
-		private int Process_Received_MessageBuffer()
+        /// <summary>
+        /// Private method to handle a complete message received from the wire.
+        /// It will recover the message from the buffer, and send it along for processing.
+        /// Returns 1 for success.
+        /// Returns negatives for error.
+        /// </summary>
+        /// <returns></returns>
+        private int Process_Received_MessageBuffer()
 		{
-			int Result = 0;
 			int bytepointer = 0;
 			int payloadlength = 0;
 
@@ -1393,8 +1397,12 @@ namespace OGA.TCP
 			// We do this by firing a delegate that our owner gave us.
 			if(this._del_message_received != null)
 			{
-				// Tell the owner that a message has arrive.d
-				this._del_message_received(this, rawmsg);
+				// Tell the owner that a message has arrived.
+				try
+				{
+					this._del_message_received(this, rawmsg);
+				}
+				catch (Exception) { }
 			}
 
 			this.Logger?.Info(
@@ -1404,6 +1412,11 @@ namespace OGA.TCP
 			// Return success to the caller.
 			return 1;
 		}
+
+		#endregion
+
+
+		#region Buffer Handling
 
 		protected void Resize_Buffer_if_Needed(int needed_size)
 		{
@@ -1439,7 +1452,35 @@ namespace OGA.TCP
 			this._number_of_expected_bytes = 4;
 			// Reset the message length parameter.
 			this._currentmessagelength = -1;
+
+			// Set the search state to frame length...
+			this.frameread_section = 1;
 		}
+
+		#endregion
+
+
+		#region Delegate Callback Handling
+
+        private void Call_del_dwent_bad()
+        {
+			try
+			{
+				if (this._del_dwent_bad != null)
+				{
+					this.Logger?.Error(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Call_del_dwent_bad)} - " +
+						"Calling the went bad delegate...");
+
+					// The delegate exists.
+					this._del_dwent_bad(this);
+				}
+			}
+			catch (Exception) { }
+        }
+
+		#endregion
+
 
 		#region Status Change Methods
 
@@ -1463,7 +1504,7 @@ namespace OGA.TCP
 			{
 				// No state change.
 				this.Logger?.Error(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
 
 				return;
@@ -1472,7 +1513,7 @@ namespace OGA.TCP
 			{
 				// No state change.
 				this.Logger?.Error(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
 				return;
 			}
@@ -1480,11 +1521,59 @@ namespace OGA.TCP
 			{
 				// No state change.
 				this.Logger?.Error(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
 				return;
 			}
 			// The state is changing.
+
+			// Validate transitions...
+			if(this.State == eLoop_ConnectionStatus.Initialized)
+			{
+				if(newstate != eLoop_ConnectionStatus.Newly_Opened &&
+					newstate != eLoop_ConnectionStatus.Error)
+				{
+					this.Logger?.Error(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+						"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
+					return;
+				}
+			}
+			if(this.State == eLoop_ConnectionStatus.Newly_Opened)
+			{
+				if(newstate != eLoop_ConnectionStatus.Open &&
+					newstate != eLoop_ConnectionStatus.Error &&
+					newstate != eLoop_ConnectionStatus.Lost &&
+					newstate != eLoop_ConnectionStatus.Shutting_Down)
+				{
+					this.Logger?.Error(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+						"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
+					return;
+				}
+			}
+			if(this.State == eLoop_ConnectionStatus.Open)
+			{
+				if(newstate != eLoop_ConnectionStatus.Lost &&
+					newstate != eLoop_ConnectionStatus.Error &&
+					newstate != eLoop_ConnectionStatus.Shutting_Down)
+				{
+					this.Logger?.Error(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+						"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
+					return;
+				}
+			}
+			if(this.State == eLoop_ConnectionStatus.Shutting_Down)
+			{
+				if(newstate != eLoop_ConnectionStatus.Closed)
+				{
+					this.Logger?.Error(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+						"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
+					return;
+				}
+			}
 
 			// Create the state change string that we will pass along.
 			state_change_string = "Status changed from " + this.State.ToString() + " to " + newstate.ToString() + ".";
@@ -1500,14 +1589,18 @@ namespace OGA.TCP
 			}
 
 			this.Logger?.Debug(
-				$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+				$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 				state_change_string);
 
 			// Call the status change handler if registered.
 			if (this._del_Status_Change != null)
 			{
 				// Call the status change handler.
-				this._del_Status_Change(this, state_change_string);
+				try
+				{
+					this._del_Status_Change(this, state_change_string);
+				}
+				catch (Exception) { }
 			}
 		}
 		protected void PromoteStatus_from_NewlyOpen_to_Open()
@@ -1515,7 +1608,7 @@ namespace OGA.TCP
 			if (this.State == eLoop_ConnectionStatus.Newly_Opened)
 			{
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(PromoteStatus_from_NewlyOpen_to_Open)} - " +
 					"Promoting status from Newly Open to Open.");
 
 				this.UpdateState(eLoop_ConnectionStatus.Open);

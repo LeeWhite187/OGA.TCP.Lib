@@ -124,6 +124,8 @@ namespace OGA.TCP.Server
             _classname = nameof(TCPEndpoint);
 
             this._client = client;
+
+            this._metrics = new cEndpoint_Metrics();
         }
 
         #endregion
@@ -320,6 +322,19 @@ namespace OGA.TCP.Server
 				// Return success to the caller.
 				return length;
 			}
+            catch (System.Net.Sockets.SocketException se)
+            {
+                // IO Exception occurred.
+                // We can no longer trust the connection.
+
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(se,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
+                    "Socket Exception occurred while attempting to send a message to the wire.");
+
+                this.UpdateState(eEndpoint_ConnectionStatus.Lost);
+
+                return -6;
+            }
 			catch (System.IO.IOException ioe)
 			{
 				// IO Exception occurred.
