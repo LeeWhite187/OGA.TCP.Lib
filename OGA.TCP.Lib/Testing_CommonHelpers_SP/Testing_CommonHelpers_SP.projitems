@@ -14,5 +14,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\clientproperties.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cListener_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\CommonChannel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helpers\SimpleGeneric.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helpers\SimplePOCO2.cs" />
   </ItemGroup>
 </Project>

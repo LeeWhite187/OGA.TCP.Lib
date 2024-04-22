@@ -21,7 +21,7 @@ namespace OGA.TCP.Server.Lib_Tests.Helpers
         public int Generate_Connected_TcpClient_Pair(int port)
         {
             // Setup a listener.
-            cListener_Helper l = new cListener_Helper();
+            Testing_CommonHelpers_SP.Helpers.cListener_Helper l = new Testing_CommonHelpers_SP.Helpers.cListener_Helper();
             l.Listening_IP = IPAddress.Parse("0.0.0.0");
             l.Listening_Port = port;
             l.OnNew_Client_Connection = this.CALLBACK_Server_NewConnection;
@@ -56,7 +56,7 @@ namespace OGA.TCP.Server.Lib_Tests.Helpers
         }
 
 
-        private void CALLBACK_Server_NewConnection(cListener_Helper l, TcpClient newclient)
+        private void CALLBACK_Server_NewConnection(Testing_CommonHelpers_SP.Helpers.cListener_Helper l, TcpClient newclient)
         {
             // The listener gave us a connection with a client.
             // Post the server side of the connection.

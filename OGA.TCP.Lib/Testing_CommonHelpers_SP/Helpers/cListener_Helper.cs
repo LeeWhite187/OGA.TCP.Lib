@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
-namespace OGA.TCP.Server
+namespace Testing_CommonHelpers_SP.Helpers
 {
     /// <summary>
-    /// Bastardized listener class, used for testing.
-    /// NOTE: THIS CLASS IS NOT FOR PRODUCTION USAGE.
+    /// TESTING HELPER CLASS.
+    /// IS A COPY OF cLISTENER.cs
     /// </summary>
     public class cListener_Helper
     {
