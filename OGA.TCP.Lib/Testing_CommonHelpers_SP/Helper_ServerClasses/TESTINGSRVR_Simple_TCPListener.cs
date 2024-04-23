@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using OGA.TCP.Server.Model;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -9,15 +7,19 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Testing.WSEndpoint_Tests.HelperClasses;
+using OGA.TCP.Server.Model;
+using Testing_CommonHelpers_SP.Helpers;
 
 namespace OGA.TCP.Server
 {
     /// <summary>
+    /// NOT FOR PRODUCTION USE.
+    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
     /// Wraps around the cListener class, similar to a WS Connection Manager.
     /// Provides a means to easily spawn and monitor a server-side, TCP Endpoint during testing.
     /// NOTE: THIS CLASS IS NOT FOR PRODUCTION USAGE.
     /// </summary>
-    public class Simple_TCPListener
+    public class TESTINGSRVR_Simple_TCPListener
     {
         private bool disposedValue;
         private CancellationTokenSource _cts;
@@ -34,10 +36,10 @@ namespace OGA.TCP.Server
 
         public int ClosureCount = 0;
 
-        public TCPEndpoint ServerSide_TCPEndpoint;
-        public cListener Listener;
+        public TESTINGSRVR_TCPEndpoint ServerSide_TCPEndpoint;
+        public TESTINGSRVR_cListener Listener;
 
-        public Simple_TCPListener()
+        public TESTINGSRVR_Simple_TCPListener()
         {
 
         }
@@ -80,7 +82,7 @@ namespace OGA.TCP.Server
             {
                 this._cts = new CancellationTokenSource();
 
-                this.Listener = new cListener();
+                this.Listener = new TESTINGSRVR_cListener();
                 this.Listener.OnNew_Client_Connection = this.ListenerCALLBACK_OnNew_Client_Connection;
                 this.Listener.OnStatus_Change = this.ListenerCALLBACK_OnStatus_Change;
                 this.Listener.Listening_IP = System.Net.IPAddress.Parse(Host);
@@ -110,12 +112,12 @@ namespace OGA.TCP.Server
             return 1;
         }
 
-        private void ListenerCALLBACK_OnStatus_Change(cListener l, string statusupdate)
+        private void ListenerCALLBACK_OnStatus_Change(TESTINGSRVR_cListener l, string statusupdate)
         {
             int x = 0;
         }
 
-        private async void ListenerCALLBACK_OnNew_Client_Connection(cListener l, TcpClient newclient)
+        private async void ListenerCALLBACK_OnNew_Client_Connection(TESTINGSRVR_cListener l, TcpClient newclient)
         {
             try
             {
@@ -145,7 +147,7 @@ namespace OGA.TCP.Server
                 }
 
                 // Hand off the connection to the TCPEndpoint instance...
-                ServerSide_TCPEndpoint = new TCPEndpoint(newclient);
+                ServerSide_TCPEndpoint = new TESTINGSRVR_TCPEndpoint(newclient);
 
                 if(DoSomethingWith_ConnectionRegistration)
                 {
@@ -176,19 +178,19 @@ namespace OGA.TCP.Server
         }
 
 
-        private void Handle_ConnectionClosed(Endpoint_Abstract mep)
+        private void Handle_ConnectionClosed(TESTINGSRVR_Endpoint_Abstract mep)
         {
             ClosureCount++;
         }
 
-        private void Handle_ConnectionRegistration(Endpoint_Abstract mep, ClientInfo oldvals, ClientInfo newvals)
+        private void Handle_ConnectionRegistration(TESTINGSRVR_Endpoint_Abstract mep, TESTINGSRVR_ClientInfo oldvals, TESTINGSRVR_ClientInfo newvals)
         {
             OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                $"{nameof(Simple_TCPListener)}:-::{nameof(Handle_ConnectionRegistration)} - " +
+                $"{nameof(TESTINGSRVR_Simple_TCPListener)}:-::{nameof(Handle_ConnectionRegistration)} - " +
                 "Received connection registration message from client.");
 
             // Create a connection entry that we will forward to the client Mapping Service...
-            var ce = new ConnectionEntry_v1();
+            var ce = new TESTINGSRVR_ConnectionEntry_v1();
             mep.Populate_ConnectionEntry(ce);
 
             // Add our WS Host name to the connection entry...

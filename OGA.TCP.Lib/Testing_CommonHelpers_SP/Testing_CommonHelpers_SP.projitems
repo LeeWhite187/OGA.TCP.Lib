@@ -12,9 +12,17 @@
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClientServer_Test_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClient_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\clientproperties.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Helpers\cListener_Helper.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_cListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\CommonChannel.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Helpers\SimpleGeneric.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Helpers\SimplePOCO2.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HelperMessages\SimpleGeneric.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HelperMessages\SimplePOCO2.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_Simple_TCPListener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_ConnectionEntry_v1.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_ClientInfo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_Endpoint_Abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_TCPEndpoint.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="$(MSBuildThisFileDirectory)HelperMessages\" />
   </ItemGroup>
 </Project>

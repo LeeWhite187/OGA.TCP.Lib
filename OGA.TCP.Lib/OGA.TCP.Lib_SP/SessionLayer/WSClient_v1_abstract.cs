@@ -20,7 +20,7 @@ namespace OGA.TCP.SessionLayer
     /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
     /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
     /// </summary>
-    public abstract class WSClient_v1_abstract : Client_Abstract, IDisposable
+    public abstract class WSClient_v1_Abstract : Client_v1_Abstract, IDisposable
     {
         #region Private Fields
 
@@ -115,9 +115,9 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Constructor requires a logger instance.
         /// </summary>
-        public WSClient_v1_abstract(NLog.ILogger logger = null) : base(logger)
+        public WSClient_v1_Abstract(NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(WSClient_v1_abstract);
+            _classname = nameof(WSClient_v1_Abstract);
         }
 
         #endregion

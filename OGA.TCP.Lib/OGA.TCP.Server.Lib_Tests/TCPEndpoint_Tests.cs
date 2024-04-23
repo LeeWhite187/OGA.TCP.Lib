@@ -14,6 +14,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -25,6 +26,11 @@ namespace OGA.TCP_Test_SP
 {
     /*  TCPEndpoint Tests
      
+        //  Test_1_0_0  Create a connected TcpClient pair.
+        //              Verify both indicate connected.
+        //              Close the server side instance in the same fashion as the TCPEndpoint.
+        //              Verify the server side TcpClient indicates closed.
+        //              Verify the client side TcpClient indicates closed.
         //  Test_1_1_0  Create server endpoint instance with unopened TcpClient.
         //              Verify endpoint indicates closed and initialized.
         //  Test_1_1_1  Create connected TcpClient pair.
@@ -114,8 +120,6 @@ namespace OGA.TCP_Test_SP
         //              Enable keepalive.
         //              Wait the timeout period.
         //              Check that the connection is closed.
-        //              Attempt to send a ping on the closed connection.
-        //              Verify the send failed.
         //              Verify the server-side WSEndpoint indicates registered.
         //              Verify the server-side WSEndpoint indicates a closed connection.
         //              Verify the server-side WSEndpoint has a connectionId and DeviceId.
@@ -147,7 +151,6 @@ namespace OGA.TCP_Test_SP
         //              Verify the server-side WSEndpoint indicates an open connection.
         //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the connection closes.
         //              Verify the server-side WSEndpoint remains in a registered state.
         //              Verify the server-side WSEndpoint indicates a closed connection.
         // Test 15.2 -  Open a websocket connection.
@@ -157,7 +160,6 @@ namespace OGA.TCP_Test_SP
         //              Verify the server-side WSEndpoint indicates an open connection.
         //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the connection closes.
         //              Verify the server-side WSEndpoint remains in a registered state.
         //              Verify the server-side WSEndpoint indicates a closed connection.
 
@@ -312,21 +314,27 @@ namespace OGA.TCP_Test_SP
 
         //  Test server-side message sending.
         // Test 22a -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a POCO instance.
         //              Verify the client receives the POCO instance and its correct class name.
         // Test 22b -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a concreted POCO generic instance.
         //              Verify the client receives the concreted POCO generic instance and its correct class name.
         // Test 22c -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a string instance.
         //              Verify the client receives the string and a type of string.
         // Test 22d -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send an integer instance.
         //              Verify the client receives the integer and a type of int32.
         // Test 22e -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send an empty string.
         //              Verify the client receives the blank string and a type of string.
         // Test 22f -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send the json string of a POCO with a type name.
         //              Verify the client receives the json string and the correct type name.
 
@@ -363,8 +371,8 @@ namespace OGA.TCP_Test_SP
         //              Verify the server received the entire string.
         // Test 24g -   Open a websocket connection.
         //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
-        //              From the client, send a 100MB string.
-        //              Verify the server received the entire string.
+        //              From the client, send a 1.1MB string.
+        //              Verify the server endpoint failed to receive it.
 
      */
 
@@ -377,7 +385,7 @@ namespace OGA.TCP_Test_SP
         private List<MessageEnvelope> receivedmsgs = new List<MessageEnvelope>();
 
         private Simple_TCPListener _wsl;
-        string tcphost = "localhost";
+        string tcphost = "192.168.1.128";
         int tcpport = 5000;
 
         private CancellationTokenSource _receive_cts = new CancellationTokenSource();
@@ -408,10 +416,16 @@ namespace OGA.TCP_Test_SP
 
             // Reset status...
             Simple_TCPListener.DoSomethingWith_ConnectionRegistration = false;
+            Simple_TCPListener.DoSomethingWith_ConnectionClosure = false;
+            Simple_TCPListener.AllowQuietClients = true;
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = true;
+            Simple_TCPListener.Keepalive_Timeout = 20;
 
             CommonChannel.Callback_Queue = new System.Collections.Concurrent.ConcurrentQueue<string>();
-
             CommonChannel.CallbackChannel_MessageEnvelope = new System.Collections.Concurrent.ConcurrentQueue<MessageEnvelope>();
+
+            // Reset the received message metrics...
+            this.Reset_ReceivedMessageData();
 
             /// Make sure we only add one of these...
             if(Trace.Listeners.Count == 0)
@@ -423,6 +437,8 @@ namespace OGA.TCP_Test_SP
             }
 
             _wsl = new Simple_TCPListener();
+            _wsl.Host = tcphost;
+            _wsl.Port = tcpport;
             var res = _wsl.Start();
         }
 
@@ -772,14 +788,17 @@ namespace OGA.TCP_Test_SP
             int counter = 0;
             int counter_limit = 1;
 
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
+
             // Create a client socket, and attempt connection...
             TcpClient tcp = new TcpClient();
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
-            await Task.Delay(2000);
+            await Task.Delay(1000);
 
             while(tcp.Connected && counter < counter_limit)
             {
@@ -794,6 +813,8 @@ namespace OGA.TCP_Test_SP
                         Assert.Fail("Failed to send message.");
                     }
 
+                    // Wait for the reply...
+                    await Task.Delay(1000);
 
                     // Receive the message via our client connection...
                     if(this.receivedmsgs.Count != 1)
@@ -856,7 +877,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(2000);
 
@@ -873,6 +895,9 @@ namespace OGA.TCP_Test_SP
                         Assert.Fail("Failed to send message.");
                     }
 
+
+                    // Wait for the reply...
+                    await Task.Delay(1000);
 
                     // Receive the message via our client connection...
                     if(this.receivedmsgs.Count != 1)
@@ -963,7 +988,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(2000);
 
@@ -989,6 +1015,9 @@ namespace OGA.TCP_Test_SP
                         Assert.Fail("Failed to send message.");
                     }
 
+
+                    // Wait for the reply...
+                    await Task.Delay(1000);
 
                     // Receive the message via our client connection...
                     if(this.receivedmsgs.Count != 1)
@@ -1051,7 +1080,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(2000);
 
@@ -1077,6 +1107,9 @@ namespace OGA.TCP_Test_SP
                         Assert.Fail("Failed to send message.");
                     }
 
+
+                    // Wait for the reply...
+                    await Task.Delay(1000);
 
                     // Receive the message via our client connection...
                     if(this.receivedmsgs.Count != 1)
@@ -1138,7 +1171,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(2000);
 
@@ -1164,16 +1198,12 @@ namespace OGA.TCP_Test_SP
                     }
 
 
+                    // Wait for the reply...
+                    await Task.Delay(1000);
+
                     // Receive the message via our client connection...
-                    if(this.receivedmsgs.Count != 1)
+                    if(this.receivedmsgs.Count != 0)
                         Assert.Fail("Failed to receive message.");
-                    var me2 = this.receivedmsgs[0];
-                    // Clear the received message list..
-                    this.receivedmsgs.Clear();
-
-
-                    if(me2 != null)
-                        Assert.Fail("Expected null message.");
                 }
                 finally
                 {
@@ -1303,7 +1333,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1407,7 +1438,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1516,7 +1548,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1601,8 +1634,6 @@ namespace OGA.TCP_Test_SP
         //              Enable keepalive.
         //              Wait the timeout period.
         //              Check that the connection is closed.
-        //              Attempt to send a ping on the closed connection.
-        //              Verify the send failed.
         //              Verify the server-side WSEndpoint indicates registered.
         //              Verify the server-side WSEndpoint indicates a closed connection.
         //              Verify the server-side WSEndpoint has a connectionId and DeviceId.
@@ -1619,7 +1650,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1649,23 +1681,11 @@ namespace OGA.TCP_Test_SP
                 Assert.Fail("Failed to send message.");
             }
 
+            var lasttime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
+            var ctime = DateTime.UtcNow;
+
             // Wait longer than the keepalive time should be...
             System.Threading.Thread.Sleep(10000);
-
-            // Check that the socket closed...
-            if(!tcp.Connected)
-            {
-                // The connection is no longer open.
-                Assert.Fail("Connection should be aborted.");
-            }
-
-            // Try sending a ping message on the aborted connection...
-            var res6 = await SendPingMessage(tcp);
-            if(res6 != -2)
-            {
-                // Connection should have failed.
-                Assert.Fail("Should have failed.");
-            }
 
             // Verify the server-side WSEndpoint indicates registered.
             if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
@@ -1707,7 +1727,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1728,19 +1749,11 @@ namespace OGA.TCP_Test_SP
 
             System.Threading.Thread.Sleep(1000);
 
-            // Check that the socket closed...
+            // Check that the client still thinks it is open...
             if(!tcp.Connected)
             {
-                // The connection is no longer open.
-                Assert.Fail("Connection should be aborted.");
-            }
-
-            // Try sending a ping message on the aborted connection...
-            var res6 = await SendPingMessage(tcp);
-            if(res6 != -2)
-            {
-                // Connection should have failed.
-                Assert.Fail("Should have failed.");
+                // The connection was not still open.
+                Assert.Fail("Connection should still be open.");
             }
 
             // Verify the server-side WSEndpoint indicates unregistered.
@@ -1780,7 +1793,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1801,19 +1815,11 @@ namespace OGA.TCP_Test_SP
 
             System.Threading.Thread.Sleep(1000);
 
-            // Check that the socket closed...
+            // Check that the client still thinks it is open...
             if(!tcp.Connected)
             {
-                // The connection is no longer open.
-                Assert.Fail("Connection should be aborted.");
-            }
-
-            // Try sending a ping message on the aborted connection...
-            var res6 = await SendPingMessage(tcp);
-            if(res6 != -2)
-            {
-                // Connection should have failed.
-                Assert.Fail("Should have failed.");
+                // The connection was not still open.
+                Assert.Fail("Connection should still be open.");
             }
 
             // Verify the server-side WSEndpoint indicates unregistered.
@@ -1853,7 +1859,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -1877,7 +1884,7 @@ namespace OGA.TCP_Test_SP
             // Check that the socket is still open...
             if(!tcp.Connected)
             {
-                // The connection is no longer open.
+                // The connection is still open.
                 Assert.Fail("Connection should still be open.");
             }
 
@@ -1929,7 +1936,6 @@ namespace OGA.TCP_Test_SP
         //              Verify the server-side WSEndpoint indicates an open connection.
         //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the connection closes.
         //              Verify the server-side WSEndpoint remains in a registered state.
         //              Verify the server-side WSEndpoint indicates a closed connection.
         [TestMethod]
@@ -1945,7 +1951,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -2035,13 +2042,6 @@ namespace OGA.TCP_Test_SP
 
             System.Threading.Thread.Sleep(1000);
 
-            // Check that the socket closed...
-            if(tcp.Connected)
-            {
-                // The connection is still open.
-                Assert.Fail("Connection should have closed.");
-            }
-
             // Verify the server-side WSEndpoint remains registered.
             if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                 Assert.Fail("WSEndpoint should claim registered.");
@@ -2070,7 +2070,6 @@ namespace OGA.TCP_Test_SP
         //              Verify the server-side WSEndpoint indicates an open connection.
         //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the connection closes.
         //              Verify the server-side WSEndpoint remains in a registered state.
         //              Verify the server-side WSEndpoint indicates a closed connection.
         [TestMethod]
@@ -2086,7 +2085,8 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start a receive loop, so we only have to collect waiting messages...
-            var rrr = await StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             await Task.Delay(1000);
 
@@ -2182,13 +2182,6 @@ namespace OGA.TCP_Test_SP
 
             System.Threading.Thread.Sleep(1000);
 
-            // Check that the socket closed...
-            if(tcp.Connected)
-            {
-                // The connection is still open.
-                Assert.Fail("Connection should have closed.");
-            }
-
             // Verify the server-side WSEndpoint remains registered.
             if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                 Assert.Fail("WSEndpoint should claim registered.");
@@ -2233,9 +2226,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side WSEndpoint Connection Time agrees...
             var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
-            var deltat = ssepctime.Subtract(conntime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(ssepctime, conntime, 100))
                 Assert.Fail("Expected pong message.");
 
             int x = 0;
@@ -2266,9 +2257,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side WSEndpoint Connection Time agrees...
             var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
-            var deltat = ssepctime.Subtract(conntime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(ssepctime, conntime, 100))
                 Assert.Fail("Expected pong message.");
 
             // Close the client connection...
@@ -2279,9 +2268,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side WSEndpoint Connection Time agrees...
             var ssepctime2 = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
-            var deltat2 = ssepctime2.Subtract(conntime);
-
-            if(deltat2.TotalMilliseconds > 100)
+            if(!AreDatesClose(ssepctime2, conntime, 100))
                 Assert.Fail("Expected pong message.");
 
             int x = 0;
@@ -2312,9 +2299,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side WSEndpoint Connection Time agrees...
             var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
-            var deltat = ssepctime.Subtract(conntime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(ssepctime, conntime, 100))
                 Assert.Fail("Expected pong message.");
 
             // Dispose the client connection...
@@ -2325,9 +2310,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side WSEndpoint Connection Time agrees...
             var ssepctime2 = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
-            var deltat2 = ssepctime2.Subtract(conntime);
-
-            if(deltat2.TotalMilliseconds > 100)
+            if(!AreDatesClose(ssepctime2, conntime, 100))
                 Assert.Fail("Expected pong message.");
 
             int x = 0;
@@ -2356,10 +2339,8 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Unregistered Age agrees...
             var unregage = this._wsl.ServerSide_TCPEndpoint.ClientInfo.UnRegisteredAge;
-            var connduration = DateTime.UtcNow.Subtract(conntime);
-            var deltat = connduration.Subtract(unregage);
-
-            if(deltat.TotalMilliseconds > 100)
+            var connduration = DateTime.UtcNow.Subtract(unregage);
+            if(!AreDatesClose(connduration, conntime, 100))
                 Assert.Fail("Registration age is too high.");
 
             int x = 0;
@@ -2390,10 +2371,8 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Unregistered Age agrees...
             var unregage = this._wsl.ServerSide_TCPEndpoint.ClientInfo.UnRegisteredAge;
-            var connduration = DateTime.UtcNow.Subtract(conntime);
-            var deltat = connduration.Subtract(unregage);
-
-            if(deltat.TotalMilliseconds > 100)
+            var connduration = DateTime.UtcNow.Subtract(unregage);
+            if(!AreDatesClose(connduration, conntime, 100))
                 Assert.Fail("Registration age is too high.");
 
 
@@ -2441,12 +2420,9 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Unregistered Age agrees...
             var unregage = this._wsl.ServerSide_TCPEndpoint.ClientInfo.UnRegisteredAge;
-            var connduration = DateTime.UtcNow.Subtract(conntime);
-            var deltat = connduration.Subtract(unregage);
-
-            if(deltat.TotalMilliseconds > 100)
+            var connduration = DateTime.UtcNow.Subtract(unregage);
+            if(!AreDatesClose(connduration, conntime, 100))
                 Assert.Fail("Registration age is too high.");
-
 
             // Create some client registration data for a WSLibver=2 client...
             var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -2464,14 +2440,12 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Unregistered Age remains non-zero and larger than before...
             var unregage2 = this._wsl.ServerSide_TCPEndpoint.ClientInfo.UnRegisteredAge;
-            var connduration2 = DateTime.UtcNow.Subtract(conntime);
-            var deltat2 = connduration.Subtract(unregage);
-
-            if(deltat2.TotalMilliseconds > 100)
+            var connduration2 = DateTime.UtcNow.Subtract(unregage2);
+            if(!AreDatesClose(connduration2, conntime, 100))
                 Assert.Fail("Registration age is too high.");
 
-            if(deltat.TotalMilliseconds > deltat2.TotalMilliseconds)
-                Assert.Fail("Registration age mismatch.");
+            if(unregage2.TotalMilliseconds < unregage.TotalMilliseconds)
+                Assert.Fail("Registration age mismatch expected.");
 
             int x = 0;
         }
@@ -2501,9 +2475,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             int x = 0;
@@ -2536,9 +2508,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a chat message...
@@ -2551,9 +2521,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2586,9 +2554,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
 
@@ -2606,9 +2572,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2641,9 +2605,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a connection request message...
@@ -2656,9 +2618,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2691,9 +2651,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a connection request message...
@@ -2702,13 +2660,11 @@ namespace OGA.TCP_Test_SP
                 Assert.Fail("Failed to send connection request message.");
 
             // Wait a second for the server to handle the nessage...
-            System.Threading.Thread.Sleep(100);
+            System.Threading.Thread.Sleep(400);
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2741,9 +2697,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a non-MessageEnvelope message...
@@ -2756,9 +2710,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2791,9 +2743,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a ping message...
@@ -2806,9 +2756,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -2841,9 +2789,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time agrees...
             var lrtime = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat = conntime.Subtract(lrtime);
-
-            if(deltat.TotalMilliseconds > 100)
+            if(!AreDatesClose(lrtime, conntime, 100))
                 Assert.Fail("Last Receive time is incorrect.");
 
             // Send a local loopback message...
@@ -2856,9 +2802,7 @@ namespace OGA.TCP_Test_SP
 
             // Check that the server-side Last Received time is very recent...
             var lrtime2 = this._wsl.ServerSide_TCPEndpoint.LastReceivedTimeUTC;
-            var deltat2 = DateTime.UtcNow.Subtract(lrtime2);
-
-            if(deltat2.TotalMilliseconds > 150)
+            if(!AreDatesClose(lrtime2, DateTime.UtcNow, 150))
                 Assert.Fail("Last Receive time is too old.");
 
             int x = 0;
@@ -3324,6 +3268,7 @@ namespace OGA.TCP_Test_SP
 
 
         // Test 22a -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a POCO instance.
         //              Verify the client receives the POCO instance and its correct class name.
         [TestMethod]
@@ -3339,11 +3284,22 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Wait a second for the server connection loop to start...
-            System.Threading.Thread.Sleep(1000);
+            System.Threading.Thread.Sleep(500);
 
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
+
+
+            // Wait for the receiver loop to be active...
+            System.Threading.Thread.Sleep(500);
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
 
 
             // Have the server WSEndpoint send a a json string of a POCO with a type name...
@@ -3357,6 +3313,9 @@ namespace OGA.TCP_Test_SP
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3382,6 +3341,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 22b -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a concreted POCO generic instance.
         //              Verify the client receives the concreted POCO generic instance and its correct class name.
         [TestMethod]
@@ -3396,11 +3356,22 @@ namespace OGA.TCP_Test_SP
             TcpClient tcp = new TcpClient();
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
-            // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
-
             // Wait a second for the server connection loop to start...
-            System.Threading.Thread.Sleep(1000);
+            System.Threading.Thread.Sleep(500);
+
+            // Start the receiver loop, so we can get messages from the server connection...
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
+
+            // Wait for the receiver loop to be active...
+            System.Threading.Thread.Sleep(500);
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
+
 
             // Have the server WSEndpoint send a concreted POCO generic instance...
             var strl = new List<string>();
@@ -3414,6 +3385,8 @@ namespace OGA.TCP_Test_SP
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3437,6 +3410,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 22c -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send a string instance.
         //              Verify the client receives the string and a type of string.
         [TestMethod]
@@ -3451,11 +3425,22 @@ namespace OGA.TCP_Test_SP
             TcpClient tcp = new TcpClient();
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
-            // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
-
             // Wait a second for the server connection loop to start...
-            System.Threading.Thread.Sleep(1000);
+            System.Threading.Thread.Sleep(500);
+
+            // Start the receiver loop, so we can get messages from the server connection...
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
+
+            // Wait for the receiver loop to be active...
+            System.Threading.Thread.Sleep(500);
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
+
 
             // Have the server WSEndpoint send a string...
             string ob = Nanoid.Nanoid.Generate( size:100);
@@ -3465,6 +3450,8 @@ namespace OGA.TCP_Test_SP
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3486,6 +3473,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 22d -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send an integer instance.
         //              Verify the client receives the integer and a type of int32.
         [TestMethod]
@@ -3500,11 +3488,22 @@ namespace OGA.TCP_Test_SP
             TcpClient tcp = new TcpClient();
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
-            // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
-
             // Wait a second for the server connection loop to start...
-            System.Threading.Thread.Sleep(1000);
+            System.Threading.Thread.Sleep(500);
+
+            // Start the receiver loop, so we can get messages from the server connection...
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
+
+            // Wait for the receiver loop to be active...
+            System.Threading.Thread.Sleep(500);
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
+
 
             // Have the server WSEndpoint send an integer...
             int ob = 1234;
@@ -3514,6 +3513,8 @@ namespace OGA.TCP_Test_SP
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3535,6 +3536,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 22e -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send an empty string.
         //              Verify the client receives the blank string and a type of string.
         [TestMethod]
@@ -3549,16 +3551,29 @@ namespace OGA.TCP_Test_SP
             TcpClient tcp = new TcpClient();
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
-            // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
-
             // Wait a second for the server connection loop to start...
-            System.Threading.Thread.Sleep(1000);
+            System.Threading.Thread.Sleep(500);
+
+            // Start the receiver loop, so we can get messages from the server connection...
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
+
+            // Wait for the receiver loop to be active...
+            System.Threading.Thread.Sleep(500);
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
+
 
             var res1 = await this._wsl.ServerSide_TCPEndpoint.Send_SerializedObject_toClient_Async("string", "", "", "");
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3577,6 +3592,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 22f -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, send the json string of a POCO with a type name.
         //              Verify the client receives the json string and the correct type name.
         [TestMethod]
@@ -3592,10 +3608,19 @@ namespace OGA.TCP_Test_SP
             await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
             // Start the receiver loop, so we can get messages from the server connection...
-            var resrl = this.StartReceiveLoop(tcp);
+            if(await this.StartReceiveLoop(tcp) != 1)
+                Assert.Fail("Failed to start receiver loop.");
 
             // Wait a second for the server connection loop to start...
             System.Threading.Thread.Sleep(1000);
+
+
+            // Ensure both ends are connected...
+            if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong value.");
+            if(!tcp.Connected)
+                Assert.Fail("Wrong value.");
+
 
             // Have the server WSEndpoint send a a json string of a POCO with a type name...
             var ob = new SimplePOCO2();
@@ -3609,6 +3634,8 @@ namespace OGA.TCP_Test_SP
             if (res1 != 1)
                 Assert.Fail("Failed to send json object back to client.");
 
+            // Wait for the reply...
+            await Task.Delay(1000);
 
             // Receive the message via our client connection...
             if(this.receivedmsgs.Count != 1)
@@ -3633,6 +3660,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 23a -   Open a websocket connection.
+        //              Ensure the client and server report connected.
         //              From the server-side WSEndpoint, add the same channel handler twice.
         //              Verify the second attempt fails.
         [TestMethod]
@@ -3923,6 +3951,9 @@ namespace OGA.TCP_Test_SP
             // Assign a raw message handler...
             this._wsl.ServerSide_TCPEndpoint.OnRawMessageReceived = this.CALLBACK_OnRawMessageReceived;
 
+            // Reset received message data...
+            this.Reset_ReceivedMessageData();
+
             // Send a raw string message...
             var res = await this.SendRawStringMessage(tcp, messagesize);
             if (res.retcode != 1)
@@ -3936,7 +3967,6 @@ namespace OGA.TCP_Test_SP
 
             // Check how much was received...
             var recsize = this.Get_Received_RawMessage_Size();
-
             if(recsize != messagesize)
                 Assert.Fail("Failed to receive correct message length.");
 
@@ -3948,8 +3978,8 @@ namespace OGA.TCP_Test_SP
 
         // Test 24g -   Open a websocket connection.
         //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
-        //              From the client, send a 100MB string.
-        //              Verify the server received the entire string.
+        //              From the client, send a 1.1MB string.
+        //              Verify the server endpoint failed to receive it.
         [TestMethod]
         public async Task Test_24g()
         {
@@ -3958,7 +3988,7 @@ namespace OGA.TCP_Test_SP
             Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
             Simple_TCPListener.AllowQuietClients = true;
 
-            int messagesize = 100 * 1000 * 1024;
+            int messagesize = (1024 * 1024) + 1024;
 
             // Create a client socket, and attempt connection...
             TcpClient tcp = new TcpClient();
@@ -3969,6 +3999,9 @@ namespace OGA.TCP_Test_SP
 
             // Assign a raw message handler...
             this._wsl.ServerSide_TCPEndpoint.OnRawMessageReceived = this.CALLBACK_OnRawMessageReceived;
+
+            // Reset received message data...
+            this.Reset_ReceivedMessageData();
 
             // Send a raw string message...
             var res = await this.SendRawStringMessage(tcp, messagesize);
@@ -3983,12 +4016,16 @@ namespace OGA.TCP_Test_SP
 
             // Check how much was received...
             var recsize = this.Get_Received_RawMessage_Size();
-
-            if(recsize != messagesize)
+            if(recsize != 0)
                 Assert.Fail("Failed to receive correct message length.");
+            if(this.Received_RawMessage_Hash != "")
+                Assert.Fail("Received hash should have been blank.");
 
-            if(senthash != this.Received_RawMessage_Hash)
-                Assert.Fail("Failed to match hash of sent and received strings.");
+            // Verify the server endpoint closed because the received message was too large...
+            if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                Assert.Fail("Wrong Value");
+            if(this._wsl.ServerSide_TCPEndpoint.State != eEndpoint_ConnectionStatus.Error)
+                Assert.Fail("Wrong Value");
 
             int x = 0;
         }
@@ -4062,7 +4099,11 @@ namespace OGA.TCP_Test_SP
 			// We have a message in the buffer that can be pushed to the wire.
 
 			// Push the buffer to the wire.
-			return this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
+			var res = this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
+            if (res >= 0)
+                return 1;
+            else
+                return -1;
         }
 
 		/// <summary>
@@ -4163,11 +4204,9 @@ namespace OGA.TCP_Test_SP
             // Calculate its hash...
             hashval = ComputeSha256Hash(rawmsg);
 
-            ArraySegment<byte> bytesToSend = new ArraySegment<byte>(Encoding.UTF8.GetBytes(rawmsg));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return (1, hashval);
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(rawmsg);
+            return (await RawTransportSend(newcws.GetStream(), d), hashval);
         }
 
         private async Task<int> SendEnableKeepaliveMessage(TcpClient newcws, clientproperties cd)
@@ -4210,11 +4249,10 @@ namespace OGA.TCP_Test_SP
 
             // Serialize the message...
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
 
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendDisableKeepaliveMessage(TcpClient newcws, clientproperties cd)
         {
@@ -4257,11 +4295,10 @@ namespace OGA.TCP_Test_SP
 
             // Serialize the message...
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
 
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendConnectionRegistrationMessage(TcpClient newcws, clientproperties cd)
         {
@@ -4303,11 +4340,10 @@ namespace OGA.TCP_Test_SP
 
             // Serialize the message...
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
 
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendLoopbackAllMessage(TcpClient newcws, clientproperties cd)
         {
@@ -4352,11 +4388,10 @@ namespace OGA.TCP_Test_SP
 
             // Serialize the message...
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
 
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendLoopbackOFFMessage(TcpClient newcws, clientproperties cd)
         {
@@ -4400,11 +4435,10 @@ namespace OGA.TCP_Test_SP
 
             // Serialize the message...
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
 
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
 
         private async Task<(int retcode, MessageEnvelope msg)> SendLocalEchoMessage(TcpClient newcws)
@@ -4421,11 +4455,9 @@ namespace OGA.TCP_Test_SP
 
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return (1, msg);
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return (await RawTransportSend(newcws.GetStream(), d), msg);
         }
 
         private async Task<int> SendMessage_onChannel(TcpClient newcws, string channel)
@@ -4442,11 +4474,9 @@ namespace OGA.TCP_Test_SP
 
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendChatMessage(TcpClient newcws)
         {
@@ -4462,9 +4492,9 @@ namespace OGA.TCP_Test_SP
 
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            await RawTransportSend(newcws.GetStream(), d);
 
             return 1;
         }
@@ -4482,11 +4512,9 @@ namespace OGA.TCP_Test_SP
 
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendNonMessageEnvelopeMessage(TcpClient newcws)
         {
@@ -4494,21 +4522,17 @@ namespace OGA.TCP_Test_SP
 
             var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendEmptyMessage(TcpClient newcws)
         {
             var jsonstring = "";
 
-            ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-            await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-            return 1;
+            // Convert and send the string...
+            byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+            return await RawTransportSend(newcws.GetStream(), d);
         }
         private async Task<int> SendPingMessage(TcpClient newcws)
         {
@@ -4526,11 +4550,9 @@ namespace OGA.TCP_Test_SP
 
                 var jsonstring = Newtonsoft.Json.JsonConvert.SerializeObject(msg);
 
-                ArraySegment<byte> bytesToSend =new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonstring));
-            
-                await newcws.GetStream().WriteAsync(bytesToSend, CancellationToken.None);
-
-                return 1;
+                // Convert and send the string...
+                byte[] d = Encoding.UTF8.GetBytes(jsonstring);
+                return await RawTransportSend(newcws.GetStream(), d);
             }
             catch(Exception e)
             {
@@ -4543,11 +4565,34 @@ namespace OGA.TCP_Test_SP
 
         #region Private Methods
 
+        private bool AreDatesClose(DateTime d1, DateTime d2, int offset)
+        {
+            if(d1.CompareTo(d2) > 0)
+            {
+                var diff1 = d1.Subtract(d2);
+                return diff1.TotalSeconds < offset;
+            }
+            if(d1.CompareTo(d2) < 0)
+            {
+                var diff2 = d2.Subtract(d1);
+                return diff2.TotalSeconds < offset;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
         private int handler_callback(Endpoint_Abstract ws, string messagetype, string jsondata, string corelationid)
         {
             return 1;
         }
 
+        private void Reset_ReceivedMessageData()
+        {
+            this.Received_RawMessage_Size = 0;
+            this.Received_RawMessage_Hash = "";
+        }
 
         private int Get_Received_RawMessage_Size()
         {
@@ -4629,7 +4674,7 @@ namespace OGA.TCP_Test_SP
             System.Threading.Thread.Sleep(200);
             this._receive_cts = null;
 
-            this.clientrcvloop.Dispose();
+            this.clientrcvloop?.Dispose();
             this.clientrcvloop = null;
 
             return 1;

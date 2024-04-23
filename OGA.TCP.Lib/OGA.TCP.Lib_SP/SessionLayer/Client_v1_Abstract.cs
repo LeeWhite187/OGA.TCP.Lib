@@ -10,7 +10,12 @@ using System.Threading.Tasks;
 
 namespace OGA.TCP.SessionLayer
 {
-    abstract public class Client_Abstract : IDisposable
+    /// <summary>
+    /// Represents a client-side tcp/ws socket endpoint.
+    /// Provides framed message transfer with channel, scope, and custom properties.
+    /// This abstract class gets derived for each transport type.
+    /// </summary>
+    abstract public class Client_v1_Abstract : IDisposable
     {
         #region Private Fields
 
@@ -75,6 +80,15 @@ namespace OGA.TCP.SessionLayer
 
 
         #region Public Properties
+
+        /// <summary>
+        /// Maximum allowed message size for a single frame.
+        /// Prevent allocation attacks. Each packet is prefixed with a length header, so an attacker could send a fake packet with length=2GB,
+        /// causing the server to allocate 2GB and run out of memory quickly.
+        /// -> simply increase max packet size if you want to send around bigger files!
+        /// -> 1MB per message should be more than enough.
+        /// </summary>
+        public int MaxMessageSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
 
         /// <summary>
         /// Set this to the lowercase name of the transport: tcp, ws, etc...
@@ -212,7 +226,7 @@ namespace OGA.TCP.SessionLayer
 
         protected Dictionary<string, DelMessageReceived> _ChannelMessageHandlers;
 
-        public delegate int DelMessageReceived(Client_Abstract mep, string messagetype, string msg);
+        public delegate int DelMessageReceived(Client_v1_Abstract mep, string messagetype, string msg);
         protected DelMessageReceived _delOnMessageReceived;
         /// <summary>
         /// Add a callback, here, to capture raw messages, without channel handling.
@@ -228,7 +242,7 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-        public delegate int DelRawMessageReceived(Client_Abstract mep, string rawstring);
+        public delegate int DelRawMessageReceived(Client_v1_Abstract mep, string rawstring);
         protected DelRawMessageReceived _delOnRawMessageReceived;
         /// <summary>
         /// Normally, this is not used as messages are exchanged as typed classes.
@@ -242,7 +256,7 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-        public delegate void DelConnectionLost(Client_Abstract mep);
+        public delegate void DelConnectionLost(Client_v1_Abstract mep);
         protected DelConnectionLost _delConnectionLost;
         /// <summary>
         /// Add a callback, here, to watch for lost connection events.
@@ -256,7 +270,7 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-		public delegate void dStatus_Change(Client_Abstract mep, string statusupdate);
+		public delegate void dStatus_Change(Client_v1_Abstract mep, string statusupdate);
 		protected dStatus_Change _del_Status_Change;
 		/// <summary>
 		/// Assign a handler to this delegate to receive status changes.
@@ -277,12 +291,12 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Constructor requires a logger instance.
         /// </summary>
-        public Client_Abstract(NLog.ILogger logger = null)
+        public Client_v1_Abstract(NLog.ILogger logger = null)
         {
             _instance_counter++;
             this.InstanceId = _instance_counter;
 
-            _classname = nameof(Client_Abstract);
+            _classname = nameof(Client_v1_Abstract);
 
             // Preset the WSLib Version to the first version...
             LibVersion = LibVersions.CONST_WSLibVersion_1;
@@ -663,7 +677,7 @@ namespace OGA.TCP.SessionLayer
 
 
                                 // Attempt the transport-specific connection...
-                                bool connsuccess = await this.TransportSpecific_Connect();
+                                success = await this.TransportSpecific_Connect();
 
                                 // See if the async connect succeeded...
                                 if (!success)
@@ -1580,12 +1594,34 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         /// <param name="objecttype"></param>
         /// <param name="jsonobject"></param>
+        /// <param name="channel"></param>
+        /// <param name="scope"></param>
+        /// <param name="corelationid"></param>
         /// <returns></returns>
         protected async Task<int> Send_SerializedObject_toEndpoint_Async(string objecttype, string jsonobject, string channel = "", string scope = "", string corelationid = "")
         {
             this.Logger?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toEndpoint_Async)} - " +
                 $"Sending serialized message to {(this.TransportLongName?.ToLower() ?? "")} service.");
+
+            // Ensure any json string exists at this point...
+            if(jsonobject == null)
+                jsonobject = "";
+
+            // Ensure the serialized buffer is not too large for the receiver...
+            // We derate the max size enough to fit the message envelope and header (length value).
+            if(jsonobject.Length > (this.MaxMessageSize - 1024))
+            {
+                // Message is too large to fit in a single message frame.
+                // We will tell the caller, so they can send the message, piece-wise.
+
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"Message is too large ({(jsonobject?.Length.ToString() ?? "unknown size")}) to send to the remote endpoint.");
+
+                return -10;
+            }
+            // The raw message will fit into a single message frame.
 
             // Create and stuff an envelope...
             MessageEnvelope me = new MessageEnvelope();
@@ -1646,7 +1682,9 @@ namespace OGA.TCP.SessionLayer
                 {
                     // Send the message...
                     var res = await this.RawTransportSend(d);
-                    if (res != 1)
+                    if (res >= 1)
+                        return 1;
+                    else
                         return res;
                 }
                 finally

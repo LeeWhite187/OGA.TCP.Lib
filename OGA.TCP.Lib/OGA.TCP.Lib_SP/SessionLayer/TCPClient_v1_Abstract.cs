@@ -22,7 +22,7 @@ namespace OGA.TCP.SessionLayer
     /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
     /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
     /// </summary>
-    public abstract class TCPClient_abstract : Client_Abstract, IDisposable
+    public abstract class TCPClient_v1_Abstract : Client_v1_Abstract, IDisposable
     {
         #region Private Fields
 
@@ -151,6 +151,11 @@ namespace OGA.TCP.SessionLayer
         // we need a timeout (in milliseconds)
         public int SendTimeout { get; set; } = 5000;
 
+        /// <summary>
+        /// Amount of time, in milliseconds, to allow connection before failing.
+        /// </summary>
+        public int ConnectTimeout { get; set; } = 5000;
+
         #endregion
 
 
@@ -159,9 +164,11 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Constructor requires a logger instance.
         /// </summary>
-        public TCPClient_abstract(NLog.ILogger logger = null) : base(logger)
+        public TCPClient_v1_Abstract(NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(TCPClient_abstract);
+            _classname = nameof(TCPClient_v1_Abstract);
+
+            this._metrics = new cEndpoint_Metrics();
         }
 
         #endregion
@@ -216,7 +223,7 @@ namespace OGA.TCP.SessionLayer
             //    resolves the hostname and creates either an IPv4 or an IPv6
             //    socket as needed (see TcpClient source)
             TcpClient newclient = new TcpClient(); // creates IPv4 socket
-            newclient.Client = null; // clear internal IPv4 socket until Connect()
+            //newclient.Client = null; // clear internal IPv4 socket until Connect()
 
             // We are to swap in our new client, here.
             // Copy off the old one, so we can dispose it...
@@ -251,16 +258,31 @@ namespace OGA.TCP.SessionLayer
             {
                 // Attempt to start the connection, and handle any error that results...
                 // NOTE: Here, we call the escape hatch (AsTask()) of the valuetask, so we can have a traditional Task<T> that can be continued.
-#if (NET452 || NET48 || NETStd21)
-                await _client.ConnectAsync(this.tcpconnection_host, this.tcpconnection_port).ContinueWith(task =>
-#else
-                await _client.ConnectAsync(this.tcpconnection_host, this.tcpconnection_port, _cts.Token).AsTask().ContinueWith(task =>
-#endif
+
+                // We've simplified the connection logic, here, to make it compatible across net framework and core versions.
+                // In doing so, we got rid of the ContinueWith clause.
+                var timeoutTask = Task.Delay(this.ConnectTimeout);
+                var connectTask = _client.ConnectAsync(this.tcpconnection_host, this.tcpconnection_port);
+                var completedTask = await Task.WhenAny(timeoutTask, connectTask);
+                if (completedTask == timeoutTask)
+                {
+                    // Timed out while connecting.
+
+                    var msg = $"A timeout occurred while opening the {(this.TransportLongName?.ToLower() ?? "socket")}, " +
+                                $"({(this._connection_string ?? "<connectionstring not defined>")}). Returning...";
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
+                        msg);
+
+                    return success;
+                }
+                else
                 {
                     // If here, the connect method finished.
 
                     // See how it did...
-                    if (task.IsFaulted)
+                    if (connectTask.IsFaulted)
                     {
                         // An exception occurred while attempting to connect to the websoket service.
                         // We will log and leave.
@@ -276,16 +298,16 @@ namespace OGA.TCP.SessionLayer
 #endif
                         try
                         {
-                            te = task?.Exception?.GetBaseException() ?? null;
+                            te = connectTask?.Exception?.GetBaseException() ?? null;
                         }
                         catch (Exception) { }
                         if (te != null)
                             this.Logger?.Error(te,
-                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                                 msg);
                         else
                             this.Logger?.Error(
-                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                                 msg);
                     }
                     else
@@ -294,14 +316,14 @@ namespace OGA.TCP.SessionLayer
                         // So, it may be connected.
 
                         // Verify that we have a connected state...
-                        if(this._client == null)
+                        if (this._client == null)
                         {
                             // The websocket is null.
                             // We will fall out, below, as not successful.
 
                             int x = 0;
                         }
-                        else if(!this._client.Connected)
+                        else if (!this._client.Connected)
                         {
                             // client does not report connected.
 
@@ -315,16 +337,16 @@ namespace OGA.TCP.SessionLayer
 #endif
                             try
                             {
-                                te = task?.Exception?.GetBaseException() ?? null;
+                                te = connectTask?.Exception?.GetBaseException() ?? null;
                             }
                             catch (Exception) { }
                             if (te != null)
                                 this.Logger?.Error(te,
-                                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                                     msg);
                             else
                                 this.Logger?.Error(
-                                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                                     msg);
                         }
                         else
@@ -337,14 +359,14 @@ namespace OGA.TCP.SessionLayer
                             this._client.SendTimeout = SendTimeout;
 
                             this.Logger?.Debug(
-                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                                 $"Successful connection with server, " +
                                 $"({(this._connection_string ?? "<connectionstring not defined>")}). ConnectionID = {(this.ConnectionId ?? "")}.");
 
                             success = true;
                         }
                     }
-                });
+                }
 
                 return success;
             }
@@ -354,7 +376,7 @@ namespace OGA.TCP.SessionLayer
                 // but there is no server running on that ip/port
 
                 this.Logger?.Error(exception,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                     $"Failed to connect to server, " +
                     $"({(this._connection_string ?? "<connectionstring not defined>")}).");
 
@@ -366,7 +388,7 @@ namespace OGA.TCP.SessionLayer
                 // Connect might have failed. thread might have been closed.
 
                 this.Logger?.Error(exception,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
                     $"Failed to connect to server, " +
                     $"({(this._connection_string ?? "<connectionstring not defined>")}).");
 
@@ -395,6 +417,7 @@ namespace OGA.TCP.SessionLayer
                 this._receiveLoop.OnConnection_Went_Bad = this.CALLBACK_Receiver_Conn_Went_Bad;
                 this._receiveLoop.OnMessage_Received = this.CALLBACK_Receiver_Message_Received;
                 this._receiveLoop.OnStatus_Change = this.CALLBACK_Receiver_Status_Change;
+                this._receiveLoop.MaxMessageSize = this.MaxMessageSize;
 
                 // Since the BeginRead method of a TCP socket doesn't accept a cancellation token,
                 //  and we have a receiver cancellation token source that we are using for other transports,

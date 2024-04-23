@@ -272,7 +272,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -383,7 +383,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -398,7 +398,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -458,7 +458,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -473,7 +473,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -535,7 +535,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -550,7 +550,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -567,7 +567,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -640,7 +640,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -716,7 +716,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -820,7 +820,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -924,7 +924,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1029,7 +1029,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1135,7 +1135,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1264,7 +1264,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1392,7 +1392,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1481,7 +1481,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1607,7 +1607,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1761,7 +1761,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1924,7 +1924,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2079,7 +2079,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2235,7 +2235,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2414,7 +2414,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2590,7 +2590,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2732,7 +2732,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2940,7 +2940,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3086,7 +3086,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3266,7 +3266,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3305,7 +3305,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver is open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3387,7 +3387,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3434,7 +3434,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3509,7 +3509,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3552,7 +3552,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3588,7 +3588,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 2)
                     Assert.Fail("Wrong Value");
@@ -3625,7 +3625,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 3)
                     Assert.Fail("Wrong Value");
@@ -3701,7 +3701,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3814,7 +3814,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Verify the last received timestamp matches what we expect it to be...
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, expected_lastmessagetime, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, expected_lastmessagetime, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3889,7 +3889,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3941,7 +3941,7 @@ namespace OGA.TCP_Test_SP
 
                     // Add in the frame length at its beginning.
                     // Set a frame size that is larger than the message...
-                    int toobigval = MessageEnvelope.MaxMessageSize + 1;
+                    int toobigval = OGA.TCP.Constants.CONST_MAX_MessageSize + 1;
                     int serializesize = cCustom_Serializer.Serialize_Integer32(toobigval, ref frame, 0);
                     if (serializesize != 4)
                         Assert.Fail("Failed to serialize size of the frame.");
@@ -3969,7 +3969,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify the last received timestamp matches what we expect it to be...
-                if(!this.IsDateRecent(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -4006,7 +4006,7 @@ namespace OGA.TCP_Test_SP
 
         #region Private Methods
 
-        private bool IsDateRecent(DateTime d1, DateTime d2, int offset)
+        private bool AreDatesClose(DateTime d1, DateTime d2, int offset)
         {
             if(d1.CompareTo(d2) > 0)
             {

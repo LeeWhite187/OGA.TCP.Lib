@@ -1,23 +1,25 @@
-﻿using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Http.HttpResults;
+﻿using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using OGA.Common.Process;
 using OGA.TCP.Messages;
 using OGA.TCP.Server.Model;
 using OGA.TCP.Shared.Encoding;
-using System;
-using System.Collections.Generic;
-using System.Net.Sockets;
-using System.Net.WebSockets;
-using System.Text;
 
 namespace OGA.TCP.Server
 {
     /// <summary>
+    /// NOT FOR PRODUCTION USE.
+    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
     /// Provides tcpsocket connectivity to a single connected client.
     /// Is compatible with clients of LibVersion={1,2}
     /// </summary>
-    public class TCPEndpoint : Endpoint_Abstract, IDisposable
+    public class TESTINGSRVR_TCPEndpoint : TESTINGSRVR_Endpoint_Abstract, IDisposable
     {
         #region Private Fields
 
@@ -119,9 +121,9 @@ namespace OGA.TCP.Server
         /// It requires the web listener already having created the websocket instance from the initial http request.
         /// </summary>
         /// <param name="client"></param>
-        public TCPEndpoint(TcpClient client) : base()
+        public TESTINGSRVR_TCPEndpoint(TcpClient client) : base()
         {
-            _classname = nameof(TCPEndpoint);
+            _classname = nameof(TESTINGSRVR_TCPEndpoint);
 
             this._client = client;
 
@@ -199,7 +201,7 @@ namespace OGA.TCP.Server
                 // Close the connection...
                 try
                 {
-                    this._client.Close();
+                    this._client?.Close();
                 }
                 catch (Exception) { }
 
@@ -207,11 +209,14 @@ namespace OGA.TCP.Server
                 // This gives the client a little time to receive the close message before we dispose.
                 System.Threading.Thread.Sleep(100);
 
+#if (NET452 || NET48)
+#else
                 try
                 {
                     this._client?.Dispose();
                 }
                 catch (Exception) { }
+#endif
             }
         }
 
@@ -224,7 +229,7 @@ namespace OGA.TCP.Server
             this._client = null;
         }
 
-        #endregion
+#endregion
 
 
         #region Send Methods

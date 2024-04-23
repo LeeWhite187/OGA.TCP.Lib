@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Testing_CommonHelpers_SP.Helpers;
 
 namespace OGA.TCP.Server.Lib_Tests.Helpers
 {
@@ -13,15 +14,68 @@ namespace OGA.TCP.Server.Lib_Tests.Helpers
     /// Testing helper class that will stand up a pair of connected TcpClient instances.
     /// The created pair can then be used for endpoint testing.
     /// </summary>
-    public class cClientServer_Test_Helper
+    public class cClientServer_Test_Helper : IDisposable
     {
+        private bool disposedValue;
+
         public TcpClient Clientside_Connection { get; private set; }
         public TcpClient Serverside_Connection { get; private set; }
+
+
+        public cClientServer_Test_Helper()
+        {
+
+        }
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects)
+                }
+
+                Serverside_Connection?.Close();
+#if (NET452)
+                // NET Framework 4.5.2 doesn't have a Dispose() on TcpClient.
+#else
+                Serverside_Connection?.Dispose();
+#endif
+                Serverside_Connection = null;
+                Clientside_Connection?.Close();
+#if (NET452)
+                // NET Framework 4.5.2 doesn't have a Dispose() on TcpClient.
+#else
+                Clientside_Connection?.Dispose();
+#endif
+                Clientside_Connection = null;
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~cClientServer_Test_Helper()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+
 
         public int Generate_Connected_TcpClient_Pair(int port)
         {
             // Setup a listener.
-            Testing_CommonHelpers_SP.Helpers.cListener_Helper l = new Testing_CommonHelpers_SP.Helpers.cListener_Helper();
+            TESTINGSRVR_cListener l = new TESTINGSRVR_cListener();
             l.Listening_IP = IPAddress.Parse("0.0.0.0");
             l.Listening_Port = port;
             l.OnNew_Client_Connection = this.CALLBACK_Server_NewConnection;
@@ -56,7 +110,7 @@ namespace OGA.TCP.Server.Lib_Tests.Helpers
         }
 
 
-        private void CALLBACK_Server_NewConnection(Testing_CommonHelpers_SP.Helpers.cListener_Helper l, TcpClient newclient)
+        private void CALLBACK_Server_NewConnection(TESTINGSRVR_cListener l, TcpClient newclient)
         {
             // The listener gave us a connection with a client.
             // Post the server side of the connection.

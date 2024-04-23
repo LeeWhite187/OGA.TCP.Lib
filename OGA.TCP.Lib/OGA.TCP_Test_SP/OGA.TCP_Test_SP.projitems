@@ -10,6 +10,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)ReceiveLoop_Test.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TCPClient_Implementations\TCPClient_v1_ConnectedDelegate.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TCPClient_Implementations\TCPClient_v1_InjectibleNetworkState.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPClient_v1_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cCustom_Serializer_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />

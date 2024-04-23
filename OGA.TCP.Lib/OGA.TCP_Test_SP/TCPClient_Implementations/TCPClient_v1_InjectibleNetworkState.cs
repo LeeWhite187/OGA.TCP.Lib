@@ -18,11 +18,9 @@ namespace OGA.TCP.SessionLayer
 {
     /// <summary>
     /// Provides connectivity to a TCP endpoint, creating an easy abstraction for message exchange.
-    /// This class has been declared abstract, so usage of it is forced to provide an implementation for determining the websocket connection url.
-    /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
-    /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
+    /// This variation allows injection of network state for testing.
     /// </summary>
-    public class TCPClient_v1 : TCPClient_v1_Abstract, IDisposable
+    public class TCPClient_v1_InjectibleNetworkState : TCPClient_v1_Abstract, IDisposable
     {
         #region Public Properties
 
@@ -58,9 +56,9 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Accepts remote host, port, and logger instance.
         /// </summary>
-        public TCPClient_v1(string host, int port, NLog.ILogger logger = null) : base(logger)
+        public TCPClient_v1_InjectibleNetworkState(string host, int port, NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(TCPClient_v1);
+            _classname = nameof(TCPClient_v1_InjectibleNetworkState);
 
             this.tcpconnection_host = host;
             this.tcpconnection_port = port;
@@ -68,9 +66,9 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Constructor requires a logger instance.
         /// </summary>
-        public TCPClient_v1(NLog.ILogger logger = null) : base(logger)
+        public TCPClient_v1_InjectibleNetworkState(NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(TCPClient_v1);
+            _classname = nameof(TCPClient_v1_InjectibleNetworkState);
         }
 
         #endregion
@@ -107,12 +105,21 @@ namespace OGA.TCP.SessionLayer
         #endregion
 
 
-        #region External Dispatch Methods
+        #region Testing Overrides
 
-        #endregion
+        /// <summary>
+        /// Testing input property for simulating network as available or not.
+        /// </summary>
+        public bool TESTING_NetworkIsAvailable { get; set; }
 
-
-        #region Handle Internal Messages
+        /// <summary>
+        /// This override allows injection of network state into the instance for testing purposes.
+        /// </summary>
+        /// <returns></returns>
+        protected override bool IsInternetAvailable()
+        {
+            return this.TESTING_NetworkIsAvailable;
+        }
 
         #endregion
     }

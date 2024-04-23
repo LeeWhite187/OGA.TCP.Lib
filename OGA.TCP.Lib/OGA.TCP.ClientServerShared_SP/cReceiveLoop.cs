@@ -21,7 +21,7 @@ namespace OGA.TCP
 		/// <summary>
 		/// Tracks how many endpoints have been created for the process.
 		/// </summary>
-		static private volatile int _instance_counter;
+		static protected volatile int _instance_counter;
 
         protected string _classname;
 
@@ -31,11 +31,11 @@ namespace OGA.TCP
 		protected volatile bool _Comms_Begun;
 		protected volatile bool _comms_ended;
 
-		private System.DateTime _last_received_timestampUTC;
+		protected System.DateTime _last_received_timestampUTC;
 
-		private volatile int _received_byte_count;
-		private volatile int _number_of_expected_bytes;
-		private volatile int _currentmessagelength;
+		protected volatile int _received_byte_count;
+		protected volatile int _number_of_expected_bytes;
+		protected volatile int _currentmessagelength;
 
 		/// <summary>
 		/// Need a local reference to the TCPClient so we can check if connected because the network stream class doesn't provide such a message.
@@ -63,6 +63,15 @@ namespace OGA.TCP
 
 
 		#region Public Properties
+
+        /// <summary>
+        /// Maximum allowed message size for a single frame.
+        /// Prevent allocation attacks. Each packet is prefixed with a length header, so an attacker could send a fake packet with length=2GB,
+        /// causing the server to allocate 2GB and run out of memory quickly.
+        /// -> simply increase max packet size if you want to send around bigger files!
+        /// -> 1MB per message should be more than enough.
+        /// </summary>
+        public int MaxMessageSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
 
 		/// <summary>
 		/// Number of milliseconds allowed to read the frame body, once the frame size has been read.
@@ -587,6 +596,9 @@ namespace OGA.TCP
 			try
 			{
 				// Start the timeout...
+				if(this._readcts == null || this._readcts.IsCancellationRequested)
+					return;
+
 				await Task.Delay(FrameReadTimeout, this._readcts.Token);
 
 				// See if it was cancelled (the read finished).
@@ -648,7 +660,7 @@ namespace OGA.TCP
 			{
 				try { this._readcts?.Cancel(); } catch (Exception) { }
 				try { this._readcts?.Dispose(); } catch (Exception) { }
-				this._readcts = null;
+				//this._readcts = null;
 			}
 
 			// See if we have begun shutting down, and need to stop processing incoming data.
@@ -678,14 +690,14 @@ namespace OGA.TCP
 				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Endpoint closed down.");
 
 				return;
 			}
 
 			this.Logger?.Info(
-				$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+				$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Received Data Callback was called to handle data read.");
 
 			try
@@ -697,7 +709,7 @@ namespace OGA.TCP
 				Result = this._conn_networkstream.EndRead(iar);
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"The network stream async read returned for processing.");
 
 				// See if the connection was closed.
@@ -707,11 +719,11 @@ namespace OGA.TCP
 					// We will update our state accordingly.
 
 					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"The network stream received a null frame, indicating the connection was closed by the other end.");
 
 					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Closing down the message endpoint.");
 
 					// Sent a bad state.
@@ -724,7 +736,7 @@ namespace OGA.TCP
 					this.Call_del_dwent_bad();
 
 					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Endpoint closed down.");
 
 					return;
@@ -736,11 +748,11 @@ namespace OGA.TCP
 
 				// Log a message here.
 				this.Logger?.Error(ode,
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"An exception was caught while attempting to read data from the connection.");
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Closing down the message endpoint.");
 
 				// Sent a bad state.
@@ -753,7 +765,7 @@ namespace OGA.TCP
 				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Endpoint closed down.");
 
 				return;
@@ -764,11 +776,11 @@ namespace OGA.TCP
 
 				// Log a message here.
 				this.Logger?.Error(ioe,
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"An exception was caught while attempting to read data from the connection.");
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Closing down the message endpoint.");
 
 				// Sent a bad state.
@@ -781,7 +793,7 @@ namespace OGA.TCP
 				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Endpoint closed down.");
 
 				return;
@@ -792,11 +804,11 @@ namespace OGA.TCP
 
 				// Log a message here.
 				this.Logger?.Error(e,
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"An exception was caught while attempting to read data from the connection.");
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Closing down the message endpoint.");
 
 				// Sent a bad state.
@@ -809,7 +821,7 @@ namespace OGA.TCP
 				this.Call_del_dwent_bad();
 
 				this.Logger?.Info(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Endpoint closed down.");
 
 				return;
@@ -846,7 +858,7 @@ namespace OGA.TCP
 				this.frameread_section = 1;
 
 				this.Logger?.Debug(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"No message length received yet.");
 
 				if (this._received_byte_count < 4)
@@ -858,7 +870,7 @@ namespace OGA.TCP
 					this.frameread_section = 1;
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Not enough received for a message length.");
 
 					// Queue off another read.
@@ -866,7 +878,7 @@ namespace OGA.TCP
 					this._number_of_expected_bytes = 4;
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Queueing another Async read...");
 
 					Result = this.Queue_Async_Read();
@@ -877,10 +889,10 @@ namespace OGA.TCP
 						// An error occurred.
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Error occurred trying to queue an async read. Result=" + Result.ToString() + ".");
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Closing down the message endpoint.");
 
 						// Sent a bad state.
@@ -893,7 +905,7 @@ namespace OGA.TCP
 						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Endpoint closed down.");
 
 						return;
@@ -901,7 +913,7 @@ namespace OGA.TCP
 					// We queued off the initial read operation to wait for data.
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Another Async read was queued to read in rest of message length parameter.");
 
 					return;
@@ -911,10 +923,10 @@ namespace OGA.TCP
 					// We have exactly enough data to parse the message length parameter.
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"We have exactly enough data to parse the message length parameter.");
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Attempting to deserialize the the message length.");
 
 					// Get a local reference to the receive buffer that we can pass around by reference.
@@ -929,10 +941,10 @@ namespace OGA.TCP
 						// An error occurred.
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Error occurred trying to deserialize the message length. Result=" + Result.ToString() + ".");
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Closing down the message endpoint.");
 
 						// Sent a bad state.
@@ -945,7 +957,7 @@ namespace OGA.TCP
 						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Endpoint closed down.");
 
 						return;
@@ -953,7 +965,7 @@ namespace OGA.TCP
 					// We received the message length parameter.
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"We have deserialized the the message length.");
 
 					// Do a special case check here in case the message length is zero.
@@ -968,7 +980,7 @@ namespace OGA.TCP
 						// There is another full ping/pong mechanism we will use as well.
 
 						this.Logger?.Debug(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Message length was zero. This is a special ping we need to process as such.");
 
 						// We need to update our last message received time here.
@@ -983,11 +995,11 @@ namespace OGA.TCP
 						Reset_Buffer_Pointers();
 
 						this.Logger?.Debug(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"We processed a zero-length message, and treated it as a simple ping.");
 
 						this.Logger?.Trace(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Queueing another Async read...");
 
 						Result = this.Queue_Async_Read();
@@ -998,10 +1010,10 @@ namespace OGA.TCP
 							// An error occurred.
 
 							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+								$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 								"Error occurred trying to queue an async read. Result=" + Result.ToString() + ".");
 							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+								$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 								"Closing down the message endpoint.");
 
 							// Sent a bad state.
@@ -1014,7 +1026,7 @@ namespace OGA.TCP
 							this.Call_del_dwent_bad();
 
 							this.Logger?.Error(
-								$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+								$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 								"Endpoint closed down.");
 
 							return;
@@ -1022,30 +1034,30 @@ namespace OGA.TCP
 						// We queued off a subsequent read operation to wait for a new message.
 
 						this.Logger?.Trace(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Another Async read was queued to read the next message.");
 
 						return;
 					}
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Message length is non-zero.");
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Doing a sanity check for the received message length. MessageLength=" + tempint.ToString() + ".");
 
 					// We need to give it a sanity check to make sure it's not too big.
-					if (tempint > MessageEnvelope.MaxMessageSize)
+					if (tempint > this.MaxMessageSize)
 					{
 						// The message length is too large or too small for a legitimate message.
 						// We will regard this as an error and close out the connection.
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Message length failed the sanity check for size. MessageLength=" + tempint.ToString() + ".");
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Closing down the message endpoint.");
 
 						// Sent a bad state.
@@ -1058,7 +1070,7 @@ namespace OGA.TCP
 						this.Call_del_dwent_bad();
 
 						this.Logger?.Debug(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Endpoint closed down.");
 
 						return;
@@ -1066,7 +1078,7 @@ namespace OGA.TCP
 					// The message length is valid to use.
 
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Message length passed the sanity check for size, and is good to use.");
 
 					// Accept the message length.
@@ -1079,7 +1091,7 @@ namespace OGA.TCP
 					this.Resize_Buffer_if_Needed(this._number_of_expected_bytes);
 
 					this.Logger?.Debug(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Queueing another Async read to receive the message header and payload.");
 
 					// Set the state that we're looking for the data section...
@@ -1094,10 +1106,10 @@ namespace OGA.TCP
 						// An error occurred.
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Error occurred trying to queue an async read. Result=" + Result.ToString() + ".");
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Closing down the message endpoint.");
 
 						// Sent a bad state.
@@ -1110,7 +1122,7 @@ namespace OGA.TCP
 						this.Call_del_dwent_bad();
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Endpoint closed down.");
 
 						return;
@@ -1118,7 +1130,7 @@ namespace OGA.TCP
 					// We queued off a subsequent read operation to wait for more.
 
 					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Another Async read was queued to read in the message frame.");
 
 					return;
@@ -1129,7 +1141,7 @@ namespace OGA.TCP
 					// Currently, this is a logic flaw as we hard set the desired read to four bytes for a new message.
 
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Closing down the message endpoint because we received more than the expected number of bytes for a new message length.");
 
 					// Sent a bad state.
@@ -1143,7 +1155,7 @@ namespace OGA.TCP
 					this.Call_del_dwent_bad();
 
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Endpoint closed down.");
 
 					return;
@@ -1157,7 +1169,7 @@ namespace OGA.TCP
 				// If not, we will queue off another read for the rest of it.
 
 				this.Logger?.Debug(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Message length is known.");
 
 				// See if what we have received so far is less than what we expect.
@@ -1168,11 +1180,11 @@ namespace OGA.TCP
 					// So, we only need to queue off another read.
 
 					this.Logger?.Debug(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Not all message frame has been received.");
 
 					this.Logger?.Debug(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Queueing another Async read...");
 
 					// Set the state that we're looking for the data section...
@@ -1186,10 +1198,10 @@ namespace OGA.TCP
 						// An error occurred.
 
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Error occurred trying to queue an async read. Result=" + Result.ToString() + ".");
 						this.Logger?.Error(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Closing down the message endpoint.");
 
 						// Sent a bad state.
@@ -1202,7 +1214,7 @@ namespace OGA.TCP
 						this.Call_del_dwent_bad();
 
 						this.Logger?.Info(
-							$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+							$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 							"Endpoint closed down.");
 
 						return;
@@ -1210,7 +1222,7 @@ namespace OGA.TCP
 					// We queued off a subsequent read operation to wait for more.
 
 					this.Logger?.Debug(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Another Async read was queued to read the rest of the message header and payload.");
 
 					return;
@@ -1218,10 +1230,10 @@ namespace OGA.TCP
 				// We have received enough message content to process the message.
 
 				this.Logger?.Trace(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"We have received enough message content to process the message.");
 				this.Logger?.Trace(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Attempting to process the received message.");
 
 				// Process the received message waiting in the buffer.
@@ -1233,10 +1245,10 @@ namespace OGA.TCP
 					// An error occurred.
 
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Error occurred trying to process received messagebuffer. Result=" + Result.ToString() + ".");
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Closing down the message endpoint.");
 
 					// Sent a bad state.
@@ -1249,7 +1261,7 @@ namespace OGA.TCP
 					this.Call_del_dwent_bad();
 
 					this.Logger?.Info(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Endpoint closed down.");
 
 					return;
@@ -1261,7 +1273,7 @@ namespace OGA.TCP
 				Reset_Buffer_Pointers();
 
 				this.Logger?.Trace(
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 					"Received message was processed.");
 
 				// Do effort to queue another read.
@@ -1269,14 +1281,14 @@ namespace OGA.TCP
 				{
 					// Log that we are calling read async for the next message.
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Queueing another Async read to receive the next message.");
 				}
 				else
 				{
 					// Log that we are calling read async for the rest of the current message.
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Queueing another Async read to receive the rest of the message.");
 				}
 
@@ -1289,10 +1301,10 @@ namespace OGA.TCP
 					// An error occurred.
 
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Error occurred trying to queue an async read. Result=" + Result.ToString() + ".");
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Closing down the message endpoint.");
 
 					// Sent a bad state.
@@ -1305,7 +1317,7 @@ namespace OGA.TCP
 					this.Call_del_dwent_bad();
 
 					this.Logger?.Error(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Endpoint closed down.");
 
 					return;
@@ -1316,14 +1328,14 @@ namespace OGA.TCP
 				{
 					// Log that we are calling read async for the next message.
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Another Async read was queued to read the next message.");
 				}
 				else
 				{
 					// Log that we are calling read async for the rest of the current message.
 					this.Logger?.Trace(
-						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
 						"Another Async read was queued to read the rest of the message.");
 				}
 

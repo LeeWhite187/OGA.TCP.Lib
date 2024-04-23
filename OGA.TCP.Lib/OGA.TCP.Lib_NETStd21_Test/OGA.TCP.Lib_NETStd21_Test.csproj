@@ -24,4 +24,8 @@
 
   <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
 
+  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
+
+  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
+
 </Project>

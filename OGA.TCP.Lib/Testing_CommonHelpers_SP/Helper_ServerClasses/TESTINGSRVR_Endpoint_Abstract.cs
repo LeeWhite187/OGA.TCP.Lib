@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Connections;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using OGA.Common.Process;
 using OGA.TCP.Messages;
 using OGA.TCP.Server.Model;
@@ -8,17 +7,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using static OGA.TCP.Server.TCPEndpoint;
 
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// Represents a server-side tcp/ws socket endpoint.
-    /// Provides framed message transfer with channel, scope, and custom properties.
-    /// This abstract class gets derived for each transport type.
+    /// NOT FOR PRODUCTION USE.
+    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
     /// </summary>
-    public abstract class Endpoint_Abstract : IDisposable
+    public abstract class TESTINGSRVR_Endpoint_Abstract : IDisposable
     {
         #region Private Fields
 
@@ -107,7 +105,7 @@ namespace OGA.TCP.Server
         /// <summary>
         /// Holds high level information about the connected client, such as its deviceid, user auth status, etc.
         /// </summary>
-        public ClientInfo ClientInfo { get; protected set; }
+        public TESTINGSRVR_ClientInfo ClientInfo { get; protected set; }
 
         /// <summary>
         /// This is a unique identifier of the connection.
@@ -199,7 +197,7 @@ namespace OGA.TCP.Server
 
         #region Public Delegates
 
-        public delegate int DelMessageReceived(Endpoint_Abstract mep, string messagetype, string jsondata, string corelationid);
+        public delegate int DelMessageReceived(TESTINGSRVR_Endpoint_Abstract mep, string messagetype, string jsondata, string corelationid);
         protected DelMessageReceived _delOnMessageReceived;
         /// <summary>
         /// Public delegate hook for accepting message traffic.
@@ -212,7 +210,7 @@ namespace OGA.TCP.Server
             }
         }
 
-        public delegate int DelRawMessageReceived(Endpoint_Abstract mep, string rawstring);
+        public delegate int DelRawMessageReceived(TESTINGSRVR_Endpoint_Abstract mep, string rawstring);
         protected DelRawMessageReceived _delOnRawMessageReceived;
         /// <summary>
         /// Normally, this is not used as messages are exchanged as typed classes.
@@ -226,7 +224,7 @@ namespace OGA.TCP.Server
             }
         }
 
-        public delegate void DelConnection(Endpoint_Abstract mep);
+        public delegate void DelConnection(TESTINGSRVR_Endpoint_Abstract mep);
         protected DelConnection _delConnectionClosed;
         /// <summary>
         /// Public hook for a connection manager to be notified when an endpoint loses connection, has fatally errored, and is closing down.
@@ -239,7 +237,7 @@ namespace OGA.TCP.Server
             }
         }
 
-        public delegate void DelConnRegisterReceived(Endpoint_Abstract mep, ClientInfo oldvals, ClientInfo newvals);
+        public delegate void DelConnRegisterReceived(TESTINGSRVR_Endpoint_Abstract mep, TESTINGSRVR_ClientInfo oldvals, TESTINGSRVR_ClientInfo newvals);
         protected DelConnRegisterReceived _delConnectionRegistration;
         /// <summary>
         /// Public hook for a connection manager to receive registration messages from the client.
@@ -253,7 +251,7 @@ namespace OGA.TCP.Server
             }
         }
 
-		public delegate void dStatus_Change(Endpoint_Abstract mep, string statusupdate);
+		public delegate void dStatus_Change(TESTINGSRVR_Endpoint_Abstract mep, string statusupdate);
 		protected dStatus_Change _del_Status_Change;
 		/// <summary>
 		/// Assign a handler to this delegate to receive status changes.
@@ -276,24 +274,30 @@ namespace OGA.TCP.Server
         /// It requires the web listener already having created the websocket instance from the initial http request.
         /// </summary>
         /// <param name="webSocket"></param>
-        public Endpoint_Abstract()
+        public TESTINGSRVR_Endpoint_Abstract()
         {
             _instance_counter++;
             this.InstanceId = _instance_counter;
 
             _ChannelMessageHandlers = new Dictionary<string, DelMessageReceived>();
 
-            ClientInfo = new ClientInfo();
+            ClientInfo = new TESTINGSRVR_ClientInfo();
 
             // Create a local unique identifier of the tcp/websocket instance.
             // We will use this value for all tracking, in case a protocol change creates collisions of the connectionId property.
-            WSId = NUlid.Ulid.NewUlid().ToString();
+            WSId = Guid.NewGuid().ToString();
 
             _alreadydisposed = false;
 
             _cfg_deadClientTimeout = 600;
 
+#if (NET452 || NET48)
+            // DateTime.UnixEpoch is not available in NET Framework versions of the DateTime.
+            // So, we will simply default the received time to yesterday...
+            LastReceivedTimeUTC = DateTime.UtcNow.Subtract(new TimeSpan(24, 0, 0));
+#else
             LastReceivedTimeUTC = DateTime.UnixEpoch;
+#endif
 
             // Clear the allow sending flag, to prevent any outgoing messages...
             this._allowsend = false;
@@ -330,7 +334,7 @@ namespace OGA.TCP.Server
             GC.SuppressFinalize(this);
         }
 
-        #endregion
+#endregion
 
 
         #region Public Methods
@@ -488,7 +492,7 @@ namespace OGA.TCP.Server
         /// Used by the Connection Manager when submitting client connection data for routing.
         /// </summary>
         /// <param name="ce"></param>
-        public void Populate_ConnectionEntry(ConnectionEntry_v1 ce)
+        public void Populate_ConnectionEntry(TESTINGSRVR_ConnectionEntry_v1 ce)
         {
             // Copy the client info, so we can submit it for this connection...
             ce.UserId = this.ClientInfo.UserId;
@@ -516,7 +520,13 @@ namespace OGA.TCP.Server
 
         public int Add_ChannelHandler(string channel, DelMessageReceived handler)
         {
+#if (NET452 || NET48)
+            if (!this._ChannelMessageHandlers.ContainsKey(channel))
+                this._ChannelMessageHandlers.Add(channel, handler);
+            else
+#else
             if (!this._ChannelMessageHandlers.TryAdd(channel, handler))
+#endif
             {
                 // The channel is already assigned.
 
@@ -1055,9 +1065,9 @@ namespace OGA.TCP.Server
         /// <returns></returns>
         public async Task<int> Send_SerializedObject_toClient_Async(string objecttype, string jsonobject, string channel = "", string scope = "", string corelationid = "")
         {
-            using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
-                                        .StartActivity(this.TransportLongName.ToLower() ?? "socket" + "-outgoing-jsonobject-send");
-            action_start?.SetTag("corelationid", corelationid);
+            //using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
+            //                            .StartActivity(this.TransportLongName.ToLower() ?? "socket" + "-outgoing-jsonobject-send");
+            //action_start?.SetTag("corelationid", corelationid);
 
             OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toClient_Async)} - " +
@@ -1532,8 +1542,8 @@ namespace OGA.TCP.Server
             // Each message arrives as a json string of a message envelope.
             // We need to deserialize that, recover the message type, and deserialize that.
 
-            using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
-                                        .StartActivity(this.TransportShortName.ToLower() ?? "socket" + "-message-received");
+            //using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
+            //                            .StartActivity(this.TransportShortName.ToLower() ?? "socket" + "-message-received");
 
             try
             {
@@ -1557,7 +1567,7 @@ namespace OGA.TCP.Server
                     return 0;
                 }
 
-                action_start?.SetTag("messageid", me.MsgId ?? "");
+                //action_start?.SetTag("messageid", me.MsgId ?? "");
                 // Extract any corelationid from message props, or create a new one for this message...
                 try
                 {
@@ -1565,7 +1575,7 @@ namespace OGA.TCP.Server
                     {
                         var cidkv = me.Props.FirstOrDefault(n => n.StartsWith("corelationid"));
                         cid = cidkv?.Substring(13) ?? Guid.NewGuid().ToString();
-                        action_start?.SetTag("corelationid", cid);
+                        //action_start?.SetTag("corelationid", cid);
                     }
                 } catch (Exception) { }
 
@@ -1820,7 +1830,7 @@ namespace OGA.TCP.Server
                 // It also allows for a tcp/websocket connection to be opened without a user logged in at the client.
 
                 // Save off the old values, so the registration handler can apply any context it needs...
-                var oldvals = new ClientInfo();
+                var oldvals = new TESTINGSRVR_ClientInfo();
                 oldvals.CopyFrom(this.ClientInfo);
 
                 // Accept new values that have dedicated properties...
@@ -1861,7 +1871,11 @@ namespace OGA.TCP.Server
                             if (string.IsNullOrEmpty(v))
                                 continue;
 
+#if (NET452 || NET48)
+                            var parts = v.Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+#else
                             var parts = v.Split(':', StringSplitOptions.RemoveEmptyEntries);
+#endif
                             if(parts.Length > 1)
                             {
                                 // Have a key-value pair.
@@ -2075,7 +2089,7 @@ namespace OGA.TCP.Server
                 this.ClientInfo.LibVersion = wslibver;
 
                 // Since we now register some client properties as generic strings, we will pass an instance of client info, instead of a conn registration DTO.
-                var newvals = new ClientInfo();
+                var newvals = new TESTINGSRVR_ClientInfo();
                 newvals.CopyFrom(this.ClientInfo);
 
 
@@ -2091,7 +2105,7 @@ namespace OGA.TCP.Server
             return 0;
         }
 
-        #endregion
+#endregion
 
 
         #region External Dispatch Methods
@@ -2106,9 +2120,9 @@ namespace OGA.TCP.Server
         /// <param name="corelationid"></param>
         protected int DispatchReceivedMessage(string messagetype, string jsondata, string channel = "", string scope = "", string corelationid = "")
         {
-            using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
-                                        .StartActivity(this.TransportShortName.ToLower() ?? "socket" + "-message-dispatch");
-            action_start?.SetTag("corelationid", corelationid);
+            //using var action_start = OGA.Telemetry.Lib.TelemetryBase.ProcessActivitySource?
+            //                            .StartActivity(this.TransportShortName.ToLower() ?? "socket" + "-message-dispatch");
+            //action_start?.SetTag("corelationid", corelationid);
 
             try
             {
@@ -2199,7 +2213,7 @@ namespace OGA.TCP.Server
         /// <summary>
         /// Sends new connection event to any connected delegate.
         /// </summary>
-        protected void DispatchConnectionRegistered(ClientInfo oldvals, ClientInfo newvals)
+        protected void DispatchConnectionRegistered(TESTINGSRVR_ClientInfo oldvals, TESTINGSRVR_ClientInfo newvals)
         {
             try
             {

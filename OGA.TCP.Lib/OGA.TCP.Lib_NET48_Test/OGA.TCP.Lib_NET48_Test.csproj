@@ -12,6 +12,7 @@
     <PackageReference Include="MSTest.TestFramework" Version="3.0.4" />
     <PackageReference Include="coverlet.collector" Version="3.2.0" />
     <PackageReference Include="NLog" Version="5.2.8" />
+    <PackageReference Include="OGA.Common.Lib.NET" Version="3.1.1" />
     <PackageReference Include="OGA.SharedKernel" Version="3.5.4" />
     <PackageReference Include="OGA.Testing.Lib" Version="1.9.0" />
   </ItemGroup>
@@ -23,5 +24,9 @@
   <Import Project="..\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems" Label="Shared" />
 
   <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
+
+  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
+
+  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
 
 </Project>

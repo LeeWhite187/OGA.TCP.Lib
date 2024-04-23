@@ -11,14 +11,6 @@ namespace OGA.TCP.Messages
     /// </summary>
     public class MessageEnvelope
     {
-        // Prevent allocation attacks. Each packet is prefixed with a length
-        // header, so an attacker could send a fake packet with length=2GB,
-        // causing the server to allocate 2GB and run out of memory quickly.
-        // -> simply increase max packet size if you want to send around bigger
-        //    files!
-        // -> 16KB per message should be more than enough.
-        static public int MaxMessageSize = 16 * 1024;
-
         public string MsgId { get; set; }
 
         public DateTime SentTimeUTC { get; set; }

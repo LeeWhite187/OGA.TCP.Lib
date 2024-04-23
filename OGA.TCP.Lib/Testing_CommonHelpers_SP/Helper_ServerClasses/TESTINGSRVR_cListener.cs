@@ -5,10 +5,12 @@ using System.Text;
 namespace Testing_CommonHelpers_SP.Helpers
 {
     /// <summary>
+    /// NOT FOR PRODUCTION USE.
+    /// THIS IS A COPY OF cListener, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
     /// TESTING HELPER CLASS.
     /// IS A COPY OF cLISTENER.cs
     /// </summary>
-    public class cListener_Helper
+    public class TESTINGSRVR_cListener
     {
         #region Private Fields
 
@@ -109,7 +111,7 @@ namespace Testing_CommonHelpers_SP.Helpers
 
         #region Delegates and Handlers
 
-        public delegate void dNew_Client_Connection(cListener_Helper l, System.Net.Sockets.TcpClient newclient);
+        public delegate void dNew_Client_Connection(TESTINGSRVR_cListener l, System.Net.Sockets.TcpClient newclient);
         private dNew_Client_Connection _del_new_client_connection;
         /// <summary>
         /// Assign a handler to this delegate if the listener does not create sessions for each connecting client.
@@ -122,7 +124,7 @@ namespace Testing_CommonHelpers_SP.Helpers
             }
         }
 
-        public delegate void dStatus_Change(cListener_Helper l, string statusupdate);
+        public delegate void dStatus_Change(TESTINGSRVR_cListener l, string statusupdate);
         private dStatus_Change _del_Status_Change;
         /// <summary>
         /// Assign a handler to this delegate to receive status changes.
@@ -140,7 +142,7 @@ namespace Testing_CommonHelpers_SP.Helpers
 
         #region ctor / dtor
 
-        public cListener_Helper()
+        public TESTINGSRVR_cListener()
         {
             this._state = eListenerState.Initialized;
             this._del_new_client_connection = null;
@@ -153,7 +155,7 @@ namespace Testing_CommonHelpers_SP.Helpers
             this._spawned_connection_count = 0;
         }
 
-        ~cListener_Helper()
+        ~TESTINGSRVR_cListener()
         {
             if (this._state != eListenerState.Closed ||
                 this._state != eListenerState.Error ||
@@ -321,10 +323,10 @@ namespace Testing_CommonHelpers_SP.Helpers
         private void Assign_Next_ListenerID()
         {
             // Increment the endpoint counter.
-            cListener_Helper._listener_count++;
+            TESTINGSRVR_cListener._listener_count++;
 
             // Assign the unique ID to the endpoint.
-            this._listenerID = cListener_Helper._listener_count;
+            this._listenerID = TESTINGSRVR_cListener._listener_count;
         }
 
         private void Change_Status(eListenerState newstate)

@@ -11,9 +11,9 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)Impl\TCPClient_v1.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\cEndpoint_Ping_Tracking.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_Abstract.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_abstract.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\WSClient_v1_abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_v1_Abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_v1_Abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\WSClient_v1_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\LibVersions.cs" />
   </ItemGroup>
 </Project>
