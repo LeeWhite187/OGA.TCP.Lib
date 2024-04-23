@@ -1317,7 +1317,7 @@ namespace OGA.TCP.SessionLayer
 
             this.Logger?.Trace(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_KeepAlive_IfNeeded_Async)} - " +
-                $"Connection has been silent. Attempting to send Ping to WSEndpoint, over ConnectionId = {(this.ConnectionId ?? "")}....");
+                $"Connection has been silent. Attempting to send Ping to WSEndpoint, over ConnectionId = {(this.ConnectionId ?? "")}...");
 
             if (await this.SendPing_toEndpoint_Async() != 1)
             {
