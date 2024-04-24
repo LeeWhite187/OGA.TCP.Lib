@@ -146,10 +146,11 @@ pipeline
 		{
            steps
 		   {
-				sh "dotnet build '${projectFolder}_NETStd21/${projectName}_NETStd21.csproj' -c DebugLinux --runtime linux --no-self-contained"
 				sh "dotnet build '${projectFolder}_NET5/${projectName}_NET5.csproj' -c DebugLinux --runtime linux --no-self-contained"
 				sh "dotnet build '${projectFolder}_NET6/${projectName}_NET6.csproj' -c DebugLinux --runtime linux --no-self-contained"
 				sh "dotnet build '${projectFolder}_NET7/${projectName}_NET7.csproj' -c DebugLinux --runtime linux --no-self-contained"
+
+				sh "dotnet build '${projectFolder}_NETStd21/${projectName}_NETStd21.csproj' -c DebugLinux --runtime linux --no-self-contained"
 
 				sh "dotnet build 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5/OGA.TCP.Server.Lib_NET5.csproj' -c DebugLinux --runtime linux --no-self-contained"
 				sh "dotnet build 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6/OGA.TCP.Server.Lib_NET6.csproj' -c DebugLinux --runtime linux --no-self-contained"
