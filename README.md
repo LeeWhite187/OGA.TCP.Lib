@@ -15,4 +15,3 @@ The server library nuget package covers the following:<br>
 * NET 5
 * NET 6
 * NET 7
-
