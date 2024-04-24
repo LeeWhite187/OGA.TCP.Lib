@@ -49,16 +49,16 @@
   <files>
     <file src="..\README.md" target="docs\" />
 
-    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\OGA.TCP.Lib.dll" target="lib\net452" />
-    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\OGA.TCP.Lib.xml" target="lib\net452" />
-    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\OGA.TCP.Lib.pdb" target="lib\net452" />
+    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\win\OGA.TCP.Lib.dll" target="lib\net452" />
+    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\win\OGA.TCP.Lib.xml" target="lib\net452" />
+    <file src=".\OGA.TCP.Lib_NET452\bin\Debug\net452\win\OGA.TCP.Lib.pdb" target="lib\net452" />
 
-    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\OGA.TCP.Lib.dll" target="lib\net48" />
-    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\OGA.TCP.Lib.xml" target="lib\net48" />
-    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\OGA.TCP.Lib.pdb" target="lib\net48" />
+    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\win\OGA.TCP.Lib.dll" target="lib\net48" />
+    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\win\OGA.TCP.Lib.xml" target="lib\net48" />
+    <file src=".\OGA.TCP.Lib_NET48\bin\Debug\net48\win\OGA.TCP.Lib.pdb" target="lib\net48" />
 
-    <file src=".\OGA.TCP.Lib_NETStd21\bin\Debug\netstandard2.1\OGA.TCP.Lib.dll" target="ref\netstandard2.1" />
-    <file src=".\OGA.TCP.Lib_NETStd21\bin\Debug\netstandard2.1\OGA.TCP.Lib.xml" target="ref\netstandard2.1" />
+    <file src=".\OGA.TCP.Lib_NETStd21\bin\DebugWin\netstandard2.1\win\OGA.TCP.Lib.dll" target="ref\netstandard2.1" />
+    <file src=".\OGA.TCP.Lib_NETStd21\bin\DebugWin\netstandard2.1\win\OGA.TCP.Lib.xml" target="ref\netstandard2.1" />
     <file src=".\OGA.TCP.Lib_NETStd21\bin\DebugWin\netstandard2.1\win\OGA.TCP.Lib.pdb" target="runtimes\win\lib\netstandard2.1" />
     <file src=".\OGA.TCP.Lib_NETStd21\bin\DebugWin\netstandard2.1\win\OGA.TCP.Lib.dll" target="runtimes\win\lib\netstandard2.1" />
     <file src=".\OGA.TCP.Lib_NETStd21\bin\DebugLinux\netstandard2.1\linux\OGA.TCP.Lib.pdb" target="runtimes\linux\lib\netstandard2.1" />

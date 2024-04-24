@@ -44,25 +44,25 @@
   <files>
     <file src="..\README.md" target="docs\" />
 
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.dll" target="ref\net5.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.xml" target="ref\net5.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net5.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net5.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net5.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\win\OGA.TCP.Server.Lib.dll" target="ref\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\win\OGA.TCP.Server.Lib.xml" target="ref\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\win\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\win\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\linux\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\linux\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net5.0" />
 
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.dll" target="ref\net6.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.xml" target="ref\net6.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net6.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net6.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net6.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\win\OGA.TCP.Server.Lib.dll" target="ref\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\win\OGA.TCP.Server.Lib.xml" target="ref\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\win\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\win\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\linux\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\linux\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net6.0" />
 
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.dll" target="ref\net7.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.xml" target="ref\net7.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net7.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net7.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net7.0" />
-    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\win\OGA.TCP.Server.Lib.dll" target="ref\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\win\OGA.TCP.Server.Lib.xml" target="ref\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\win\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\win\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\linux\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\linux\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net7.0" />
   </files>
 </package>
