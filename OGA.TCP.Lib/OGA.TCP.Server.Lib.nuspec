@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package >
+  <metadata>
+    <id>OGA.TCP.Server.Lib</id>
+    <title>OGA TCP Server Socket Library</title>
+    <version>1.0.1</version>
+    <authors>Lee White</authors>
+    <owners>Lee White</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>OGA TCP Server Socket Library</description>
+    <releaseNotes>(Please write the package release notes in "OGA.TCP.Server.Lib-RELEASE_NOTES.txt".)</releaseNotes>
+    <copyright>$copyright$</copyright>
+	  <repository type="git" url="https://github.com/LeeWhite187/OGA.TCP.Lib" />
+    <license type="expression">MIT</license>
+    <readme>docs\README.md</readme>
+
+    <dependencies>
+      <group targetFramework="net5.0">
+        <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+        <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
+        <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.1.1" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
+        <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+        <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
+        <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.1.1" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
+        <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net7.0">
+        <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+        <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
+        <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.1.1" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
+        <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="..\README.md" target="docs\" />
+
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.dll" target="ref\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.xml" target="ref\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugWin\net5.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net5.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET5\bin\DebugLinux\net5.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net5.0" />
+
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.dll" target="ref\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.xml" target="ref\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugWin\net6.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net6.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET6\bin\DebugLinux\net6.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net6.0" />
+
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.dll" target="ref\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.xml" target="ref\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net7.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net7.0" />
+  </files>
+</package>

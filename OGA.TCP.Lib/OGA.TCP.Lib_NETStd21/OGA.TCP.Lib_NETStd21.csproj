@@ -4,6 +4,9 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <PackageId>OGA.TCP.Lib</PackageId>
     <Product>OGA TCP Socket Library</Product>
+    <Description>OGA TCP Socket Library</Description>
+    <AssemblyName>OGA.TCP.Lib</AssemblyName>
+    <RootNamespace>OGA.TCP</RootNamespace>
     <Version>1.0.1</Version>
     <AssemblyVersion>1.0.1.1</AssemblyVersion>
     <FileVersion>1.0.1.1</FileVersion>
@@ -12,19 +15,21 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Description>OGA TCP Socket Library</Description>
     <SignAssembly>False</SignAssembly>
-    <AssemblyName>OGA.TCP</AssemblyName>
-    <RootNamespace>OGA.TCP</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <Configurations>DebugWin;ReleaseWin;DebugLinux;ReleaseLinux</Configurations>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NETStd21</DefineConstants>
+  <PropertyGroup Condition="$(Configuration.EndsWith('Win'))">
+    <DefineConstants>$(DefineConstants);Windows;NETStd21</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NETStd21</DefineConstants>
+  <PropertyGroup Condition="$(Configuration.EndsWith('Linux'))">
+    <DefineConstants>$(DefineConstants);Linux;NETStd21</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Configuration.EndsWith('OSX'))">
+    <DefineConstants>$(DefineConstants);OSX;NETStd21</DefineConstants>
   </PropertyGroup>
 
   <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />

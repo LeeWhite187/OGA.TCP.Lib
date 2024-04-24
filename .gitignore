@@ -30,3 +30,15 @@
 /OGA.TCP.Lib/scratchdev/bin
 /OGA.TCP.Lib/scratchdev/obj
 /OGA.TCP.Lib/TestResults
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5/obj
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5_Tests/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5_Tests/obj
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6/obj
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6_Tests/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6_Tests/obj
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7/obj
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7_Tests/bin
+/OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7_Tests/obj

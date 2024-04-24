@@ -2,23 +2,23 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <PackageId>OGA.TCP.Lib</PackageId>
-    <Product>OGA TCP Socket Library</Product>
-    <Description>OGA TCP Socket Library</Description>
-    <AssemblyName>OGA.TCP.Lib</AssemblyName>
-    <RootNamespace>OGA.TCP</RootNamespace>
+    <PackageId>OGA.TCP.Server.Lib</PackageId>
+    <Product>OGA TCP Socket Server Library</Product>
+    <Description>OGA TCP Socket Server Library</Description>
+    <AssemblyName>OGA.TCP.Server.Lib</AssemblyName>
+    <RootNamespace>OGA.TCP.Server</RootNamespace>
     <Version>1.0.1</Version>
     <AssemblyVersion>1.0.1.1</AssemblyVersion>
     <FileVersion>1.0.1.1</FileVersion>
     <Authors>Lee White</Authors>
     <Company>Lee White</Company>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <SignAssembly>False</SignAssembly>
-    <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <Configurations>DebugWin;ReleaseWin;DebugLinux;ReleaseLinux</Configurations>
   </PropertyGroup>
 
@@ -34,14 +34,17 @@
     <DefineConstants>$(DefineConstants);OSX;NET6</DefineConstants>
   </PropertyGroup>
 
-  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
-
-  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
-
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="NLog" Version="5.2.8" />
+    <PackageReference Include="NUlid" Version="1.7.2" />
+    <PackageReference Include="OGA.Common.Lib.NetCore" Version="3.1.1" />
     <PackageReference Include="OGA.SharedKernel" Version="3.5.4" />
+    <PackageReference Include="OpenTelemetry" Version="1.5.1" />
   </ItemGroup>
+
+  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
+
+  <Import Project="..\OGA.TCP.Server.Lib_SP\OGA.TCP.Server.Lib_SP.projitems" Label="Shared" />
 
 </Project>

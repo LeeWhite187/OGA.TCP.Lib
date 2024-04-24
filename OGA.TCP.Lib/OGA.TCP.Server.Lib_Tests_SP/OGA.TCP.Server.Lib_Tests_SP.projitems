@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>122e820b-d2ce-436c-bd8c-b7f8c6cd8f3e</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>OGA.TCP.Server.Lib_Tests_SP</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Helpers\Simple_TCPListener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Listener_Test.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TCPEndpoint_Tests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Testing_HelperBase.cs" />
+  </ItemGroup>
+</Project>

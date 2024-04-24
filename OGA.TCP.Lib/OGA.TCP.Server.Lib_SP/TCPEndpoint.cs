@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using OGA.Common.Process;
 using OGA.TCP.Messages;
 using OGA.TCP.Server.Model;
@@ -10,6 +8,8 @@ using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OGA.TCP.Server
 {

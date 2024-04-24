@@ -4,6 +4,9 @@
     <TargetFramework>net48</TargetFramework>
     <PackageId>OGA.TCP.Lib</PackageId>
     <Product>OGA TCP Socket Library</Product>
+    <Description>OGA TCP Socket Library</Description>
+    <AssemblyName>OGA.TCP.Lib</AssemblyName>
+    <RootNamespace>OGA.TCP</RootNamespace>
     <Version>1.0.1</Version>
     <AssemblyVersion>1.0.1.1</AssemblyVersion>
     <FileVersion>1.0.1.1</FileVersion>
@@ -12,10 +15,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Description>OGA TCP Socket Library</Description>
     <SignAssembly>False</SignAssembly>
-    <AssemblyName>OGA.TCP</AssemblyName>
-    <RootNamespace>OGA.TCP</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
