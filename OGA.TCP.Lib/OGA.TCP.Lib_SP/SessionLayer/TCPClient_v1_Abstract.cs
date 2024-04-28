@@ -812,15 +812,5 @@ namespace OGA.TCP.SessionLayer
         }
 
         #endregion
-
-
-        #region External Dispatch Methods
-
-        #endregion
-
-
-        #region Handle Internal Messages
-
-        #endregion
     }
 }

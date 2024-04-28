@@ -1,8 +1,10 @@
 ﻿using Newtonsoft.Json;
+using OGA.TCP.ClientAdapters;
 using OGA.TCP.Messages;
 using OGA.TCP.Shared;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -14,6 +16,7 @@ namespace OGA.TCP.SessionLayer
     /// Represents a client-side tcp/ws socket endpoint.
     /// Provides framed message transfer with channel, scope, and custom properties.
     /// This abstract class gets derived for each transport type.
+    /// Your implementation will need to provide a delegate-based or adapter-based method of dispatching channel-assigned messages.
     /// </summary>
     abstract public class Client_v1_Abstract : IDisposable
     {
@@ -53,7 +56,9 @@ namespace OGA.TCP.SessionLayer
 
         protected int connlost_truecounter;
 
-        // Create a semaphore to enforce thread safety when sending data to the client.
+        /// <summary>
+        /// Create a semaphore to enforce thread safety when sending data to the client.
+        /// </summary>
         protected SemaphoreSlim _write_semaphore = new SemaphoreSlim(1, 1);
 
         protected bool _allowsend;
@@ -217,14 +222,18 @@ namespace OGA.TCP.SessionLayer
         public int ReceivedMessage_Counter { get => _receivedmessage_counter; }
         protected volatile int _receivedmessage_counter;
 
-		public eEndpoint_ConnectionStatus State { get; protected set; }
+        public eEndpoint_ConnectionStatus State { get; protected set; }
 
         #endregion
 
 
         #region Public Delegates
 
-        protected Dictionary<string, DelMessageReceived> _ChannelMessageHandlers;
+        /// <summary>
+        /// The channel adapters listing.
+        /// Received messages are forwarded to an instance in this collection based on the message channel.
+        /// </summary>
+        protected Dictionary<string, IChannelAdapter> _ChannelMessageHandlers;
 
         public delegate int DelMessageReceived(Client_v1_Abstract mep, string messagetype, string msg);
         protected DelMessageReceived _delOnMessageReceived;
@@ -270,18 +279,18 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-		public delegate void dStatus_Change(Client_v1_Abstract mep, string statusupdate);
-		protected dStatus_Change _del_Status_Change;
-		/// <summary>
-		/// Assign a handler to this delegate to receive status changes.
-		/// </summary>
-		public dStatus_Change OnStatus_Change
-		{
-			set
-			{
-				this._del_Status_Change = value;
-			}
-		}
+        public delegate void dStatus_Change(Client_v1_Abstract mep, string statusupdate);
+        protected dStatus_Change _del_Status_Change;
+        /// <summary>
+        /// Assign a handler to this delegate to receive status changes.
+        /// </summary>
+        public dStatus_Change OnStatus_Change
+        {
+            set
+            {
+                this._del_Status_Change = value;
+            }
+        }
 
         #endregion
 
@@ -299,11 +308,9 @@ namespace OGA.TCP.SessionLayer
             _classname = nameof(Client_v1_Abstract);
 
             // Preset the WSLib Version to the first version...
-            LibVersion = LibVersions.CONST_WSLibVersion_1;
+            LibVersion = LibVersions.CONST_LibVersion_1;
 
             this.Logger = logger;
-
-            _ChannelMessageHandlers = new Dictionary<string, DelMessageReceived>();
 
             disposedValue = false;
 
@@ -314,6 +321,8 @@ namespace OGA.TCP.SessionLayer
 #else
             this.LastReceivedTime = DateTime.UnixEpoch;
 #endif
+
+            _ChannelMessageHandlers = new Dictionary<string, IChannelAdapter>();
 
             // Clear the allow sending flag, to prevent any outgoing messages...
             this._allowsend = false;
@@ -428,7 +437,7 @@ namespace OGA.TCP.SessionLayer
             this._allowsend = false;
 
             // Disconnect any message handlers...
-            this._ChannelMessageHandlers.Clear();
+            this.Close_ChannelAdapters();
             this._delOnMessageReceived = null;
             this._delOnRawMessageReceived = null;
 
@@ -490,6 +499,38 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
+        /// Call this method to add a channel adapter for handling received messages.
+        /// </summary>
+        /// <param name="adapter"></param>
+        /// <returns></returns>
+        public int Add_ChannelAdapter(IChannelAdapter adapter)
+        {
+            if(adapter == null)
+            {
+                return -1;
+            }
+
+            // Validate the adapter...
+            if(string.IsNullOrEmpty(adapter.ChannelId))
+            {
+                // Invalid channel name.
+                return -2;
+            }
+
+            // Make sure the channel is empty...
+            if(this._ChannelMessageHandlers.ContainsKey(adapter.ChannelId))
+            {
+                // The channel is already assigned.
+                return -1;
+            }
+
+            // Add it to the adapters listing...
+            this._ChannelMessageHandlers.Add(adapter.ChannelId, adapter);
+
+            return 1;
+        }
+
+        /// <summary>
         /// Call this method to add a message handler for a string-named channel.
         /// </summary>
         /// <param name="channel"></param>
@@ -497,26 +538,12 @@ namespace OGA.TCP.SessionLayer
         /// <returns></returns>
         public int Add_ChannelHandler(string channel, DelMessageReceived handler)
         {
-#if (NET452 || NET48)
-            if(this._ChannelMessageHandlers.ContainsKey(channel))
-            {
-                // The channel is already assigned.
-                return -1;
-            }
-            else
-            {
-                this._ChannelMessageHandlers.Add(channel, handler);
-            }
-#else
-            if (!this._ChannelMessageHandlers.TryAdd(channel, handler))
-            {
-                // The channel is already assigned.
+            // Create a delegate adapter...
+            var da = new ChannelAdapter_DelegateType(channel, handler, "", this.Logger);
 
-                return -1;
-            }
-#endif
-
-            return 1;
+            // Add it to the adapters listing...
+            var res = this.Add_ChannelAdapter(da);
+            return res;
         }
         /// <summary>
         /// Call this method if there is a need to remove or replace a channel's message handler.
@@ -525,12 +552,44 @@ namespace OGA.TCP.SessionLayer
         /// <returns></returns>
         public int Remove_ChannelHandler(string channel)
         {
+            // Attempt to close the adapter...
+            try
+            {
+                var ca = this._ChannelMessageHandlers[channel];
+                ca.Close();
+            }
+            catch(Exception e)
+            {
+                int x = 0;
+            }
+
+            // Remove the adapter...
             this._ChannelMessageHandlers.Remove(channel);
 
             return 1;
         }
 
-        #endregion
+        /// <summary>
+        /// Cleanup method that closes down all channel adapters.
+        /// </summary>
+        protected void Close_ChannelAdapters()
+        {
+            while(this._ChannelMessageHandlers.Count != 0)
+            {
+                try
+                {
+                    // Close the adapter...
+                    var ch = this._ChannelMessageHandlers.ElementAt(0);
+                    ch.Value.Close();
+
+                    // Remove it from the listing...
+                    this._ChannelMessageHandlers.Remove(ch.Key);
+                }
+                catch(Exception) { }
+            }
+        }
+
+#endregion
 
 
         #region Connection Management
@@ -642,7 +701,7 @@ namespace OGA.TCP.SessionLayer
                         try
                         {
                             // Attempt a new connection, if not connected...
-                            if(!this.TransportIsOpen)
+                            if (!this.TransportIsOpen)
                             {
                                 success = false;
 
@@ -713,7 +772,7 @@ namespace OGA.TCP.SessionLayer
                             }
                             // NOTE: THIS IF SHOULD NOT BE AN ELSE IF.
                             // IT WORKS BECAUSE IT IS EVALUATED SEPARATELY.
-                            if(this.TransportIsOpen)
+                            if (this.TransportIsOpen)
                             {
                                 // We should be connected.
                                 // But, we can't yet do anything, without having registered.
@@ -1100,7 +1159,7 @@ namespace OGA.TCP.SessionLayer
                 // For this, we added a catch that will abort setup and leave.
                 try
                 {
-                    if(this._receive_cts != null)
+                    if (this._receive_cts != null)
                     {
                         this._receive_cts.Cancel();
                         await Task.Delay(100);
@@ -1125,7 +1184,7 @@ namespace OGA.TCP.SessionLayer
 
 
                     // Call the receiver loop if the transport needs one...
-                    if(this.Cfg_TransportRequiresReceiverLoop)
+                    if (this.Cfg_TransportRequiresReceiverLoop)
                     {
                         /// Returns  1 if cancelled.
                         /// Returns  0 if failed to parse the received message.
@@ -1134,7 +1193,7 @@ namespace OGA.TCP.SessionLayer
                         _ = Task.Run(async () => await ReceiveLoop());
                     }
                 }
-                catch(Exception tre)
+                catch (Exception tre)
                 {
                     this.Logger?.Error(tre,
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
@@ -1152,7 +1211,7 @@ namespace OGA.TCP.SessionLayer
                 //var uid = this._usersvc.CurrentUserId;
                 //if(uid != null)
                 //{
-                    //success = false;
+                //success = false;
 
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
@@ -1160,12 +1219,12 @@ namespace OGA.TCP.SessionLayer
 
                 // Send the client registration message...
                 int res = await Send_RegistrationMessage();
-                if(res != 1)
+                if (res != 1)
                 {
                     // Failed to send the registration message.
 
                     // Check if the pipe is closed...
-                    if(!this.TransportIsOpen)
+                    if (!this.TransportIsOpen)
                     {
                         // We lost connection.
 
@@ -1194,7 +1253,7 @@ namespace OGA.TCP.SessionLayer
 
                 return 1;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Error(e,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
@@ -1433,7 +1492,7 @@ namespace OGA.TCP.SessionLayer
         public async Task<int> SendMessage_to_Endpoint(object msg, string channel = "", string scope = "", string corelationid = "")
         {
             // Do we allow sending...
-            if(!this._allowsend)
+            if (!this._allowsend)
             {
                 // No outgoing messages are allowed.
                 return 0;
@@ -1454,13 +1513,13 @@ namespace OGA.TCP.SessionLayer
             try
             {
                 // Confirm we are set as a TCP/WSLibVersion=1 client...
-                if(this.LibVersion != LibVersions.CONST_WSLibVersion_1)
+                if (this.LibVersion != LibVersions.CONST_LibVersion_1)
                 {
                     // We are not defined as a version 1 client.
                     // Which means the deriving class did not include an override of this method as a non version 1 client.
                     // So, we must error the client connection.
 
-                
+
                     this.Logger?.Error(
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
                         $"Cannot send {(this.PropName_ClientLibVer ?? "")}=1 registration data, for a non version 1 client. This method must be overridden for proper registration behavior.");
@@ -1489,7 +1548,7 @@ namespace OGA.TCP.SessionLayer
                 List<string> props = new List<string>();
 
                 // Set the loopback echo flag is needed...
-                if(this.Register_with_Loopback_AllMessages)
+                if (this.Register_with_Loopback_AllMessages)
                 {
                     // Set a property for loopback of raw messages...
                     props.Add("\"loopback\":\"rawmsg\"");
@@ -1502,7 +1561,7 @@ namespace OGA.TCP.SessionLayer
                 }
 
                 // Set the disable keepalive if needed...
-                if(this.Cfg_Disable_KeepAlive)
+                if (this.Cfg_Disable_KeepAlive)
                 {
                     // Set a property to turn off keepalives...
                     props.Add("\"keepalive\":\"off\"");
@@ -1516,7 +1575,7 @@ namespace OGA.TCP.SessionLayer
                 rmsg.Props = props.ToArray();
 
                 var val = await this.Send_Object_to_Endpoint(rmsg);
-                if(val != 1)
+                if (val != 1)
                 {
                     // Error occurred while attempting to send the registration message to the server.
 
@@ -1533,7 +1592,7 @@ namespace OGA.TCP.SessionLayer
 
                 return val;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Error(e,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
@@ -1605,12 +1664,12 @@ namespace OGA.TCP.SessionLayer
                 $"Sending serialized message to {(this.TransportLongName?.ToLower() ?? "")} service.");
 
             // Ensure any json string exists at this point...
-            if(jsonobject == null)
+            if (jsonobject == null)
                 jsonobject = "";
 
             // Ensure the serialized buffer is not too large for the receiver...
             // We derate the max size enough to fit the message envelope and header (length value).
-            if(jsonobject.Length > (this.MaxMessageSize - 1024))
+            if (jsonobject.Length > (this.MaxMessageSize - 1024))
             {
                 // Message is too large to fit in a single message frame.
                 // We will tell the caller, so they can send the message, piece-wise.
@@ -1701,7 +1760,7 @@ namespace OGA.TCP.SessionLayer
 
                 return 1;
             }
-            catch(WebSocketException wse)
+            catch (WebSocketException wse)
             {
                 // Websocket exception occurred.
                 // Meaning, the websocket has been closed by the other end.
@@ -1712,7 +1771,7 @@ namespace OGA.TCP.SessionLayer
 
                 return -1;
             }
-            catch(System.Net.Sockets.SocketException)
+            catch (System.Net.Sockets.SocketException)
             {
                 // TCPsocket exception occurred.
                 // Meaning, the tcpsocket has been closed by the other end.
@@ -1723,7 +1782,7 @@ namespace OGA.TCP.SessionLayer
 
                 return -1;
             }
-            catch(ObjectDisposedException ode)
+            catch (ObjectDisposedException ode)
             {
                 // Socket is disposed.
 
@@ -1743,7 +1802,7 @@ namespace OGA.TCP.SessionLayer
 
                 return 0;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 // Unknown exception type...
 
@@ -2089,7 +2148,7 @@ namespace OGA.TCP.SessionLayer
             try
             {
                 // Check if a raw message handler is set...
-                if(this._delOnRawMessageReceived != null)
+                if (this._delOnRawMessageReceived != null)
                 {
                     // Call the raw message handler...
                     this._delOnRawMessageReceived(this, rawmsg);
@@ -2115,7 +2174,7 @@ namespace OGA.TCP.SessionLayer
 
                 // See if the message is something we handle, and don't pass along...
                 int res = this.Process_InternalMessage(mt, me.Data);
-                if(res < 0)
+                if (res < 0)
                 {
                     // Something was wrong with the received message.
                     // We must disregard it, and try again.
@@ -2164,7 +2223,7 @@ namespace OGA.TCP.SessionLayer
 
                 return 1;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Error(e,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage)} - " +
@@ -2192,7 +2251,7 @@ namespace OGA.TCP.SessionLayer
         {
             // We have a few message types that we watch out for.
             // Check if the given message is one...
-            if(messagetype == "ping")
+            if (messagetype == "ping")
             {
                 // The other end sent us a ping message.
                 // This is an attempt to keep the connection alive.
@@ -2207,11 +2266,11 @@ namespace OGA.TCP.SessionLayer
                     "Sending ping reply to web service...");
 
                 // Send a pong reply...
-                Task.Run(()=> this.SendPong_toEndpoint_Async());
+                Task.Run(() => this.SendPong_toEndpoint_Async());
 
                 return 1;
             }
-            else if(messagetype == "pong")
+            else if (messagetype == "pong")
             {
                 // The other end sent us a pong message.
                 // This is an attempt to keep the connection alive.
@@ -2222,7 +2281,7 @@ namespace OGA.TCP.SessionLayer
 
                 // We can reset the ping status...
                 this._keepAliveStatus = 0;
-                
+
                 return 1;
             }
             // If here, the message type is not a known internal message.
@@ -2248,7 +2307,7 @@ namespace OGA.TCP.SessionLayer
         {
             try
             {
-                if(string.IsNullOrEmpty(channel))
+                if (string.IsNullOrEmpty(channel))
                 {
                     // No channel is set.
 
@@ -2271,10 +2330,10 @@ namespace OGA.TCP.SessionLayer
                     // A channel is defined for the message.
                     // We will attempt to route it.
 
-                    DelMessageReceived handler = null;
+                    IChannelAdapter ca = null;
 
-                    // Get the handler from our delegate list...
-                    if(!this._ChannelMessageHandlers.TryGetValue(channel, out handler))
+                    // Get the handler from our adapter list...
+                    if (!this._ChannelMessageHandlers.TryGetValue(channel, out ca))
                     {
                         // We don't have a subscribed handler matching the channel name.
 
@@ -2287,14 +2346,24 @@ namespace OGA.TCP.SessionLayer
                     // If here, we have a handler for the message.
 
                     // Dispatch the message to the handler...
-                    var res = handler(this, messagetype, jsondata);
+                    try
+                    {
+                        var res = ca.AcceptIncomingMessage(this, messagetype, jsondata);
+                        return res;
+                    }
+                    catch(Exception e)
+                    {
+                        this.Logger?.Error(e,
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +
+                            $"Exception occurred during message dispatch. Exception Message = {e.Message}");
 
-                    return res;
+                        return -10;
+                    }
                 }
 
                 return 1;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Error(e,
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +

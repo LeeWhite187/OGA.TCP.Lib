@@ -13,6 +13,5 @@
     <Compile Include="$(MSBuildThisFileDirectory)Listener_Test.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPEndpoint_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Testing_HelperBase.cs" />
   </ItemGroup>
 </Project>

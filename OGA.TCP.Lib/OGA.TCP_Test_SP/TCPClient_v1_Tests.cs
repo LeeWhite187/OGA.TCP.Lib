@@ -186,7 +186,7 @@ namespace OGA.TCP_Test_SP
 
     [DoNotParallelize]
     [TestClass]
-    public class TCPClient_v1_Tests : Testing_HelperBase
+    public class TCPClient_v1_Tests : OGA.Testing.Lib.Test_Base_abstract
     {
         #region Private Fields
 
@@ -205,15 +205,39 @@ namespace OGA.TCP_Test_SP
 
         #region Setup
 
+        /// <summary>
+        /// This will perform any test setup before the first class tests start.
+        /// This exists, because MSTest won't call the class setup method in a base class.
+        /// Be sure this method exists in your top-level test class, and that it calls the corresponding test class setup method of the base.
+        /// </summary>
+        [ClassInitialize]
+        static public void TestClass_Setup(TestContext context)
+        {
+            TestClassBase_Setup(context);
+        }
+
+        /// <summary>
+        /// This will cleanup resources after all class tests have completed.
+        /// This exists, because MSTest won't call the class cleanup method in a base class.
+        /// Be sure this method exists in your top-level test class, and that it calls the corresponding test class cleanup method of the base.
+        /// </summary>
+        [ClassCleanup]
+        static public void TestClass_Cleanup()
+        {
+            TestClassBase_Cleanup();
+        }
+
+        /// <summary>
+        /// Called before each test runs.
+        /// Be sure this method exists in your top-level test class, and that it calls the corresponding test setup method of the base.
+        /// </summary>
         [TestInitialize]
         override public void Setup()
         {
+            //// Push the TestContext instance that we received at the start of the current test, into the common property of the test base class...
+            //Test_Base.TestContext = TestContext;
             base.Setup();
-
             // Runs before each test. (Optional)
-
-            // Enable trace and debug logging...
-            Enable_AllLoggingLevels();
 
             // Reset status...
             TESTINGSRVR_Simple_TCPListener.DoSomethingWith_ConnectionRegistration = false;
@@ -228,22 +252,16 @@ namespace OGA.TCP_Test_SP
             CommonChannel.Callback_Queue = new System.Collections.Concurrent.ConcurrentQueue<string>();
             CommonChannel.CallbackChannel_MessageEnvelope = new System.Collections.Concurrent.ConcurrentQueue<MessageEnvelope>();
 
-
-            /// Make sure we only add one of these...
-            if(Trace.Listeners.Count == 0)
-                Trace.Listeners.Add(new ConsoleTraceListener());
-            else
-            {
-                if(!Trace.Listeners.OfType<ConsoleTraceListener>().Any())
-                    Trace.Listeners.Add(new ConsoleTraceListener());
-            }
-
             _wsl = new TESTINGSRVR_Simple_TCPListener();
             _wsl.Port = RemotePort;
             _wsl.Host = RemoteHost;
             var res = _wsl.Start();
         }
 
+        /// <summary>
+        /// Called after each test runs.
+        /// Be sure this method exists in your top-level test class, and that it calls the corresponding test cleanup method of the base.
+        /// </summary>
         [TestCleanup]
         override public void TearDown()
         {
@@ -306,7 +324,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_1()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 client = null;
+            TCPClient_v1_Impl client = null;
 
             TESTINGSRVR_Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
 
@@ -319,7 +337,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                client = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 client.OnConnectionLost = this.Handle_OnConnectionlost;
                 client.OnMessageReceived = this.Handle_OnMessageReceived;
                 client.OnStatus_Change = (cl, sts) =>
@@ -426,7 +444,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_2()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -434,7 +452,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnConnectionLost = this.Handle_OnConnectionlost;
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
 
@@ -540,7 +558,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_3()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -550,7 +568,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
@@ -670,7 +688,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_4()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -680,7 +698,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
@@ -810,7 +828,7 @@ namespace OGA.TCP_Test_SP
             int receivedcounter = 0;
 
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -818,7 +836,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnConnectionLost = this.Handle_OnConnectionlost;
                 // Assign a local message handler...
                 wss.OnMessageReceived = ((recws, recmessagetype, recmsg) =>
@@ -888,7 +906,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_6()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -896,7 +914,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 // Tell the client to use a short keepalive interval...
                 wss.Cfg_KeepAliveInterval = 3;
 
@@ -965,7 +983,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_1_7()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -975,7 +993,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
@@ -1085,7 +1103,7 @@ namespace OGA.TCP_Test_SP
             int receivecounter = 0;
 
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1095,7 +1113,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
 
                 // Add a channel handler, to receive server messages...
                 wss.Add_ChannelHandler(channelname, (ws, messagetype, rcvmsg) =>
@@ -1169,7 +1187,7 @@ namespace OGA.TCP_Test_SP
             int receivecounter = 0;
 
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1179,7 +1197,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
 
                 // Add a channel handler, to receive server messages...
                 wss.Add_ChannelHandler(channelname, (ws, messagetype, rcvmsg) =>
@@ -1255,7 +1273,7 @@ namespace OGA.TCP_Test_SP
             int receivecounter = 0;
 
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1265,7 +1283,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
 
                 //// Add a channel handler, to receive server messages...
                 //wss.Add_ChannelHandler(channelname, (ws, messagetype, msg) =>
@@ -1346,7 +1364,7 @@ namespace OGA.TCP_Test_SP
             int receivecounter = 0;
 
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1356,7 +1374,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
 
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
@@ -1430,7 +1448,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_3_1()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1440,7 +1458,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
@@ -1795,7 +1813,7 @@ namespace OGA.TCP_Test_SP
         public async Task Test_1_6_1()
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
-            TCPClient_v1 wss = null;
+            TCPClient_v1_Impl wss = null;
 
             try
             {
@@ -1803,7 +1821,7 @@ namespace OGA.TCP_Test_SP
                 var cp = clientproperties.Create_Random_WSLibV1_ClientData();
 
                 // Setup the tcpsocket client...
-                wss = new TCPClient_v1(RemoteHost, RemotePort, logger);
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
                 wss.OnConnectionLost = this.Handle_OnConnectionlost;
                 wss.OnMessageReceived = this.Handle_OnMessageReceived;
 

@@ -15,6 +15,5 @@
     <Compile Include="$(MSBuildThisFileDirectory)TCPClient_v1_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cCustom_Serializer_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Testing_HelperBase.cs" />
   </ItemGroup>
 </Project>

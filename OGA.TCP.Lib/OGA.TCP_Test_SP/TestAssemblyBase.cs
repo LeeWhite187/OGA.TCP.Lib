@@ -6,13 +6,29 @@ using System.Text;
 namespace OGA.TCP_Test_SP
 {
     [TestClass]
-    public abstract class TestAssemblyBase
+    public abstract class TestAssemblyBase : OGA.Testing.Lib.TestAssembly_Base
     {
-        [AssemblyInitializeAttribute]
-        public static void Initialize(TestContext context)
+        #region Test Assembly Setup / Teardown
+
+        /// <summary>
+        /// This initializer calls the base assembly initializer.
+        /// </summary>
+        /// <param name="context"></param>
+        [AssemblyInitialize]
+        static public void TestAssembly_Initialize(TestContext context)
         {
-            int x = 0;
-            // put your initialize code here
+            TestAssemblyBase_Initialize(context);
         }
+
+        /// <summary>
+        /// This cleanup method calls the base assembly cleanup.
+        /// </summary>
+        [AssemblyCleanup]
+        static public void TestAssembly_Cleanup()
+        {
+            TestAssemblyBase_Cleanup();
+        }
+
+        #endregion
     }
 }

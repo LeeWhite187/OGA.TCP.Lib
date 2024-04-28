@@ -22,7 +22,7 @@ namespace OGA.TCP.SessionLayer
     /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
     /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
     /// </summary>
-    public class TCPClient_v1 : TCPClient_v1_Abstract, IDisposable
+    public class TCPClient_v1_Impl : TCPClient_v1_Abstract, IDisposable
     {
         #region Public Properties
 
@@ -58,9 +58,9 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Accepts remote host, port, and logger instance.
         /// </summary>
-        public TCPClient_v1(string host, int port, NLog.ILogger logger = null) : base(logger)
+        public TCPClient_v1_Impl(string host, int port, NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(TCPClient_v1);
+            _classname = nameof(TCPClient_v1_Impl);
 
             this.tcpconnection_host = host;
             this.tcpconnection_port = port;
@@ -68,9 +68,9 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Constructor requires a logger instance.
         /// </summary>
-        public TCPClient_v1(NLog.ILogger logger = null) : base(logger)
+        public TCPClient_v1_Impl(NLog.ILogger logger = null) : base(logger)
         {
-            _classname = nameof(TCPClient_v1);
+            _classname = nameof(TCPClient_v1_Impl);
         }
 
         #endregion

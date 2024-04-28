@@ -9,7 +9,10 @@
     <Import_RootNamespace>OGA.TCP</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)Impl\TCPClient_v1.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AdapterBased\Adapters\ChannelAdapter_DelegateType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AdapterBased\Adapters\ChannelAdapter_abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AdapterBased\Adapters\IChannelAdapter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Impl\TCPClient_v1_Impl.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\cEndpoint_Ping_Tracking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_v1_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_v1_Abstract.cs" />

@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33801.468
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OGA.TCP.Lib_NET452_Test", "OGA.TCP.Lib_NET452_Test\OGA.TCP.Lib_NET452_Test.csproj", "{507CA551-A024-4ECD-891B-65FB237369A7}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "OGA.TCP_Test_SP", "..\OGA.TCP.Lib\OGA.TCP_Test_SP\OGA.TCP_Test_SP.shproj", "{70C7079C-EC08-4682-B133-DDF6178F928B}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Testing_CommonHelpers_SP", "..\OGA.TCP.Lib\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.shproj", "{F5431793-8F98-4D65-B028-7BA313CD60A9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProjectRefs_fromParent", "ProjectRefs_fromParent", "{AF11B6D4-3E17-41CD-AB3E-6CF1A286BEAF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{507CA551-A024-4ECD-891B-65FB237369A7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{507CA551-A024-4ECD-891B-65FB237369A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{507CA551-A024-4ECD-891B-65FB237369A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{507CA551-A024-4ECD-891B-65FB237369A7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{70C7079C-EC08-4682-B133-DDF6178F928B} = {AF11B6D4-3E17-41CD-AB3E-6CF1A286BEAF}
+		{F5431793-8F98-4D65-B028-7BA313CD60A9} = {AF11B6D4-3E17-41CD-AB3E-6CF1A286BEAF}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {964346CD-2B0A-418A-9CFB-A4857E6A4F07}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		..\OGA.TCP.Lib\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{507ca551-a024-4ecd-891b-65fb237369a7}*SharedItemsImports = 4
+		..\OGA.TCP.Lib\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{507ca551-a024-4ecd-891b-65fb237369a7}*SharedItemsImports = 4
+		..\OGA.TCP.Lib\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{70c7079c-ec08-4682-b133-ddf6178f928b}*SharedItemsImports = 13
+		..\OGA.TCP.Lib\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{f5431793-8f98-4d65-b028-7ba313cd60a9}*SharedItemsImports = 13
+	EndGlobalSection
+EndGlobal

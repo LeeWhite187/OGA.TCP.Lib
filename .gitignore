@@ -42,3 +42,7 @@
 /OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7/obj
 /OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7_Tests/bin
 /OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7_Tests/obj
+/OGA.TCP.Lib_forNET452Test/.vs
+/OGA.TCP.Lib_forNET452Test/TestResults
+/OGA.TCP.Lib_forNET452Test/OGA.TCP.Lib_NET452_Test/bin
+/OGA.TCP.Lib_forNET452Test/OGA.TCP.Lib_NET452_Test/obj
