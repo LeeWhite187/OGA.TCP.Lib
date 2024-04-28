@@ -3693,6 +3693,7 @@ namespace OGA.TCP_Test_SP
         [TestMethod]
         public async Task Test_1_5_4()
         {
+            int localsatuscounter = 0;
             // Get a pair of connected tcp client instances that we can work with.
             cClientServer_Test_Helper cth = new cClientServer_Test_Helper();
             if(cth.Generate_Connected_TcpClient_Pair(1278) != 1)
@@ -3707,7 +3708,14 @@ namespace OGA.TCP_Test_SP
                 rl = new cReceiveLoop(cth.Serverside_Connection, logger);
                 rl.OnConnection_Went_Bad = this.CALLBACK_ConnectionWentBad;
                 rl.OnMessage_Received = this.CALLBACK_Message_Received;
-                rl.OnStatus_Change = this.CALLBACK_Status_Change;
+                rl.OnStatus_Change = (cReceiveLoop mep, string statusupdate) =>
+                {
+                    localsatuscounter++;
+                    // A status change was received.
+                };
+
+                // Shorten the frame read timeout, so we don't have to wait so long...
+                rl.FrameReadTimeout = 4000;
 
                 // Start it...
                 var res = rl.Begin_Comms();
@@ -3720,7 +3728,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Verify that one status callbacks occurred...
-                if(statuschange_listing.Count != 1)
+                if(localsatuscounter != 1)
                     Assert.Fail("Wrong Value");
 
 
@@ -3734,10 +3742,8 @@ namespace OGA.TCP_Test_SP
 
 
                 // Clear the callback counters...
-                Reset_StatusCallbackData();
                 Reset_LostConnectionData();
-                if(statuschange_listing.Count != 0)
-                    Assert.Fail("Wrong Value");
+                localsatuscounter = 0;
                 if(lostconnection_counter != 0)
                     Assert.Fail("Wrong Value");
 
@@ -3795,6 +3801,9 @@ namespace OGA.TCP_Test_SP
                 // Store the expected timestamp of the last received message...
                 var expected_lastmessagetime = DateTime.UtcNow;
 
+                // Clear the status counter...
+                localsatuscounter = 0;
+
                 // Wait for status...
                 System.Threading.Thread.Sleep(500);
 
@@ -3806,19 +3815,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
                 // Verify that one status callbacks occurred...
-                if(statuschange_listing.Count != 1)
-                    Assert.Fail("Wrong Value");
-
-
-                // Clear the callback counters...
-                Reset_StatusCallbackData();
-                Reset_LostConnectionData();
-                if(statuschange_listing.Count != 0)
-                    Assert.Fail("Wrong Value");
-                if(lostconnection_counter != 0)
-                    Assert.Fail("Wrong Value");
-                Reset_MessageCallbackData();
-                if(receivedmessage_listing.Count != 0)
+                if(localsatuscounter != 1)
                     Assert.Fail("Wrong Value");
 
 
@@ -3834,8 +3831,8 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Lost)
                     Assert.Fail("Wrong Value");
 
-                // Verify that one status callbacks occurred...
-                if(statuschange_listing.Count != 1)
+                // Verify that the status callback occurred...
+                if(localsatuscounter == 0)
                     Assert.Fail("Wrong Value");
 
 

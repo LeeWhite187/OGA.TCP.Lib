@@ -2284,6 +2284,10 @@ namespace OGA.TCP.Server
             // Capture the new state.
             this.State = newstate;
 
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+                state_change_string);
+
             if (publish_change == false)
             {
                 // We are not to publish status changes.
@@ -2291,16 +2295,16 @@ namespace OGA.TCP.Server
                 return;
             }
 
-            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-                state_change_string);
-
             // Call the status change handler if registered.
-            if (this._del_Status_Change != null)
-            {
-                // Call the status change handler.
-                this._del_Status_Change(this, state_change_string);
-            }
+			if (this._del_Status_Change != null)
+			{
+				// Call the status change handler.
+				try
+				{
+					this._del_Status_Change(this, state_change_string);
+				}
+				catch (Exception) { }
+			}
         }
         protected void PromoteStatus_from_NewlyOpen_to_Open()
         {

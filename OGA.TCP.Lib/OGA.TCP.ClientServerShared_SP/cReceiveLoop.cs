@@ -1593,16 +1593,16 @@ namespace OGA.TCP
 			// Capture the new state.
 			this.State = newstate;
 
+			this.Logger?.Debug(
+				$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+				state_change_string);
+
 			if (publish_change == false)
 			{
 				// We are not to publish status changes.
 				// This is usually because we are being closed down by an external owner who already knows what's up with us.
 				return;
 			}
-
-			this.Logger?.Debug(
-				$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-				state_change_string);
 
 			// Call the status change handler if registered.
 			if (this._del_Status_Change != null)

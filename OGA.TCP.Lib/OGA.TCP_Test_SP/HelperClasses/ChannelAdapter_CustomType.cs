@@ -10,11 +10,11 @@ using static OGA.TCP.SessionLayer.Client_v1_Abstract;
 namespace OGA.TCP.ClientAdapters
 {
     /// <summary>
-    /// Defines the contract for pluggable channel adapters that can be added to a generic tcp/ws client, for exchanging traffic.
-    /// This pluggable architecture allows for a single client class type to serve new channels from a single client type.
-    /// If your implementation requires a simple channel-assigned delegate, then simply use TCPClient_v1 client class.
+    /// FOR TESTING. NOT FOR PRODUCTION USAGE.
+    /// This is a simple channel adapter implementation used to exercise channel adapter usage.
+    /// It is based on the delegate type channel adapter class.
     /// </summary>
-    public class ChannelAdapter_DelegateType: ChannelAdapter_abstract, IChannelAdapter
+    public class ChannelAdapter_CustomType: ChannelAdapter_abstract, IChannelAdapter
     {
         private DelMessageReceived _callback;
 
@@ -25,10 +25,10 @@ namespace OGA.TCP.ClientAdapters
         /// <param name="callback"></param>
         /// <param name="expectedmessagetype"></param>
         /// <param name="logger"></param>
-        public ChannelAdapter_DelegateType(string channelid, DelMessageReceived callback, string expectedmessagetype, NLog.ILogger logger = null) :
+        public ChannelAdapter_CustomType(string channelid, DelMessageReceived callback, string expectedmessagetype, NLog.ILogger logger = null) :
                                         base(channelid, expectedmessagetype, logger)
         {
-            this._classname = nameof(ChannelAdapter_DelegateType);
+            this._classname = nameof(ChannelAdapter_CustomType);
 
             this._callback = callback;
         }

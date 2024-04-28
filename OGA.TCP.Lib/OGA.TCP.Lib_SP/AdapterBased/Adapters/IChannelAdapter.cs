@@ -53,6 +53,12 @@ namespace OGA.TCP.ClientAdapters
         void ResetCounters();
 
         /// <summary>
+        /// Used internally by a socket client, during adapter registration.
+        /// </summary>
+        /// <param name="clientref"></param>
+        void RegisterAdapter(Client_v1_Abstract clientref);
+
+        /// <summary>
         /// Called by the client's internal receive logic, to process messages.
         /// Create an implementation in this method, that validate the received message envelope, deserialize its content, and dispatch or handle the inner message.
         /// NOTE: This is NOT the method you use to send messages to the remote endpoint.

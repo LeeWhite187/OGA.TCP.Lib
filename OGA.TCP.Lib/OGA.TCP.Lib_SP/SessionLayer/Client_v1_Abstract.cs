@@ -527,6 +527,10 @@ namespace OGA.TCP.SessionLayer
             // Add it to the adapters listing...
             this._ChannelMessageHandlers.Add(adapter.ChannelId, adapter);
 
+            // Give the channel adapter a reference to this client.
+            // Doing so, allows a channel adapter to provide its own send methods supporting their own types.
+            adapter.RegisterAdapter(this);
+
             return 1;
         }
 
@@ -553,17 +557,24 @@ namespace OGA.TCP.SessionLayer
         public int Remove_ChannelHandler(string channel)
         {
             // Attempt to close the adapter...
+            IChannelAdapter ca = null;
             try
             {
-                var ca = this._ChannelMessageHandlers[channel];
-                ca.Close();
+                ca = this._ChannelMessageHandlers[channel];
             }
             catch(Exception e)
             {
-                int x = 0;
+                // Not found.
+                return -1;
             }
 
-            // Remove the adapter...
+            if (ca == null)
+                return 1;
+
+            // Close the adapter...
+            ca.Close();
+
+            // Remove the adapter from our listing...
             this._ChannelMessageHandlers.Remove(channel);
 
             return 1;
@@ -2498,6 +2509,10 @@ namespace OGA.TCP.SessionLayer
             // Capture the new state.
             this.State = newstate;
 
+            this.Logger?.Debug(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
+                state_change_string);
+
             if (publish_change == false)
             {
                 // We are not to publish status changes.
@@ -2505,16 +2520,16 @@ namespace OGA.TCP.SessionLayer
                 return;
             }
 
-            this.Logger?.Debug(
-                $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-                state_change_string);
-
             // Call the status change handler if registered.
-            if (this._del_Status_Change != null)
-            {
-                // Call the status change handler.
-                this._del_Status_Change(this, state_change_string);
-            }
+			if (this._del_Status_Change != null)
+			{
+				// Call the status change handler.
+				try
+				{
+					this._del_Status_Change(this, state_change_string);
+				}
+				catch (Exception) { }
+			}
         }
         protected void PromoteStatus_from_NewlyOpen_to_Open()
         {

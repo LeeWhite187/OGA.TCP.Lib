@@ -26,6 +26,13 @@ namespace OGA.TCP.ClientAdapters
         protected string _classname;
 
         /// <summary>
+        /// Local client references held by the channel adapter.
+        /// This is used by adapters that have their own Send methods.
+        /// </summary>
+        protected Client_v1_Abstract _clientref;
+
+
+        /// <summary>
         /// Number of instances that have been created since the process started.
         /// </summary>
         static protected int _instance_counter;
@@ -112,5 +119,17 @@ namespace OGA.TCP.ClientAdapters
         /// Override this method with logic to close and null out any references the adapter holds.
         /// </summary>
         abstract public void Close();
+        //{
+        //    this._clientref = null;
+        //}
+
+        /// <summary>
+        /// Used internally by a socket client, during adapter registration.
+        /// </summary>
+        /// <param name="clientref"></param>
+        public void RegisterAdapter(Client_v1_Abstract clientref)
+        {
+            this._clientref = clientref;
+        }
     }
 }
