@@ -14,6 +14,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Model\ClientInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Model\ConnectionEntry_v1.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\ConnectionMgr_Abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Services\TCPConnMgr_wListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\TCPConnectionMgr_Base.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\WSConnectionMgr_Base.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPEndpoint.cs" />

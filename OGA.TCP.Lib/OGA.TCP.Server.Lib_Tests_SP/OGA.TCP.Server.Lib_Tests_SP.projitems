@@ -9,8 +9,10 @@
     <Import_RootNamespace>OGA.TCP.Server.Lib_Tests_SP</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)ConnMgrImplementations\TCPConnMgr_Template.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\Simple_TCPListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Listener_Test.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TCPConnMgr_wListener_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPEndpoint_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
   </ItemGroup>

@@ -13,8 +13,15 @@ namespace OGA.TCP.Server.Services
     {
         #region Private Fields
 
+        /// <summary>
+        /// Number of instances of this tyme that have beem created.
+        /// </summary>
         static protected int _instance_counter;
 
+        /// <summary>
+        /// Name of the instance class type.
+        /// Used for logging.
+        /// </summary>
         static protected string _classname;
 
         /// <summary>
@@ -28,6 +35,10 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         protected int _unregisteredConnectionTTL;
 
+        /// <summary>
+        /// When set, new connections are allowed.
+        /// Use the method calls to toggle this flag.
+        /// </summary>
         protected bool _allowNewConnections;
 
         #endregion
@@ -35,6 +46,9 @@ namespace OGA.TCP.Server.Services
 
         #region Public Properties
 
+        /// <summary>
+        /// Provides a static public reference, so real time comms can occur without the overhead, indirection, and delay of DI.
+        /// </summary>
         static public ConnectionMgr_Abstract Instance { get; set; }
 
         /// <summary>
@@ -43,7 +57,17 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         public string ConnHost_Name { get; set; }
 
-        public int ConnHost_Port { get; set; }
+        /// <summary>
+        /// Set this value so client connection entries are decorated with the correct address.
+        /// Conn Manager types with integrated listeners will use this as the listening address.
+        /// </summary>
+        public string ListeningAddress { get; set; }
+
+        /// <summary>
+        /// Set this value so client connection entries are decorated with the correct port.
+        /// Conn Manager types with integrated listeners will use this as the listening port.
+        /// </summary>
+        public int ListeningPort { get; set; }
 
         /// <summary>
         /// Set this flag for normal operation.
@@ -73,9 +97,14 @@ namespace OGA.TCP.Server.Services
 
         #region ctor / dtor
 
+        /// <summary>
+        /// Public constructor
+        /// </summary>
         public ConnectionMgr_Abstract() : base()
         {
             _instance_counter++;
+
+            ListeningAddress = "";
 
             _connections = new ConcurrentDictionary<string, Endpoint_Abstract>();
 
@@ -91,11 +120,107 @@ namespace OGA.TCP.Server.Services
         #endregion
 
 
+        #region Management Methods
+
+        /// <summary>
+        /// Public method that will close down the connection manager, and any connections and listeners it holds.
+        /// </summary>
+        public void CloseDown()
+        {
+            // Wrap in a try-catch to ensure any override doesn't throw and unwind us..
+            try
+            {
+                CloseListeners();
+            } catch(Exception ex) { }
+
+            DisableNewConnections();
+
+            Close_All_Connections();
+
+            Purge_OldUnregisteredConnections();
+
+            Purge_LostConnections();
+        }
+
+        /// <summary>
+        /// Override this method with startup activities for your type.
+        /// </summary>
+        /// <returns></returns>
+        public virtual int Startup()
+        {
+            // Validate any properties and config...
+            try
+            {
+                var reschecks = DoStartupChecks();
+                if(reschecks != 1)
+                {
+                    // Failed to pass startup checks.
+                    // We will consider this fatal, and leave.
+
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Startup)} - " +
+                        $"Failed to pass startup checks. Cannot start connection manager.");
+
+                    return -1;
+                }
+            }
+            catch(Exception ex)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(ex,
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Startup)} - " +
+                    $"Exception occurred while doing startup checks. Cannot start connection manager.");
+
+                return -1;
+            }
+
+            // Startup listeners, if we control them...
+            try
+            {
+                var resstart = this.StartListener();
+                if(resstart != 1)
+                {
+                    // Failed to start listener.
+                    // We will consider this fatal, and leave.
+
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Startup)} - " +
+                        $"Failed to startup listener. Cannot start connection manager.");
+
+                    return -2;
+                }
+            }
+            catch(Exception ex)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(ex,
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Startup)} - " +
+                    $"Exception occurred while attempting to startup listener. Cannot start connection manager.");
+
+                return -2;
+            }
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Override this method with logic to validate config and resource availability needed to run.
+        /// This gets called by Startup().
+        /// </summary>
+        /// <returns></returns>
+        protected virtual int DoStartupChecks()
+        {
+            return 1;
+        }
+
+        #endregion
+
+
         #region Public Methods
 
         /// <summary>
-        /// Call this method from an HTTP request handler, to introduce a newly connected websocket.
-        /// Override this method to include any additional message handlers that will process incoming messages.
+        /// This method accepts new connections from an external listener, such as a websocket's Http request handler.
+        /// For websockets, call this method from an HTTP request handler, to introduce a newly connected websocket.
+        /// For TCPsockets, call this method from the tcp listener's new connection handler.
+        /// It's likely not necessary. But, you can override this method to include any additional message handlers that will process incoming messages.
         /// NOTE: Be sure to call the base.AddConnection() method before adding additional handlers.
         /// </summary>
         /// <param name="newconn"></param>
@@ -150,11 +275,17 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        /// <summary>
+        /// Call this method to prevent acceptance of new connections.
+        /// </summary>
         public void DisableNewConnections()
         {
             // Clear the allow new connections flag, so no new connections can be added...
             _allowNewConnections = false;
         }
+        /// <summary>
+        /// Call this method to accept new connections.
+        /// </summary>
         public void AllowNewConnections()
         {
             // Set the allow new connections flag, so no new connections can be added...
@@ -268,6 +399,9 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        /// <summary>
+        /// Call this method to close down any current connections.
+        /// </summary>
         public void Close_All_Connections()
         {
             try
@@ -321,12 +455,17 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        #endregion
+
+
+        #region Connection Query Methods
+
         /// <summary>
         /// Retrieves the current list of managed connections.
         /// This is used by the central connection listing service, to get bulk data.
         /// </summary>
         /// <returns></returns>
-        public List<ConnectionEntry_v1> Get_CurrentConnections()
+        public List<ConnectionEntry_v1> QRYGet_CurrentConnections()
         {
             try
             {
@@ -358,6 +497,10 @@ namespace OGA.TCP.Server.Services
                     var ce = new ConnectionEntry_v1();
                     c.Value.Populate_ConnectionEntry(ce);
 
+                    // Add our TCP/WS Host name and port to the connection entry, so the client Mapping Service knows what host to send messages to.
+                    ce.Hostname = this.ConnHost_Name;
+                    ce.Host_Port = this.ListeningPort;
+
                     // Add it to the running list...
                     cel.Add(ce);
                 }
@@ -367,7 +510,7 @@ namespace OGA.TCP.Server.Services
             catch (Exception e)
             {
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Get_CurrentConnections)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(QRYGet_CurrentConnections)} - " +
                     $"Exception occurred while getting current connections.");
 
                 return new List<ConnectionEntry_v1>();
@@ -379,7 +522,7 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         /// <param name="userid"></param>
         /// <returns></returns>
-        public List<Endpoint_Abstract> GetConnections_ByUserId(Guid userid)
+        public List<Endpoint_Abstract> QRYGetConnections_ByUserId(Guid userid)
         {
             // Since connections can have no user logged in, they will have an empty Guid.
             // So, we need to prevent returning these if the caller gives us an empty Guid.
@@ -413,7 +556,7 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         /// <param name="deviceid"></param>
         /// <returns></returns>
-        public Endpoint_Abstract? GetConnection_ByClientDeviceId(string deviceid)
+        public Endpoint_Abstract? QRYGetConnection_ByClientDeviceId(string deviceid)
         {
             Endpoint_Abstract valtoreturn;
 
@@ -432,7 +575,7 @@ namespace OGA.TCP.Server.Services
                     {
                         // Get all entries for the given DeviceId, in descending connection time...
                         connlist = _connections
-                                    .Where(m => string.IsNullOrEmpty(m.Value.ClientInfo.DeviceId) &&
+                                    .Where(m => !string.IsNullOrEmpty(m.Value.ClientInfo.DeviceId) &&
                                            m.Value.ClientInfo.DeviceId == deviceid)
                                     .OrderByDescending(n=>n.Value.ClientInfo.ConnectionTimeUTC)
                                     .ToList();
@@ -492,14 +635,14 @@ namespace OGA.TCP.Server.Services
             catch (Exception e)
             {
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(GetConnection_ByClientDeviceId)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(QRYGetConnection_ByClientDeviceId)} - " +
                     $"Exception occurred while attempting to get connection list for deviceid ({deviceid}).");
 
                 return null;
             }
         }
 
-        public Endpoint_Abstract? GetConnection_ByConnId(string connid)
+        public Endpoint_Abstract? QRYGetConnection_ByConnId(string connid)
         {
             Endpoint_Abstract? ws;
 
@@ -536,11 +679,35 @@ namespace OGA.TCP.Server.Services
             catch (Exception e)
             {
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(GetConnection_ByConnId)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(QRYGetConnection_ByConnId)} - " +
                     $"Exception occurred while attempting to lookup connection by connectionId ({connid}).");
 
                 return null;
             }
+        }
+
+        #endregion
+
+
+        #region Listener Management
+
+        /// <summary>
+        /// This method is called when the connection manager is being shut down.
+        /// Override this method with any logic that will close down and dereference any listeners this connection manager depends on or contains.
+        /// </summary>
+        protected virtual void CloseListeners()
+        {
+            return;
+        }
+
+
+        /// <summary>
+        /// This method is called on connection manager startup, to enable any internal or external listeners.
+        /// Override this method with any logic that will setup and start any listeners this connection manager depends on or contains.
+        /// </summary>
+        protected virtual int StartListener()
+        {
+            return 1;
         }
 
         #endregion
@@ -594,7 +761,7 @@ namespace OGA.TCP.Server.Services
 
                 // Add our TCP/WS Host name and port to the connection entry, so the client Mapping Service knows what host to send messages to.
                 ce.Hostname = this.ConnHost_Name;
-                ce.Host_Port = this.ConnHost_Port;
+                ce.Host_Port = this.ListeningPort;
 
                 // Pass along the registration data, and what the old values were (as context)...
                 Send_NewClientConnection_to_ClientMappingService(ce, oldvals);
@@ -769,7 +936,7 @@ namespace OGA.TCP.Server.Services
         /// <param name="oldvals"></param>
         protected virtual void Send_NewClientConnection_to_ClientMappingService(ConnectionEntry_v1 dto, ClientInfo oldvals)
         {
-            throw new Exception("METHOD OVERRIDE NOT DEFINED: Send_NewClientConnection_to_ClientMappingService()");
+            int x = 0;
         }
 
         /// <summary>
@@ -778,7 +945,7 @@ namespace OGA.TCP.Server.Services
         /// <param name="connid"></param>
         protected virtual void Send_ConnectionClosed_to_ClientMappingService(string connid)
         {
-            throw new Exception("METHOD OVERRIDE NOT DEFINED: Send_ConnectionClosed_to_ClientMappingService()");
+            int x = 0;
         }
 
         #endregion

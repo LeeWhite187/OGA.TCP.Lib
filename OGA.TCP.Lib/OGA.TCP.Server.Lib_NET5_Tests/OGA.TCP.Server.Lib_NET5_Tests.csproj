@@ -35,4 +35,6 @@
 
   <Import Project="..\OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems" Label="Shared" />
 
+  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
+
 </Project>

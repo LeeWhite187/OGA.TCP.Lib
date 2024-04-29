@@ -670,7 +670,12 @@ namespace OGA.TCP.SessionLayer
                                 // Fire off any message received event...
                                 // NOTE: This is just notification that something came in, and doesn't do any handling.
                                 // It is meant for app-based, diagnostic message counting, nothing more.
-                                this.FireMessageReceivedEvent();
+                                // Wrap this override in a try-catch to ensure it doesn't throw and unwind us...
+                                try
+                                {
+                                    this.FireMessageReceivedEvent();
+                                }
+                                catch(Exception) { }
 
                                 // Send it off for processing...
                                 ///  1 = Message was handled.

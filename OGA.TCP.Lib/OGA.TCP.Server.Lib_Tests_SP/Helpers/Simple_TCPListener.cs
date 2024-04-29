@@ -164,7 +164,15 @@ namespace OGA.TCP.Server
                 ServerSide_TCPEndpoint.Cfg_We_Require_Clients_to_Be_Chatty = WeRequireClients_tobe_Chatty;
 
                 // Start the endpoint, and give it its own thread...
-                _= Task.Run(() => ServerSide_TCPEndpoint.Start_Async());
+                _= Task.Run(async () =>
+                {
+                    // Wrap the start method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                    try
+                    {
+                        await ServerSide_TCPEndpoint.Start_Async();
+                    }
+                    catch(Exception e) { }
+                });
 
                 int x = 0;
             }
@@ -198,7 +206,15 @@ namespace OGA.TCP.Server
             var msgjson = Newtonsoft.Json.JsonConvert.SerializeObject(ce);
 
             // Send a channel signal that the registration was received...
-            Task.Run(() => CommonChannel.Callback_Queue.Enqueue(msgjson));
+            _= Task.Run(() =>
+            {
+                // Wrap the enqueue method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                try
+                {
+                    CommonChannel.Callback_Queue.Enqueue(msgjson);
+                }
+                catch(Exception e) { }
+            });
         }
     }
 }

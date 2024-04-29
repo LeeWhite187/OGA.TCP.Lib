@@ -200,6 +200,7 @@ Global
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{6b9ad33f-e2ff-48ef-be15-4d2b4ff064ee}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{6b9ad33f-e2ff-48ef-be15-4d2b4ff064ee}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{70c7079c-ec08-4682-b133-ddf6178f928b}*SharedItemsImports = 13
+		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{79b5dc53-e655-472c-9344-3681912ecddb}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems*{79b5dc53-e655-472c-9344-3681912ecddb}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{79b5dc53-e655-472c-9344-3681912ecddb}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{7d9a8ac3-77c2-4bf0-a1c7-6e3f252fb08e}*SharedItemsImports = 5
@@ -216,8 +217,10 @@ Global
 		OGA.TCP.Server.Lib_SP\OGA.TCP.Server.Lib_SP.projitems*{8e8017c4-fa47-4bf8-96a1-b98b73300804}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{9b3af5ce-a6b8-47e0-bad3-e5b76d753ec0}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{9b3af5ce-a6b8-47e0-bad3-e5b76d753ec0}*SharedItemsImports = 5
+		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{ca0dfe7e-9c80-4d4d-8043-580cd3d4face}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems*{ca0dfe7e-9c80-4d4d-8043-580cd3d4face}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{ca0dfe7e-9c80-4d4d-8043-580cd3d4face}*SharedItemsImports = 5
+		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{d4440665-4346-4b04-a768-f93ec41cee9b}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems*{d4440665-4346-4b04-a768-f93ec41cee9b}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{d4440665-4346-4b04-a768-f93ec41cee9b}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{daa57c64-b267-42e5-bb7e-2666cefc4d15}*SharedItemsImports = 13

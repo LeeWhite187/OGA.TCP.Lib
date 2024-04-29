@@ -707,8 +707,17 @@ namespace OGA.TCP.SessionLayer
                 this._allowsend = false;
                 // Signal that the connection was lost...
                 DispatchConnectionLost();
-                this.CloseandDisposeTransport().GetAwaiter();
-                this.DereferenceTransport();
+                // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                try
+                {
+                    this.CloseandDisposeTransport().GetAwaiter();
+                }
+                catch (Exception) { }
+                try
+                {
+                    this.DereferenceTransport();
+                }
+                catch (Exception) { }
             }
             else if (rcloop.State == eLoop_ConnectionStatus.Newly_Opened)
             {
@@ -762,8 +771,18 @@ namespace OGA.TCP.SessionLayer
             this._allowsend = false;
             // Signal that the connection was lost...
             DispatchConnectionLost();
-            this.CloseandDisposeTransport().GetAwaiter();
-            this.DereferenceTransport();
+
+            // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+            try
+            {
+                this.CloseandDisposeTransport().GetAwaiter();
+            }
+            catch (Exception) { }
+            try
+            {
+                this.DereferenceTransport();
+            }
+            catch (Exception) { }
         }
 
         protected void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, string rawmsg)
@@ -804,8 +823,17 @@ namespace OGA.TCP.SessionLayer
                 this._allowsend = false;
                 // Signal that the connection was lost...
                 DispatchConnectionLost();
-                this.CloseandDisposeTransport().GetAwaiter();
-                this.DereferenceTransport();
+                // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                try
+                {
+                    this.CloseandDisposeTransport().GetAwaiter();
+                }
+                catch (Exception) { }
+                try
+                {
+                    this.DereferenceTransport();
+                }
+                catch (Exception) { }
 
                 return;
             }

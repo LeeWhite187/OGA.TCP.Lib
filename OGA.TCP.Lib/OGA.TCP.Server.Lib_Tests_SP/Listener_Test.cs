@@ -6,6 +6,54 @@ using System.Text;
 
 namespace OGA.TCP_Test_SP
 {
+    /*
+        Unit tests for: cListener
+
+        //  Verify creation without callback...
+        //  Test_1_1_1  Create instance without new connection callback.
+        //              Verify start call returns error.
+        //  Verify the instance can be started...
+        //  Test_1_1_2  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //  Verify the listener can be started and stopped...
+        //  Test_1_1_3  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call close method.
+        //              Verify no exception occurred.
+        //  Verify the listener returns error if port is occupied...
+        //  Test_1_1_4  Create instance on a port.
+        //              Verify start call returns success.
+        //              Attempt to create a second instance on the same port.
+        //              Verify start method returns error.
+        //  Verify happy path to listen and accept a connection...
+        //  Test_1_1_5  Create instance and start it.
+        //              Create a client and connect to the listener.
+        //              Verify the listener new connection callback returns the new connection.
+        //  Verify that dispose works...
+        //  Test_1_1_6  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Verify state changes to closed.
+        //  Verify closing an already disposed instance has no effect...
+        //  Test_1_1_7  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Call closedown method.
+        //              Verify no error and state remains closed.
+        //  Verify a disposed instance cannot be started...
+        //  Test_1_1_8  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Attempt to start the instance back up.
+        //              Verify an error was returned.
+
+     */
+
     [DoNotParallelize]
     [TestClass]
     public class Listener_Test : OGA.Testing.Lib.Test_Base_abstract
@@ -45,6 +93,8 @@ namespace OGA.TCP_Test_SP
             //Test_Base.TestContext = TestContext;
             base.Setup();
             // Runs before each test. (Optional)
+
+            Reset_ReceivedConnectionList();
         }
 
         /// <summary>
@@ -62,8 +112,11 @@ namespace OGA.TCP_Test_SP
 
         #region Tests
 
+        // Verify creation without callback...
+        //  Test_1_1_1  Create instance without new connection callback.
+        //              Verify start call returns error.
         [TestMethod]
-        public void Create_without_Callback()
+        public void Test_1_1_1()
         {
             OGA.TCP.Server.cListener l1 = null;
             try
@@ -71,54 +124,28 @@ namespace OGA.TCP_Test_SP
                 l1 = new OGA.TCP.Server.cListener();
                 l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
                 l1.Listening_Port = 1378;
+                //l1.OnNew_Client_Connection = null;
 
                 int res = l1.Start_Listener();
-
-                if (res != -5)
-                {
+                if (res != -3)
                     Assert.Fail("Failed to start Listener");
-                }
             }
             finally
             {
                 try
                 {
-                    l1.CloseDown_Listener();
+                    l1.Dispose();
                 }
                 catch (Exception e) { }
             }
         }
 
+        //  Verify the instance can be started...
+        //  Test_1_1_2  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
         [TestMethod]
-        public void Create_with_Callback()
-        {
-            OGA.TCP.Server.cListener l1 = null;
-            try
-            {
-                l1 = new OGA.TCP.Server.cListener();
-                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
-                l1.Listening_Port = 1378;
-                l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
-
-                int res = l1.Start_Listener();
-
-                if (res != 1)
-                {
-                    Assert.Fail("Failed to start Listener");
-                }
-            }
-            finally
-            {
-                try
-                {
-                    l1.CloseDown_Listener();
-                }
-                catch (Exception e) { }
-            }
-        }
-
-        [TestMethod]
-        public void Create_and_Close()
+        public void Test_1_1_2()
         {
             OGA.TCP.Server.cListener l1 = null;
             try
@@ -131,22 +158,59 @@ namespace OGA.TCP_Test_SP
                 int res = l1.Start_Listener();
 
                 if (res != 1)
-                {
                     Assert.Fail("Failed to start Listener");
-                }
             }
             finally
             {
                 try
                 {
-                    l1.CloseDown_Listener();
+                    l1.Dispose();
                 }
                 catch (Exception e) { }
             }
         }
 
+        //  Verify the listener can be started and stopped...
+        //  Test_1_1_3  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call close method.
+        //              Verify no exception occurred.
         [TestMethod]
-        public void Create_two_on_Same_Port()
+        public void Test_1_1_3()
+        {
+            OGA.TCP.Server.cListener l1 = null;
+            try
+            {
+                l1 = new OGA.TCP.Server.cListener();
+                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
+                l1.Listening_Port = 1378;
+                l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
+
+                int res = l1.Start_Listener();
+                if (res != 1)
+                    Assert.Fail("Failed to start Listener");
+
+                // Close the listener...
+                l1.CloseDown_Listener();
+            }
+            finally
+            {
+                try
+                {
+                    l1.Dispose();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        //  Verify the listener returns error if port is occupied...
+        //  Test_1_1_4  Create instance on a port.
+        //              Verify start call returns success.
+        //              Attempt to create a second instance on the same port.
+        //              Verify start method returns error.
+        [TestMethod]
+        public void Test_1_1_4()
         {
             OGA.TCP.Server.cListener l1 = null;
             OGA.TCP.Server.cListener l2 = null;
@@ -157,55 +221,64 @@ namespace OGA.TCP_Test_SP
                 l1.Listening_Port = 1378;
                 l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
 
+                // Start first listener...
                 if (l1.Start_Listener() != 1)
-                {
                     Assert.Fail("Failed to start Listener");
-                }
 
+                // Create second listener on same port...
                 l2 = new OGA.TCP.Server.cListener();
                 l2.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
                 l2.Listening_Port = 1378;
                 l2.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
 
+                // Attempt start of second listener...
                 if (l2.Start_Listener() != -2)
-                {
                     Assert.Fail("Didn't receive expected error from listener.");
-                }
             }
             finally
             {
                 try
                 {
-                    l1.CloseDown_Listener();
+                    l1.Dispose();
                 }
                 catch (Exception e) { }
                 try
                 {
-                    l2.CloseDown_Listener();
+                    l2.Dispose();
                 }
                 catch (Exception e) { }
 
             }
         }
 
+        //  Verify happy path to listen and accept a connection...
+        //  Test_1_1_5  Create instance and start it.
+        //              Create a client and connect to the listener.
+        //              Verify the listener new connection callback returns the new connection.
         [TestMethod]
-        public void Connect_and_Receive_Callback()
+        public void Test_1_1_5()
         {
+            List<int> receivedlistenerIds = new List<int>();
+            // Stand up a listener...
             OGA.TCP.Server.cListener l = new OGA.TCP.Server.cListener();
             l.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
             l.Listening_Port = 1378;
-            l.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
+            l.OnNew_Client_Connection = (OGA.TCP.Server.cListener listref, TcpClient newclient) =>
+            {
+                receivedlistenerIds.Add(listref.InstanceId);
+            };
 
             try
             {
+                // Start the listener...
                 int res = l.Start_Listener();
-
                 if (res != 1)
-                {
                     Assert.Fail("Failed to start Listener");
-                }
 
-                // Fire off a connection attempt.
+                // Reset the received id...
+                receivedlistenerIds.Clear();
+
+                // Fire off a connection attempt...
                 System.Threading.Thread t = new System.Threading.Thread(() =>
                 {
                     System.Threading.Thread.Sleep(1000);
@@ -219,9 +292,7 @@ namespace OGA.TCP_Test_SP
 
                         System.Threading.Thread.Sleep(100);
                         if (!tc.Connected)
-                        {
                             Assert.Fail("Failed to gain connection");
-                        }
                     }
                     finally
                     {
@@ -235,15 +306,15 @@ namespace OGA.TCP_Test_SP
                 t.IsBackground = true;
                 t.Start();
 
-                // wait for a connection to come back.
+                // Wait for a connection to come back.
                 System.DateTime expiry = System.DateTime.Now.AddMilliseconds(5000);
                 while (System.DateTime.Now.CompareTo(expiry) < 0)
                 {
-                    // See if we have received the new connection callback.
-                    if(this.newconnection_listing.Contains(l.ListenerID))
+                    // See if we have received the new connection callback...
+                    if(receivedlistenerIds.Contains(l.InstanceId))
                     {
-                        // Got a callback.
-                        // Leave
+                        // Got our listener's callback.
+                        // Leave...
                         return;
                     }
 
@@ -257,7 +328,131 @@ namespace OGA.TCP_Test_SP
             {
                 try
                 {
-                    l.CloseDown_Listener();
+                    l.Dispose();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        //  Verify that dispose works...
+        //  Test_1_1_6  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Verify state changes to closed.
+        [TestMethod]
+        public void Test_1_1_6()
+        {
+            OGA.TCP.Server.cListener l1 = null;
+            try
+            {
+                l1 = new OGA.TCP.Server.cListener();
+                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
+                l1.Listening_Port = 1378;
+                l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
+
+                int res = l1.Start_Listener();
+                if (res != 1)
+                    Assert.Fail("Failed to start Listener");
+
+                // Close the listener...
+                l1.Dispose();
+
+                if (l1.State != TCP.Server.eListenerState.Closed)
+                    Assert.Fail("Failed to start Listener");
+            }
+            finally
+            {
+                try
+                {
+                    l1.Dispose();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        //  Verify closing an already disposed instance has no effect...
+        //  Test_1_1_7  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Call closedown method.
+        //              Verify no error and state remains closed.
+        [TestMethod]
+        public void Test_1_1_7()
+        {
+            OGA.TCP.Server.cListener l1 = null;
+            try
+            {
+                l1 = new OGA.TCP.Server.cListener();
+                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
+                l1.Listening_Port = 1378;
+                l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
+
+                int res = l1.Start_Listener();
+                if (res != 1)
+                    Assert.Fail("Failed to start Listener");
+
+                // Close the listener...
+                l1.Dispose();
+
+                if (l1.State != TCP.Server.eListenerState.Closed)
+                    Assert.Fail("Failed to start Listener");
+
+                // Attempt to close the listener...
+                l1.CloseDown_Listener();
+
+                if (l1.State != TCP.Server.eListenerState.Closed)
+                    Assert.Fail("Failed to start Listener");
+            }
+            finally
+            {
+                try
+                {
+                    l1.Dispose();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        //  Verify a disposed instance cannot be started...
+        //  Test_1_1_8  Create instance.
+        //              Add new connection callback.
+        //              Verify start call returns success.
+        //              Call dispose method.
+        //              Attempt to start the instance back up.
+        //              Verify an error was returned.
+        [TestMethod]
+        public void Test_1_1_8()
+        {
+            OGA.TCP.Server.cListener l1 = null;
+            try
+            {
+                l1 = new OGA.TCP.Server.cListener();
+                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
+                l1.Listening_Port = 1378;
+                l1.OnNew_Client_Connection = this.CALLBACK_NewConnection_Received;
+
+                int res = l1.Start_Listener();
+                if (res != 1)
+                    Assert.Fail("Failed to start Listener");
+
+                // Close the listener...
+                l1.Dispose();
+
+                if (l1.State != TCP.Server.eListenerState.Closed)
+                    Assert.Fail("Failed to start Listener");
+
+                // Attempt to restar tthe listener...
+                var ress1 = l1.Start_Listener();
+                if (ress1 != -1)
+                    Assert.Fail("Wrong Value");
+            }
+            finally
+            {
+                try
+                {
+                    l1.Dispose();
                 }
                 catch (Exception e) { }
             }
@@ -268,12 +463,16 @@ namespace OGA.TCP_Test_SP
 
         #region Private Methods
 
+        private void Reset_ReceivedConnectionList()
+        {
+            newconnection_listing.Clear();
+        }
         List<int> newconnection_listing = new List<int>();
         private void CALLBACK_NewConnection_Received(OGA.TCP.Server.cListener listref, TcpClient newclient)
         {
             // A connection was received.
             // Set a value in the connection list so the appropriate test can be notified the connection came back.
-            newconnection_listing.Add(listref.ListenerID);
+            newconnection_listing.Add(listref.InstanceId);
         }
 
         #endregion

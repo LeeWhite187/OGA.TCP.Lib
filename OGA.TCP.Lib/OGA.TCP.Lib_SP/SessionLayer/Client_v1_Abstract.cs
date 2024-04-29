@@ -405,7 +405,15 @@ namespace OGA.TCP.SessionLayer
                 _cts = new CancellationTokenSource();
 
                 // Trigger a thread to run the maintenance loop...
-                _ = Task.Run(async () => await ConnectionLoop());
+                _ = Task.Run(async () =>
+                {
+                    // Wrap the loop method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                    try
+                    {
+                        await ConnectionLoop();
+                    }
+                    catch(Exception e) { }
+                });
 
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Start_Async)} - " +
@@ -441,7 +449,12 @@ namespace OGA.TCP.SessionLayer
             this._delOnMessageReceived = null;
             this._delOnRawMessageReceived = null;
 
-            await this.CloseandDisposeTransport();
+            // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+            try
+            {
+                await this.CloseandDisposeTransport();
+            }
+            catch (Exception) { }
 
             // Wait a tick before cancelling the receive loop...
             // This lets the receive handler accept any closure frames, to close gracefully.
@@ -485,7 +498,11 @@ namespace OGA.TCP.SessionLayer
                 this._cts = null;
             }
 
-            this.DereferenceTransport();
+            try
+            {
+                this.DereferenceTransport();
+            }
+            catch (Exception) { }
 
             // Clear any delegates...
             this._delConnectionLost = null;
@@ -600,7 +617,7 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-#endregion
+        #endregion
 
 
         #region Connection Management
@@ -670,7 +687,13 @@ namespace OGA.TCP.SessionLayer
 
                         // We will not attempt to open a websocket connection until we know there is internet visibility.
                         // This method call, should be overridden with an implementation-specific check of network visibility.
-                        if (!this.IsInternetAvailable())
+                        // Wrap it in a try-catch to ensure the override doesn't throw and unwind us...
+                        bool inetavail = false;
+                        try
+                        {
+                            inetavail = this.IsInternetAvailable();
+                        } catch(Exception e) { }
+                        if (!inetavail)
                         {
                             // We will pause for a little bit, while waiting for internet visibility.
 
@@ -747,7 +770,16 @@ namespace OGA.TCP.SessionLayer
 
 
                                 // Attempt the transport-specific connection...
-                                success = await this.TransportSpecific_Connect();
+                                // Do it in a try-catch to ensure the override method doesn't throw and unwind us...
+                                try
+                                {
+                                    success = await this.TransportSpecific_Connect();
+                                }
+                                catch(Exception ex)
+                                {
+                                    // Assume failure...
+                                    success = false;
+                                }
 
                                 // See if the async connect succeeded...
                                 if (!success)
@@ -821,8 +853,17 @@ namespace OGA.TCP.SessionLayer
                                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
                                         "Recycling connection, so we can try again...");
 
-                                    await this.CloseandDisposeTransport();
-                                    this.DereferenceTransport();
+                                    // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                                    try
+                                    {
+                                        await this.CloseandDisposeTransport();
+                                    }
+                                    catch (Exception) { }
+                                    try
+                                    {
+                                        this.DereferenceTransport();
+                                    }
+                                    catch (Exception) { }
 
                                     // Wait a little bit, before attempting to connect again...
                                     //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
@@ -838,14 +879,25 @@ namespace OGA.TCP.SessionLayer
 
                                     // Publish a connected event...
                                     // This call will arm the connection lost delegate, for good symmetry.
-                                    DispatchConnected();
+                                    // Wrap this override in a try-catch to ensure it doesn't throw and unwind us...
+                                    try
+                                    {
+                                        DispatchConnected();
+                                    }
+                                    catch(Exception) { }
 
                                     // Start the inner status loop...
                                     while (!_cts.IsCancellationRequested && this.IsConnected)
                                     {
                                         // Do a sanity check of network status to ensure that we have the minimum network capabilities for maintaining our websocket connection.
                                         // We do this, because a websocket connection will not always recognize a connection loss if the platform loses network access.
-                                        if (!this.IsInternetAvailable())
+                                        // Wrap it in a try-catch to ensure the override doesn't throw and unwind us...
+                                        bool inetavail2 = false;
+                                        try
+                                        {
+                                            inetavail2 = this.IsInternetAvailable();
+                                        } catch(Exception e) { }
+                                        if (!inetavail2)
                                         {
                                             // The device platform is reporting that internet access has been lost.
                                             // So, we need to pull down our connection loop, because the platform says it has no internet visibility.
@@ -860,8 +912,17 @@ namespace OGA.TCP.SessionLayer
                                                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
                                                 $"Recycling {(this.TransportLongName?.ToLower() ?? "socket")} connection, and waiting for internet visibility...");
 
-                                            await this.CloseandDisposeTransport();
-                                            this.DereferenceTransport();
+                                            // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                                            try
+                                            {
+                                                await this.CloseandDisposeTransport();
+                                            }
+                                            catch (Exception) { }
+                                            try
+                                            {
+                                                this.DereferenceTransport();
+                                            }
+                                            catch (Exception) { }
 
                                             // Signal that the connection was lost...
                                             DispatchConnectionLost();
@@ -901,8 +962,17 @@ namespace OGA.TCP.SessionLayer
                                                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
                                                     "Recycling connection, so we can try again...");
 
-                                                await this.CloseandDisposeTransport();
-                                                this.DereferenceTransport();
+                                                // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                                                try
+                                                {
+                                                    await this.CloseandDisposeTransport();
+                                                }
+                                                catch (Exception) { }
+                                                try
+                                                {
+                                                    this.DereferenceTransport();
+                                                }
+                                                catch (Exception) { }
 
                                                 // Signal that the connection was lost...
                                                 DispatchConnectionLost();
@@ -933,8 +1003,17 @@ namespace OGA.TCP.SessionLayer
                                         // Reset the allow sending flag, to prevent outgoing messages...
                                         this._allowsend = false;
 
-                                        await this.CloseandDisposeTransport();
-                                        this.DereferenceTransport();
+                                        // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                                        try
+                                        {
+                                            await this.CloseandDisposeTransport();
+                                        }
+                                        catch (Exception) { }
+                                        try
+                                        {
+                                            this.DereferenceTransport();
+                                        }
+                                        catch (Exception) { }
 
                                         // Signal that the connection was lost...
                                         DispatchConnectionLost();
@@ -956,8 +1035,17 @@ namespace OGA.TCP.SessionLayer
                                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(ConnectionLoop)} - " +
                                             $"Connection lost with server, ({(this._connection_string ?? "<connectionstring not defined>")}). ConnectionID = {this.ConnectionId}.");
 
-                                        await this.CloseandDisposeTransport();
-                                        this.DereferenceTransport();
+                                        // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
+                                        try
+                                        {
+                                            await this.CloseandDisposeTransport();
+                                        }
+                                        catch (Exception) { }
+                                        try
+                                        {
+                                            this.DereferenceTransport();
+                                        }
+                                        catch (Exception) { }
 
                                         // Signal that the connection was lost...
                                         DispatchConnectionLost();
@@ -1078,17 +1166,31 @@ namespace OGA.TCP.SessionLayer
             // Determine the connection info...
             // For websockets, this call is a hook point where the client can ask for dynamic connection url from a host service.
             // For clients that connect to static hosts, this call doesn't do anything.
-            if (await Get_ConnectionInfo() != 1)
-            {
-                // We failed to get connection info.
-                // Cannot connect without it.
 
-                this.Logger?.Warn(
+            // Wrap in a try-catch to ensure the override doesn't throw and unwind us...
+            try
+            {
+                if (await Get_ConnectionInfo() != 1)
+                {
+                    // We failed to get connection info.
+                    // Cannot connect without it.
+
+                    this.Logger?.Warn(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
+                        $"Connection setup did not resolve connection info.");
+
+                    return 0;
+                }
+            }
+            catch(Exception e)
+            {
+                this.Logger?.Error(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
-                    $"Connection setup did not resolve connection info.");
+                    $"Exception caught from the Get_ConnectionInfo method call.");
 
                 return 0;
             }
+
 
             this.Logger?.Trace(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
@@ -1102,14 +1204,26 @@ namespace OGA.TCP.SessionLayer
 
 
             // This is a call point, for the transport specific implementation, to create its socket, websocket, etc...
-            if (await this.TransportSpecific_CreateNewConnection() != 1)
+            // Wrap it in a try-catch to ensure it doesn't throw and unwind us...
+            try
             {
-                // We failed to setup the actual transport connection.
-                // Cannot continue without it.
+                if (await this.TransportSpecific_CreateNewConnection() != 1)
+                {
+                    // We failed to setup the actual transport connection.
+                    // Cannot continue without it.
 
+                    this.Logger?.Warn(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
+                        $"Connection setup failed to instantiate transport.");
+
+                    return 0;
+                }
+            }
+            catch(Exception e)
+            {
                 this.Logger?.Warn(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
-                    $"Connection setup failed to instantiate transport.");
+                    $"Exception occurred while creating new connection.");
 
                 return 0;
             }
@@ -1182,17 +1296,29 @@ namespace OGA.TCP.SessionLayer
 
                     // Do any transport-specific post connection setup work...
                     // This hook allows the TCP endpoint implementation a spot in the setup flow, to get its network stream instance.
-                    var respcw = await this.Do_TransportSpecific_PostConnectionWork_Async();
-                    if (respcw != 1)
+                    // Do it in a try-catch to ensure the override method doesn't throw and unwind us...
+                    try
+                    {
+                        var respcw = await this.Do_TransportSpecific_PostConnectionWork_Async();
+                        if (respcw != 1)
+                        {
+                            this.Logger?.Error(
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
+                                $"Failed to do transport specific post connnection work. " +
+                                    $"ConnectionID = {(this.ConnectionId ?? "")}.");
+
+                            return -3;
+                        }
+                    }
+                    catch(Exception ex)
                     {
                         this.Logger?.Error(
                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
-                            $"Failed to do transport specific post connnection work. " +
+                            $"Exception caught while performing transport specific post connnection work. " +
                                 $"ConnectionID = {(this.ConnectionId ?? "")}.");
 
                         return -3;
                     }
-
 
                     // Call the receiver loop if the transport needs one...
                     if (this.Cfg_TransportRequiresReceiverLoop)
@@ -1201,7 +1327,15 @@ namespace OGA.TCP.SessionLayer
                         /// Returns  0 if failed to parse the received message.
                         /// Returns -1 if unable to accept received messages.
                         /// Returns -2 if received a close message.
-                        _ = Task.Run(async () => await ReceiveLoop());
+                        _ = Task.Run(async () =>
+                        {
+                            // Wrap the receive loop override in a try-catch to ensure it doesn't throw and unwind to the Task base.
+                            try
+                            {
+                                await ReceiveLoop();
+                            }
+                            catch(Exception e) { }
+                        });
                     }
                 }
                 catch (Exception tre)
@@ -1229,6 +1363,7 @@ namespace OGA.TCP.SessionLayer
                     $"Sending registration data to service...");
 
                 // Send the client registration message...
+                // No need to wrap this override call in a try-catch, as there's a catch below that can handle it.
                 int res = await Send_RegistrationMessage();
                 if (res != 1)
                 {
@@ -2277,7 +2412,15 @@ namespace OGA.TCP.SessionLayer
                     "Sending ping reply to web service...");
 
                 // Send a pong reply...
-                Task.Run(() => this.SendPong_toEndpoint_Async());
+                Task.Run(async () =>
+                {
+                    // Wrap the send method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                    try
+                    {
+                        await this.SendPong_toEndpoint_Async();
+                    }
+                    catch(Exception e) { }
+                });
 
                 return 1;
             }
