@@ -657,7 +657,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
@@ -731,7 +731,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -761,7 +761,7 @@ namespace OGA.TCP_Test_SP
                 cth.Clientside_Connection.Close();
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 4000);
 
                 // Verify the receive loop closes...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -770,6 +770,8 @@ namespace OGA.TCP_Test_SP
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 2)
                     Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => lostconnection_counter == 1, 1000);
 
                 // Verify the lost connection callback occurred...
                 if(lostconnection_counter != 1)
@@ -835,7 +837,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -865,7 +867,7 @@ namespace OGA.TCP_Test_SP
                 cth.Serverside_Connection.Close();
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Error, 500);
 
                 // Verify the receive loop Error...
                 if(rl.State != eLoop_ConnectionStatus.Error)
@@ -939,7 +941,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -970,7 +972,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
 
                 // Verify the receive loop loses connection...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -1044,7 +1046,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1075,7 +1077,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
 
                 // Verify the receive loop loses connection...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -1150,7 +1152,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1181,7 +1183,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
 
                 // Verify the receive loop indicates closed...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -1190,6 +1192,9 @@ namespace OGA.TCP_Test_SP
                 // Verify that two status callbacks occurred...
                 if(statuschange_listing.Count != 2)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the lost status message...
+                WaitforCondition(() => lostconnection_counter == 1, 1000);
 
                 // Verify a lost connection callback occurred...
                 if(lostconnection_counter != 1)
@@ -1279,7 +1284,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1310,7 +1315,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(400);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Error, 400);
 
                 // Verify the receive loop indicates Error...
                 if(rl.State != eLoop_ConnectionStatus.Error)
@@ -1407,7 +1412,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1498,7 +1503,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
@@ -1546,15 +1551,19 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Open, 500);
 
                 // Verify the receiver promoted to open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
+                WaitforCondition(() => statuschange_listing.Count == 1, 500);
+
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -1622,7 +1631,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1670,7 +1679,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -1700,11 +1709,13 @@ namespace OGA.TCP_Test_SP
                 cth.Clientside_Connection.Close();
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 500);
 
                 // Verify the receive loop closes...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
                     Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => statuschange_listing.Count == 2, 500);
 
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 2)
@@ -1776,7 +1787,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1833,7 +1844,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -1863,7 +1874,7 @@ namespace OGA.TCP_Test_SP
                 cth.Serverside_Connection.Close();
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Error, 500);
 
                 // Verify the receive loop Error...
                 if(rl.State != eLoop_ConnectionStatus.Error)
@@ -1939,7 +1950,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -1987,7 +1998,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2018,7 +2029,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
 
                 // Verify the receive loop loses connection...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -2094,7 +2105,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -2142,7 +2153,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2173,7 +2184,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 520000);
 
                 // Verify the receive loop loses connection...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -2250,7 +2261,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -2298,7 +2309,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2329,7 +2340,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
 
                 // Verify the receive loop indicates closed...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -2429,7 +2440,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -2477,7 +2488,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2508,7 +2519,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(400);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Error, 400);
 
                 // Verify the receive loop indicates Error...
                 if(rl.State != eLoop_ConnectionStatus.Error)
@@ -2605,7 +2616,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -2653,7 +2664,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2747,7 +2758,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -2795,7 +2806,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -2826,7 +2837,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 500);
 
                 // Verify the receive loop indicates Error...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -2955,7 +2966,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -3003,7 +3014,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 500);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -3101,8 +3112,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
-
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
@@ -3205,7 +3215,8 @@ namespace OGA.TCP_Test_SP
 
 
                 // Now, wait for the timeout to occur...
-                System.Threading.Thread.Sleep(5000);
+                // This would be indicated by our connection being lost...
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Lost, 5000);
 
 
                 // Verify the message was NOT received...
@@ -3215,6 +3226,8 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver promoted to Lost ...
                 if(rl.State != eLoop_ConnectionStatus.Lost)
                     Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => statuschange_listing.Count == 1, 1000);
 
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
@@ -3281,7 +3294,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -3326,7 +3339,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Open, 5000);
 
                 // Verify the receiver is open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
@@ -3402,7 +3415,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -3450,7 +3463,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => this.receivedmessage_listing.Count == 1, 5000);
 
                 // Verify the message was received...
                 if(this.receivedmessage_listing.Count != 1)
@@ -3524,7 +3537,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -3572,7 +3585,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.Metrics.Received_Message_Count == 1, 5000);
 
                 // Verify the receiver promoted to open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
@@ -3608,7 +3621,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => rl.Metrics.Received_Message_Count == 2, 5000);
 
                 // Verify the receiver promoted to open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
@@ -3724,7 +3737,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => localsatuscounter == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...
@@ -3814,13 +3827,17 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver is open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
-                // Verify that one status callbacks occurred...
-                if(localsatuscounter != 1)
+
+                // Clear the status counter...
+                localsatuscounter = 0;
+
+                // Verify that no status callback occurred yet...
+                if(localsatuscounter != 0)
                     Assert.Fail("Wrong Value");
 
 
                 // Now, wait for the timeout to occur...
-                System.Threading.Thread.Sleep(5000);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Lost, 5000);
 
 
                 // Verify the message was NOT received...
@@ -3901,7 +3918,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                System.Threading.Thread.Sleep(200);
+                WaitforCondition(() => statuschange_listing.Count == 1, 4000);
 
 
                 // Verify that one status callbacks occurred...

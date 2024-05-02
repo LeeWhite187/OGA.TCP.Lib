@@ -49,223 +49,223 @@ namespace OGA.TCP_Test_SP
      
      */
 
-    /*  Unit Tests for: TCPEndpoint (a derivative of OGA.WSClient.WSEndpoint), with clients connecting as WSLibVersion=2
-    /*  Unit Tests for: WSEndpoint, with clients connecting as WSLibVersion=2
+    /*  Unit Tests for: TCPEndpoint (a derivative of OGA.WSClient.TCPEndpoint), with clients connecting as WSLibVersion=2
+    /*  Unit Tests for: TCPEndpoint, with clients connecting as WSLibVersion=2
         // Test 01  -   Removed.
         // Test 02  -   Do simple websocket client call.
         //              Verify we get a websocket connection.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         //              Dispose of the websocket client.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
         // Test 03  -   Do simple websocket client call.
         //              Send a ping signal.
         //              Verify we get a pong back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 04  -   Do simple websocket client call.
         //              Send a message with scope set to "loopback=rawmsg".
         //              Verify we get the same message replied back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 05  -   Do simple websocket client call.
         //              Send an empty message that should be disregarded, but not fail the connection.
         //              Send a ping after that.
         //              Verify we get a pong message back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 06  -   Do simple websocket client call.
         //              Send a message with an unknown type that should be disregarded, but not fail the connection.
         //              Send a ping after that.
         //              Verify we get a pong message back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 07  -   Do simple websocket client call.
         //              Send a close message.
         //              Verify we get a closing message back, and the connection is closed.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 08  -   Do simple websocket client call.
         //              Send a connection registration message.
         //              Verify the connection registration was received.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         // Test 09  -   Do simple websocket client call.
         //              Enable loopback for all messages via connection registration message.
         //              Test that all messages get echoed back.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         // Test 10  -   Do simple websocket client call.
         //              Disable loopback of all messages via connection registration message.
         //              Test that no more messages get echoed back.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         // Test 11  -   Open a websocket client call.
         //              Disable server keepalive via client message.
         //              Wait the timeout period.
         //              Check that the connection remains open.
         //              Attempt to send a ping after that.
         //              Verify a pong message is replied.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         // Test 12  -   Configure a short server keepalive.
         //              Open a websocket client call.
         //              Enable keepalive.
         //              Wait the timeout period.
         //              Check that the connection is closed.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has a connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has a connectionId and DeviceId.
         // Test 13  -   Open a websocket connection.
         //              Send a connection registration message that is missing a DeviceId.
         //              Verify the connection closes.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 14  -   Open a websocket connection.
         //              Send a connection registration message that is missing a Connectionid.
         //              Verify the connection closes.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         // Test 15  -   Open a websocket connection.
         //              Send a connection registration message that is missing a UserId.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
 
 
         // Test that a second registration message with different connid or deviceid will abort the connection..
         // Test 15.1 -  Open a websocket connection.
         //              Send a full connection registration message.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the server-side WSEndpoint remains in a registered state.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint remains in a registered state.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
         // Test 15.2 -  Open a websocket connection.
         //              Send a full connection registration message.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the server-side WSEndpoint remains in a registered state.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint remains in a registered state.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
 
 
-        //  Test that the server-side WSEndpoint Connection Time changes appropriately.
+        //  Test that the server-side TCPEndpoint Connection Time changes appropriately.
         //  It should update on connection, and remain constant, regardless of state.
         // Test 16a  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         // Test 16b  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         //              Close the client connection.
-        //              Verify the server-side WSEndpoint connection time remains the same.
+        //              Verify the server-side TCPEndpoint connection time remains the same.
         // Test 16c  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         //              Dispose of the client connection.
-        //              Verify the server-side WSEndpoint connection time remains the same.
+        //              Verify the server-side TCPEndpoint connection time remains the same.
 
 
-        //  Test that the server-side WSEndpoint UnregisteredAge changes appropriately.
+        //  Test that the server-side TCPEndpoint UnregisteredAge changes appropriately.
         // Test 17a  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         // Test 17b  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         //              Send a connection registration message.
-        //              Verify the server-side WSEndpoint UnRegisteredAge resets to zero.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge resets to zero.
         // Test 17c  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         //              Send a bad connection registration message (one missing a connectionId).
-        //              Verify the server-side WSEndpoint UnRegisteredAge is still non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is still non-zero and agrees with the connection time.
 
 
-        //  Test that the server-side WSEndpoint Last Received Timestamp updates for any received message.
+        //  Test that the server-side TCPEndpoint Last Received Timestamp updates for any received message.
         // Test 18a  -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         // Test 18b -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a chat message (representing any non-internal message type).
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18c -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a connection registration message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18d -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a message with an unknown type (one that would be received, but discarded).
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18e -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send an empty message, just an empty string... "".
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18f -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a message that is not a message envelope dto.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18g -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a ping message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         // Test 18h -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a local loopback message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
 
 
-        //  Test that the server-side WSEndpoint instance can provide a Connection Entry instance.
+        //  Test that the server-side TCPEndpoint instance can provide a Connection Entry instance.
         // Test 19  -   Open a websocket connection.
         //              Send a connection registration message.
         //              Wait a second.
-        //              Ask the WSEndpoint to provide a connection entry.
-        //              Verify the connection entry matches the WSEndpoint data.
+        //              Ask the TCPEndpoint to provide a connection entry.
+        //              Verify the connection entry matches the TCPEndpoint data.
 
 
-        //  Test that the server-side WSEndpoint instance can trigger a DispatchConnectionClosed when required.
+        //  Test that the server-side TCPEndpoint instance can trigger a DispatchConnectionClosed when required.
         // Test 20a -   Open a websocket connection.
         //              Without delay, close the client connection.
         //              Wait a second for the connection loop to catch up and fall.
@@ -281,7 +281,7 @@ namespace OGA.TCP_Test_SP
         //              Verify that a DispatchConnectionClosed was called.
         // Test 20d -   Open a websocket connection.
         //              Wait a second for the connection loop to start.
-        //              Call the StopAsync on the server-side WSEndpoint instance.
+        //              Call the StopAsync on the server-side TCPEndpoint instance.
         //              Wait a second for the connection loop to fall.
         //              Verify that a DispatchConnectionClosed was called.
         // Test 20e -   Open a websocket connection.
@@ -298,19 +298,19 @@ namespace OGA.TCP_Test_SP
 
         //  Test server-side message handling of channel assigned messages.
         // Test 21a -   Open a websocket connection.
-        //              Add no channel handlers to the server-side WSEndpoint.
+        //              Add no channel handlers to the server-side TCPEndpoint.
         //              Send a message with an empty channel name to the server.
         //              Verify the message is received on the OnMessageReceived delegate.
         // Test 21b -   Open a websocket connection.
-        //              Add a channel handler to the server-side WSEndpoint.
+        //              Add a channel handler to the server-side TCPEndpoint.
         //              Send a message with an empty channel name to the server.
         //              Verify the message is received on the OnMessageReceived delegate.
         // Test 21c -   Open a websocket connection.
-        //              Add a couple of channel handlers to the server-side WSEndpoint.
+        //              Add a couple of channel handlers to the server-side TCPEndpoint.
         //              Send a message with a matching channel name to the server.
         //              Verify the message is received by the appropriate channel handler's delegate.
         // Test 21d -   Open a websocket connection.
-        //              Add a couple of channel handlers to the server-side WSEndpoint.
+        //              Add a couple of channel handlers to the server-side TCPEndpoint.
         //              Send a message to the server with a channel name that doesn't match any handler.
         //              Verify the message is not handled by any delegate.
 
@@ -318,62 +318,62 @@ namespace OGA.TCP_Test_SP
         //  Test server-side message sending.
         // Test 22a -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a POCO instance.
+        //              From the server-side TCPEndpoint, send a POCO instance.
         //              Verify the client receives the POCO instance and its correct class name.
         // Test 22b -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a concreted POCO generic instance.
+        //              From the server-side TCPEndpoint, send a concreted POCO generic instance.
         //              Verify the client receives the concreted POCO generic instance and its correct class name.
         // Test 22c -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a string instance.
+        //              From the server-side TCPEndpoint, send a string instance.
         //              Verify the client receives the string and a type of string.
         // Test 22d -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send an integer instance.
+        //              From the server-side TCPEndpoint, send an integer instance.
         //              Verify the client receives the integer and a type of int32.
         // Test 22e -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send an empty string.
+        //              From the server-side TCPEndpoint, send an empty string.
         //              Verify the client receives the blank string and a type of string.
         // Test 22f -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send the json string of a POCO with a type name.
+        //              From the server-side TCPEndpoint, send the json string of a POCO with a type name.
         //              Verify the client receives the json string and the correct type name.
 
 
         //  Test that a channel handler name can only be added once.
         // Test 23a -   Open a websocket connection.
-        //              From the server-side WSEndpoint, add the same channel handler twice.
+        //              From the server-side TCPEndpoint, add the same channel handler twice.
         //              Verify the second attempt fails.
 
         //  Exercise the max message size that can be exchanged.
         // Test 24a -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1000 byte string.
         //              Verify the server received the entire string.
         // Test 24b -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2047 byte string.
         //              Verify the server received the entire string.
         // Test 24c -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2048 byte string.
         //              Verify the server received the entire string.
         // Test 24d -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2049 byte string.
         //              Verify the server received the entire string.
         // Test 24e -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 10KB string.
         //              Verify the server received the entire string.
         // Test 24f -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1MB string.
         //              Verify the server received the entire string.
         // Test 24g -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1.1MB string.
         //              Verify the server endpoint failed to receive it.
 
@@ -450,6 +450,9 @@ namespace OGA.TCP_Test_SP
 
             // Reset the received message metrics...
             this.Reset_ReceivedMessageData();
+
+            // Clear out any received messages...
+            this.Get_ReceivedMessages(out var bitbucket);
 
             _wsl = new Simple_TCPListener();
             _wsl.Host = tcphost;
@@ -791,9 +794,9 @@ namespace OGA.TCP_Test_SP
 
                 System.Threading.Thread.Sleep(1000);
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
             }
             finally
             {
@@ -808,9 +811,9 @@ namespace OGA.TCP_Test_SP
         // Test 03  -   Do simple websocket client call.
         //              Send a ping signal.
         //              Verify we get a pong back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_03()
         {
@@ -877,19 +880,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to open websocket.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint has a connectionid.");
+                    Assert.Fail("TCPEndpoint has a connectionid.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint has a DeviceId.");
+                    Assert.Fail("TCPEndpoint has a DeviceId.");
             }
             finally
             {
@@ -904,9 +907,9 @@ namespace OGA.TCP_Test_SP
         // Test 04  -   Do simple websocket client call.
         //              Send a message with scope set to "loopback=rawmsg".
         //              Verify we get the same message replied back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_04()
         {
@@ -999,19 +1002,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to open websocket.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint has a connectionid.");
+                    Assert.Fail("TCPEndpoint has a connectionid.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint has a DeviceId.");
+                    Assert.Fail("TCPEndpoint has a DeviceId.");
             }
             finally
             {
@@ -1027,9 +1030,9 @@ namespace OGA.TCP_Test_SP
         //              Send an empty message that should be disregarded, but not fail the connection.
         //              Send a ping after that.
         //              Verify we get a pong message back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_05()
         {
@@ -1103,19 +1106,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to open websocket.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint has a connectionid.");
+                    Assert.Fail("TCPEndpoint has a connectionid.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint has a DeviceId.");
+                    Assert.Fail("TCPEndpoint has a DeviceId.");
             }
             finally
             {
@@ -1132,9 +1135,9 @@ namespace OGA.TCP_Test_SP
         //              Send a message with an unknown type that should be disregarded, but not fail the connection.
         //              Send a ping after that.
         //              Verify we get a pong message back.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_06()
         {
@@ -1208,19 +1211,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to open websocket.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint has a connectionid.");
+                    Assert.Fail("TCPEndpoint has a connectionid.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint has a DeviceId.");
+                    Assert.Fail("TCPEndpoint has a DeviceId.");
             }
             finally
             {
@@ -1236,9 +1239,9 @@ namespace OGA.TCP_Test_SP
         // Test 07  -   Do simple websocket client call.
         //              Send a close message.
         //              Verify we get a closing message back, and the connection is closed.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_07()
         {
@@ -1304,19 +1307,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to open websocket.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint has a connectionid.");
+                    Assert.Fail("TCPEndpoint has a connectionid.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint has a DeviceId.");
+                    Assert.Fail("TCPEndpoint has a DeviceId.");
             }
             finally
             {
@@ -1332,9 +1335,9 @@ namespace OGA.TCP_Test_SP
         // Test 08  -   Do simple websocket client call.
         //              Send a connection registration message.
         //              Verify the connection registration was received.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         [TestMethod]
         public async Task Test_08()
         {
@@ -1349,8 +1352,19 @@ namespace OGA.TCP_Test_SP
                 tcp = new TcpClient();
                 await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
-                await Task.Delay(2000);
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 400);
+
+                // Start a receive loop, so we only have to collect waiting messages...
+                if(await this.StartReceiveLoop(tcp) != 1)
+                    Assert.Fail("Failed to start receiver loop.");
+
+                // wait for the receive loop to become active...
+                WaitforCondition(() => this.clientrcvloop != null, 400);
+                WaitforCondition(() => this.clientrcvloop.State == eLoop_ConnectionStatus.Newly_Opened, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -1361,6 +1375,34 @@ namespace OGA.TCP_Test_SP
                 {
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
+                }
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count >= 1, 1000);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
                 }
 
                 System.Threading.Thread.Sleep(1000);
@@ -1382,32 +1424,32 @@ namespace OGA.TCP_Test_SP
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
                     Assert.Fail("Connection registration message was garbled.");
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
-                // Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+                // Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
                 if(this._wsl.ServerSide_TCPEndpoint.WSId != connentry.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != connentry.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != connentry.AppId)
-                    Assert.Fail("WSEndpoint has wrong AppId.");
+                    Assert.Fail("TCPEndpoint has wrong AppId.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != connentry.AppVersion)
-                    Assert.Fail("WSEndpoint has wrong AppVersion.");
+                    Assert.Fail("TCPEndpoint has wrong AppVersion.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.Language != connentry.Language)
-                    Assert.Fail("WSEndpoint has wrong Language.");
+                    Assert.Fail("TCPEndpoint has wrong Language.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != connentry.LibVersion)
-                    Assert.Fail("WSEndpoint has wrong WSLibVersion.");
+                    Assert.Fail("TCPEndpoint has wrong WSLibVersion.");
             }
             finally
             {
@@ -1423,9 +1465,9 @@ namespace OGA.TCP_Test_SP
         // Test 09  -   Do simple websocket client call.
         //              Enable loopback for all messages via connection registration message.
         //              Test that all messages get echoed back.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         [TestMethod]
         public async Task Test_09()
         {
@@ -1440,12 +1482,22 @@ namespace OGA.TCP_Test_SP
                 tcp = new TcpClient();
                 await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 400);
+
                 // Start a receive loop, so we only have to collect waiting messages...
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
+                // Clear received messages...
+                Get_ReceivedMessages(out List<MessageEnvelope> bitbucket);
 
+                // wait for the receive loop to become active...
+                WaitforCondition(() => this.clientrcvloop != null, 400);
+                WaitforCondition(() => this.clientrcvloop.State == eLoop_ConnectionStatus.Newly_Opened, 1000);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -1457,6 +1509,34 @@ namespace OGA.TCP_Test_SP
                 {
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
+                }
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 1000);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
                 }
 
                 System.Threading.Thread.Sleep(1000);
@@ -1472,7 +1552,8 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 1000);
 
                 // Check that it was echoed back to us...
                 var res4 = Get_ReceivedMessages(out msgs);
@@ -1489,6 +1570,12 @@ namespace OGA.TCP_Test_SP
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
                 }
+
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 1000);
+
+                // Clear out any received messages...
+                Get_ReceivedMessages(out var bitbucket1);
 
                 // Send a random message...
                 var res6 = await SendChatMessage(tcp);
@@ -1508,25 +1595,22 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed by receiving messages.");
                 }
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
-
-                int x = 0;
-
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
             }
             finally
             {
@@ -1542,9 +1626,9 @@ namespace OGA.TCP_Test_SP
         // Test 10  -   Do simple websocket client call.
         //              Disable loopback of all messages via connection registration message.
         //              Test that no more messages get echoed back.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         [TestMethod]
         public async Task Test_10()
         {
@@ -1563,8 +1647,8 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -1578,7 +1662,38 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
+                }
+
+                // Verify both client and server are connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 400);
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Clear out any received messages...
                 Get_ReceivedMessages(out var msgs);
@@ -1591,7 +1706,8 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // We will wait for the echoed chat message, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
 
                 // Check that it was echoed back to us...
                 var res4 = Get_ReceivedMessages(out msgs);
@@ -1609,6 +1725,12 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
+                // We will wait for the received registration reply, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Clear out any received messages...
+                Get_ReceivedMessages(out var bitbucket);
+
                 // Send a random message...
                 var res6 = await SendChatMessage(tcp);
                 if(res6 != 1)
@@ -1617,7 +1739,8 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // Wait long enough to ensure the message could echo...
+                await Task.Delay(400);
 
                 // Verify nothing was echoed back to us...
                 var res7 = Get_ReceivedMessages(out msgs);
@@ -1627,23 +1750,26 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed by receiving messages.");
                 }
 
-                // Verify the server-side WSEndpoint indicates registered.
-                if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                // Wait for the wsl to expose our connection...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates registered.
+                if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("TCPEndpoint should claim registered.");
+
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
 
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -1664,9 +1790,9 @@ namespace OGA.TCP_Test_SP
         //              Check that the connection remains open.
         //              Attempt to send a ping after that.
         //              Verify a pong message is replied.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         [TestMethod]
         public async Task Test_11()
         {
@@ -1686,8 +1812,8 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -1699,6 +1825,34 @@ namespace OGA.TCP_Test_SP
                 {
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
+                }
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
                 }
 
                 System.Threading.Thread.Sleep(1000);
@@ -1744,22 +1898,25 @@ namespace OGA.TCP_Test_SP
                 if (msgs[0].MessageType != "pong")
                     Assert.Fail("Expected pong message.");
 
-                // Verify the server-side WSEndpoint indicates registered.
-                if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                // Wait for the wsl to expose our connection...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates registered.
+                if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("TCPEndpoint should claim registered.");
+
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -1779,9 +1936,9 @@ namespace OGA.TCP_Test_SP
         //              Enable keepalive.
         //              Wait the timeout period.
         //              Check that the connection is closed.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has a connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has a connectionId and DeviceId.
         [TestMethod]
         public async Task Test_12()
         {
@@ -1801,12 +1958,11 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
-
 
                 // Send an enable keepalive message...
                 var res1 = await SendEnableKeepaliveMessage(tcp, crd);
@@ -1814,6 +1970,34 @@ namespace OGA.TCP_Test_SP
                 {
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
+                }
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
                 }
 
                 System.Threading.Thread.Sleep(1000);
@@ -1835,22 +2019,22 @@ namespace OGA.TCP_Test_SP
                 // Wait longer than the keepalive time should be...
                 System.Threading.Thread.Sleep(10000);
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -1868,9 +2052,9 @@ namespace OGA.TCP_Test_SP
         // Test 13  -   Open a websocket connection.
         //              Send a connection registration message that is missing a DeviceId.
         //              Verify the connection closes.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_13()
         {
@@ -1917,19 +2101,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Connection should still be open.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint connectionid should be blank.");
+                    Assert.Fail("TCPEndpoint connectionid should be blank.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint DeviceId should be blank.");
+                    Assert.Fail("TCPEndpoint DeviceId should be blank.");
 
                 int x = 0;
             }
@@ -1947,9 +2131,9 @@ namespace OGA.TCP_Test_SP
         // Test 14  -   Open a websocket connection.
         //              Send a connection registration message that is missing a Connectionid.
         //              Verify the connection closes.
-        //              Verify the server-side WSEndpoint indicates unregistered.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
-        //              Verify the server-side WSEndpoint has no connectionId or DeviceId.
+        //              Verify the server-side TCPEndpoint indicates unregistered.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint has no connectionId or DeviceId.
         [TestMethod]
         public async Task Test_14()
         {
@@ -1996,19 +2180,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Connection should still be open.");
                 }
 
-                // Verify the server-side WSEndpoint indicates unregistered.
+                // Verify the server-side TCPEndpoint indicates unregistered.
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim unregistered.");
+                    Assert.Fail("TCPEndpoint should claim unregistered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
-                // Verify the server-side WSEndpoint has no connectionId or DeviceId.
+                // Verify the server-side TCPEndpoint has no connectionId or DeviceId.
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId))
-                    Assert.Fail("WSEndpoint connectionid should be blank.");
+                    Assert.Fail("TCPEndpoint connectionid should be blank.");
                 if(!string.IsNullOrEmpty(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId))
-                    Assert.Fail("WSEndpoint DeviceId should be blank.");
+                    Assert.Fail("TCPEndpoint DeviceId should be blank.");
 
                 int x = 0;
             }
@@ -2026,9 +2210,9 @@ namespace OGA.TCP_Test_SP
         // Test 15  -   Open a websocket connection.
         //              Send a connection registration message that is missing a UserId.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         [TestMethod]
         public async Task Test_15()
         {
@@ -2049,8 +2233,8 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -2066,7 +2250,33 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
+                }
 
                 // Check that the socket is still open...
                 if(!tcp.Connected)
@@ -2095,22 +2305,22 @@ namespace OGA.TCP_Test_SP
                 if (msgs[0].MessageType != "pong")
                     Assert.Fail("Expected pong message.");
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -2129,12 +2339,12 @@ namespace OGA.TCP_Test_SP
         // Test 15.1 -  Open a websocket connection.
         //              Send a full connection registration message.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the server-side WSEndpoint remains in a registered state.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint remains in a registered state.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
         [TestMethod]
         public async Task Test_15_1()
         {
@@ -2154,8 +2364,8 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
@@ -2166,6 +2376,34 @@ namespace OGA.TCP_Test_SP
                 {
                     // Failed to send.
                     Assert.Fail("Failed to send message.");
+                }
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
                 }
 
                 System.Threading.Thread.Sleep(1000);
@@ -2211,22 +2449,22 @@ namespace OGA.TCP_Test_SP
                 if (msgs[0].MessageType != "pong")
                     Assert.Fail("Expected pong message.");
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 // Send a new connection registration message with a different ConnectionId...
                 var crd2 = new clientproperties();
@@ -2242,23 +2480,23 @@ namespace OGA.TCP_Test_SP
 
                 System.Threading.Thread.Sleep(1000);
 
-                // Verify the server-side WSEndpoint remains registered.
+                // Verify the server-side TCPEndpoint remains registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                // Verify the server still has the first connectionid...
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -2276,12 +2514,12 @@ namespace OGA.TCP_Test_SP
         // Test 15.2 -  Open a websocket connection.
         //              Send a full connection registration message.
         //              Verify the connection stays open.
-        //              Verify the server-side WSEndpoint indicates registered.
-        //              Verify the server-side WSEndpoint indicates an open connection.
-        //              Verify the server-side WSEndpoint has the correct connectionId and DeviceId.
+        //              Verify the server-side TCPEndpoint indicates registered.
+        //              Verify the server-side TCPEndpoint indicates an open connection.
+        //              Verify the server-side TCPEndpoint has the correct connectionId and DeviceId.
         //              Then, send a connection registration message with a different ConnectionId.
-        //              Verify the server-side WSEndpoint remains in a registered state.
-        //              Verify the server-side WSEndpoint indicates a closed connection.
+        //              Verify the server-side TCPEndpoint remains in a registered state.
+        //              Verify the server-side TCPEndpoint indicates a closed connection.
         [TestMethod]
         public async Task Test_15_2()
         {
@@ -2301,12 +2539,11 @@ namespace OGA.TCP_Test_SP
                 if(await this.StartReceiveLoop(tcp) != 1)
                     Assert.Fail("Failed to start receiver loop.");
 
-                await Task.Delay(1000);
-
+                // Wait for connection...
+                WaitforCondition(() => tcp.Connected, 400);
 
                 // Create some client registration data for a WSLibver=2 client...
                 var crd = clientproperties.Create_Random_WSLibV2_ClientData();
-
 
                 // Send a disable keepalive message...
                 var res1 = await SendDisableKeepaliveMessage(tcp, crd);
@@ -2320,6 +2557,35 @@ namespace OGA.TCP_Test_SP
                 Guid userid = (Guid)crd.UserId;
                 string connid = crd.ConnectionId;
                 string deviceid = crd.DeviceId;
+
+
+                // Since the previous sent message is actually a connection registration message, we should receive back a registration reply.
+                // The reply will contain what the server-side connectionId is.
+                // We will wait for it, here...
+                WaitforCondition(() => this.receivedmsgs.Count == 1, 400);
+
+                // Retrieve the registration reply message...
+                string receivedConnectionId = "";
+                {
+                    // Collect received messages...
+                    var resrcv = Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                    if(resrcv != 1)
+                        Assert.Fail("Wrong Value");
+
+                    var rcvmsg = msglist[0];
+                    if(rcvmsg.MessageType.ToLower() != nameof(ConnRegisterReplyDTO).ToLower())
+                        Assert.Fail("Wrong message type");
+
+                    var crr = Newtonsoft.Json.JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(rcvmsg.Data);
+                    if(crr == null)
+                        Assert.Fail("Wrong message type");
+
+                    // Get the received connectionid...
+                    receivedConnectionId = crr.ConnectionId;
+
+                    // Update all of our client connid references...
+                    crd.ConnectionId = crr.ConnectionId;
+                }
 
                 System.Threading.Thread.Sleep(1000);
 
@@ -2364,22 +2630,23 @@ namespace OGA.TCP_Test_SP
                 if (msgs[0].MessageType != "pong")
                     Assert.Fail("Expected pong message.");
 
-                // Verify the server-side WSEndpoint indicates registered.
+                // Verify the server-side TCPEndpoint indicates registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates an open connection.
+                // Verify the server-side TCPEndpoint indicates an open connection.
                 if(!this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate open.");
+                    Assert.Fail("TCPEndpoint should indicate open.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
+
 
                 // Send a new connection registration message with a different DeviceId...
                 var crd2 = new clientproperties();
@@ -2393,24 +2660,25 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to send message.");
                 }
 
-                System.Threading.Thread.Sleep(1000);
+                // Wait for the server to drop the connection...
+                WaitforCondition(() => !this._wsl.ServerSide_TCPEndpoint.IsConnected, 400);
 
-                // Verify the server-side WSEndpoint remains registered.
+                // Verify the server-side TCPEndpoint remains registered.
                 if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    Assert.Fail("WSEndpoint should claim registered.");
+                    Assert.Fail("TCPEndpoint should claim registered.");
 
-                // Verify the server-side WSEndpoint indicates a closed connection.
+                // Verify the server-side TCPEndpoint indicates a closed connection.
                 if(this._wsl.ServerSide_TCPEndpoint.IsConnected)
-                    Assert.Fail("WSEndpoint should indicate closed.");
+                    Assert.Fail("TCPEndpoint should indicate closed.");
 
                 // The sent connectionid, from our wsclient is different than the tracking id the server goes by.
                 // This change has been done to prevent client-forgery of a connectionId.
                 // Since this test is intended to verify the submitted data, regardless of its use, server-side, we will still check the
-                //  submitted connectionId for accuracy... against what the server has for it.
-                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != crd.ConnectionId)
-                    Assert.Fail("WSEndpoint has wrong connectionid.");
+                //  submitted connectionId for accuracy... against what the server gave us from our registration reply.
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionId != receivedConnectionId)
+                    Assert.Fail("TCPEndpoint has wrong connectionid.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.DeviceId != crd.DeviceId)
-                    Assert.Fail("WSEndpoint has wrong DeviceId.");
+                    Assert.Fail("TCPEndpoint has wrong DeviceId.");
 
                 int x = 0;
             }
@@ -2428,7 +2696,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 16a  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         [TestMethod]
         public async Task Test_16a()
         {
@@ -2450,7 +2718,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Check that the server-side WSEndpoint Connection Time agrees...
+                // Check that the server-side TCPEndpoint Connection Time agrees...
                 var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
                 if(!AreDatesClose(ssepctime, conntime, 100))
                     Assert.Fail("Expected pong message.");
@@ -2470,9 +2738,9 @@ namespace OGA.TCP_Test_SP
 
         // Test 16b  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         //              Close the client connection.
-        //              Verify the server-side WSEndpoint connection time remains the same.
+        //              Verify the server-side TCPEndpoint connection time remains the same.
         [TestMethod]
         public async Task Test_16b()
         {
@@ -2494,7 +2762,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Check that the server-side WSEndpoint Connection Time agrees...
+                // Check that the server-side TCPEndpoint Connection Time agrees...
                 var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
                 if(!AreDatesClose(ssepctime, conntime, 100))
                     Assert.Fail("Expected pong message.");
@@ -2505,7 +2773,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Check that the server-side WSEndpoint Connection Time agrees...
+                // Check that the server-side TCPEndpoint Connection Time agrees...
                 var ssepctime2 = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
                 if(!AreDatesClose(ssepctime2, conntime, 100))
                     Assert.Fail("Expected pong message.");
@@ -2525,9 +2793,9 @@ namespace OGA.TCP_Test_SP
 
         // Test 16c  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint connection time agrees.
+        //              Verify the server-side TCPEndpoint connection time agrees.
         //              Dispose of the client connection.
-        //              Verify the server-side WSEndpoint connection time remains the same.
+        //              Verify the server-side TCPEndpoint connection time remains the same.
         [TestMethod]
         public async Task Test_16c()
         {
@@ -2549,7 +2817,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Check that the server-side WSEndpoint Connection Time agrees...
+                // Check that the server-side TCPEndpoint Connection Time agrees...
                 var ssepctime = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
                 if(!AreDatesClose(ssepctime, conntime, 100))
                     Assert.Fail("Expected pong message.");
@@ -2560,7 +2828,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Check that the server-side WSEndpoint Connection Time agrees...
+                // Check that the server-side TCPEndpoint Connection Time agrees...
                 var ssepctime2 = this._wsl.ServerSide_TCPEndpoint.ClientInfo.ConnectionTimeUTC;
                 if(!AreDatesClose(ssepctime2, conntime, 100))
                     Assert.Fail("Expected pong message.");
@@ -2580,7 +2848,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 17a  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         [TestMethod]
         public async Task Test_17a()
         {
@@ -2623,9 +2891,9 @@ namespace OGA.TCP_Test_SP
 
         // Test 17b  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         //              Send a connection registration message.
-        //              Verify the server-side WSEndpoint UnRegisteredAge resets to zero.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge resets to zero.
         [TestMethod]
         public async Task Test_17b()
         {
@@ -2685,9 +2953,9 @@ namespace OGA.TCP_Test_SP
 
         // Test 17c  -  Open a websocket connection.
         //              Mark the connection Time.
-        //              Verify the server-side WSEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is non-zero and agrees with the connection time.
         //              Send a bad connection registration message (one missing a connectionId).
-        //              Verify the server-side WSEndpoint UnRegisteredAge is still non-zero and agrees with the connection time.
+        //              Verify the server-side TCPEndpoint UnRegisteredAge is still non-zero and agrees with the connection time.
         [TestMethod]
         public async Task Test_17c()
         {
@@ -2754,7 +3022,7 @@ namespace OGA.TCP_Test_SP
         // Test 18a  -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         [TestMethod]
         public async Task Test_18a()
@@ -2798,10 +3066,10 @@ namespace OGA.TCP_Test_SP
         // Test 18b -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a chat message (representing any non-internal message type).
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18b()
         {
@@ -2857,10 +3125,10 @@ namespace OGA.TCP_Test_SP
         // Test 18c -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a connection registration message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18c()
         {
@@ -2921,10 +3189,10 @@ namespace OGA.TCP_Test_SP
         // Test 18d -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a message with an unknown type (one that would be received, but discarded).
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18d()
         {
@@ -2980,10 +3248,10 @@ namespace OGA.TCP_Test_SP
         // Test 18e -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send an empty message, just an empty string... "".
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18e()
         {
@@ -3039,10 +3307,10 @@ namespace OGA.TCP_Test_SP
         // Test 18f -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a message that is not a message envelope dto.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18f()
         {
@@ -3098,10 +3366,10 @@ namespace OGA.TCP_Test_SP
         // Test 18g -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a ping message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18g()
         {
@@ -3157,10 +3425,10 @@ namespace OGA.TCP_Test_SP
         // Test 18h -   Open a websocket connection.
         //              Mark the connection Time.
         //              Wait a couple seconds.
-        //              Verify the server-side WSEndpoint Last Received timestamp agrees with the connection time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp agrees with the connection time.
         //              (The last received time should be same or slightly newer than the connection time).
         //              Send a local loopback message.
-        //              Verify the server-side WSEndpoint Last Received timestamp updates to near current time.
+        //              Verify the server-side TCPEndpoint Last Received timestamp updates to near current time.
         [TestMethod]
         public async Task Test_18h()
         {
@@ -3214,12 +3482,12 @@ namespace OGA.TCP_Test_SP
         }
 
 
-        //  Test that the server-side WSEndpoint instance can provide a Connection Entry instance.
+        //  Test that the server-side TCPEndpoint instance can provide a Connection Entry instance.
         // Test 19  -   Open a websocket connection.
         //              Send a connection registration message.
         //              Wait a second.
-        //              Ask the WSEndpoint to provide a connection entry.
-        //              Verify the connection entry matches the WSEndpoint data.
+        //              Ask the TCPEndpoint to provide a connection entry.
+        //              Verify the connection entry matches the TCPEndpoint data.
         [TestMethod]
         public async Task Test_19()
         {
@@ -3251,13 +3519,13 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server to handle the nessage...
                 System.Threading.Thread.Sleep(1000);
 
-                // Tell the WSEndpoint to create a connection entry...
+                // Tell the TCPEndpoint to create a connection entry...
                 var connentry = new ConnectionEntry_v1();
                 this._wsl.ServerSide_TCPEndpoint.Populate_ConnectionEntry(connentry);
 
-                // The server-side now uses the WSId property of a WSEndpoint for the connectionId in registration data.
+                // The server-side now uses the WSId property of a TCPEndpoint for the connectionId in registration data.
                 // So, we need to verify that, here.
-                // Check that the server-side WSEndpoint's WSId matches what the server-side used for registration data...
+                // Check that the server-side TCPEndpoint's WSId matches what the server-side used for registration data...
                 if(this._wsl.ServerSide_TCPEndpoint.WSId != connentry.ConnectionId)
                     Assert.Fail("Wrong Connection Registration Data.");
                 if(crd.DeviceId != connentry.DeviceId)
@@ -3290,7 +3558,7 @@ namespace OGA.TCP_Test_SP
         }
 
 
-        //  Test that the server-side WSEndpoint instance can trigger a DispatchConnectionClosed when required.
+        //  Test that the server-side TCPEndpoint instance can trigger a DispatchConnectionClosed when required.
         // Test 20a -   Open a websocket connection.
         //              Without delay, close the client connection.
         //              Wait a second for the connection loop to catch up and fall.
@@ -3448,9 +3716,9 @@ namespace OGA.TCP_Test_SP
             }
         }
 
-        // Test 20d -   Open a websocket connection.
+        // Test 20d -   Open a tcpsocket connection.
         //              Wait a second for the connection loop to start.
-        //              Call the StopAsync on the server-side WSEndpoint instance.
+        //              Call the StopAsync on the server-side TCPEndpoint instance.
         //              Wait a second for the connection loop to fall.
         //              Verify that a DispatchConnectionClosed was called.
         [TestMethod]
@@ -3473,14 +3741,21 @@ namespace OGA.TCP_Test_SP
                 await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
                 // Wait a second for the connection loop to startup...
-                System.Threading.Thread.Sleep(3000);
+                WaitforCondition(() => tcp.Connected, 3000);
+                WaitforCondition(() => tcp.Client.Connected, 3000);
+
+                // Wait for the server side connection to show up...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 500);
 
                 // Call the stop async on the server side...
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
-                // Wait a second for the connection loop to fall...
-                System.Threading.Thread.Sleep(4000);
+                // Wait for the server side to fall...
+                WaitforCondition(() => !_wsl.ServerSide_TCPEndpoint.IsConnected, 400);
 
+                // Wait a second for the connection loop to fall...
+                WaitforCondition(() => !tcp.Connected, 4000);
+                
                 // Get the updated closure count...
                 var closurecount_after = this._wsl.ClosureCount;
                 var count = closurecount_after - closurecount_before;
@@ -3609,7 +3884,7 @@ namespace OGA.TCP_Test_SP
 
         //  Test server-side message handling of channel assigned messages.
         // Test 21a -   Open a websocket connection.
-        //              Add no channel handlers to the server-side WSEndpoint.
+        //              Add no channel handlers to the server-side TCPEndpoint.
         //              Send a message with an empty channel name to the server.
         //              Verify the message is received on the OnMessageReceived delegate.
         [TestMethod]
@@ -3666,7 +3941,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 21b -   Open a websocket connection.
-        //              Add a channel handler to the server-side WSEndpoint.
+        //              Add a channel handler to the server-side TCPEndpoint.
         //              Send a message with an empty channel name to the server.
         //              Verify the message is received on the OnMessageReceived delegate.
         [TestMethod]
@@ -3688,7 +3963,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the connection loop to start...
                 System.Threading.Thread.Sleep(2000);
 
-                // Add a channel handler to the server-side WSEndpoint...
+                // Add a channel handler to the server-side TCPEndpoint...
                 var res = this._wsl.ServerSide_TCPEndpoint.Add_ChannelHandler("fff", this.handler_callback);
                 if(res != 1)
                     Assert.Fail("Failed to send message.");
@@ -3728,7 +4003,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 21c -   Open a websocket connection.
-        //              Add a couple of channel handlers to the server-side WSEndpoint.
+        //              Add a couple of channel handlers to the server-side TCPEndpoint.
         //              Send a message with a matching channel name to the server.
         //              Verify the message is received by the appropriate channel handler's delegate.
         [TestMethod]
@@ -3750,7 +4025,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the connection loop to start...
                 System.Threading.Thread.Sleep(3000);
 
-                // Add a channel handler to the server-side WSEndpoint...
+                // Add a channel handler to the server-side TCPEndpoint...
                 var res = this._wsl.ServerSide_TCPEndpoint.Add_ChannelHandler("handler1_callback", this.handler1_callback);
                 if(res != 1)
                     Assert.Fail("Failed to send message.");
@@ -3797,14 +4072,14 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 21d -   Open a websocket connection.
-        //              Add a couple of channel handlers to the server-side WSEndpoint.
+        //              Add a couple of channel handlers to the server-side TCPEndpoint.
         //              Send a message to the server with a channel name that doesn't match any handler.
         //              Verify the message is not handled by any delegate.
 
 
         // Test 22a -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a POCO instance.
+        //              From the server-side TCPEndpoint, send a POCO instance.
         //              Verify the client receives the POCO instance and its correct class name.
         [TestMethod]
         public async Task Test_22a()
@@ -3840,7 +4115,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong value.");
 
 
-                // Have the server WSEndpoint send a a json string of a POCO with a type name...
+                // Have the server TCPEndpoint send a a json string of a POCO with a type name...
                 var ob = new SimplePOCO2();
                 ob.SignatureB64 = Guid.NewGuid().ToString();
                 ob.KeyId = Guid.NewGuid().ToString();
@@ -3890,7 +4165,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 22b -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a concreted POCO generic instance.
+        //              From the server-side TCPEndpoint, send a concreted POCO generic instance.
         //              Verify the client receives the concreted POCO generic instance and its correct class name.
         [TestMethod]
         public async Task Test_22b()
@@ -3924,7 +4199,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong value.");
 
 
-                // Have the server WSEndpoint send a concreted POCO generic instance...
+                // Have the server TCPEndpoint send a concreted POCO generic instance...
                 var strl = new List<string>();
                 var ob = new SimpleGeneric<string>();
                 ob.Name = Guid.NewGuid().ToString();
@@ -3972,7 +4247,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 22c -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send a string instance.
+        //              From the server-side TCPEndpoint, send a string instance.
         //              Verify the client receives the string and a type of string.
         [TestMethod]
         public async Task Test_22c()
@@ -4006,7 +4281,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong value.");
 
 
-                // Have the server WSEndpoint send a string...
+                // Have the server TCPEndpoint send a string...
                 string ob = Nanoid.Nanoid.Generate( size:100);
                 var senttype = OGA.SharedKernel.Serialization.Serialization_Helper.GetType_forSerialization(ob);
 
@@ -4048,7 +4323,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 22d -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send an integer instance.
+        //              From the server-side TCPEndpoint, send an integer instance.
         //              Verify the client receives the integer and a type of int32.
         [TestMethod]
         public async Task Test_22d()
@@ -4082,7 +4357,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong value.");
 
 
-                // Have the server WSEndpoint send an integer...
+                // Have the server TCPEndpoint send an integer...
                 int ob = 1234;
                 var senttype = OGA.SharedKernel.Serialization.Serialization_Helper.GetType_forSerialization(ob);
 
@@ -4124,7 +4399,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 22e -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send an empty string.
+        //              From the server-side TCPEndpoint, send an empty string.
         //              Verify the client receives the blank string and a type of string.
         [TestMethod]
         public async Task Test_22e()
@@ -4193,7 +4468,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 22f -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, send the json string of a POCO with a type name.
+        //              From the server-side TCPEndpoint, send the json string of a POCO with a type name.
         //              Verify the client receives the json string and the correct type name.
         [TestMethod]
         public async Task Test_22f()
@@ -4225,7 +4500,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong value.");
 
 
-                // Have the server WSEndpoint send a a json string of a POCO with a type name...
+                // Have the server TCPEndpoint send a a json string of a POCO with a type name...
                 var ob = new SimplePOCO2();
                 ob.SignatureB64 = Guid.NewGuid().ToString();
                 ob.KeyId = Guid.NewGuid().ToString();
@@ -4274,7 +4549,7 @@ namespace OGA.TCP_Test_SP
 
         // Test 23a -   Open a websocket connection.
         //              Ensure the client and server report connected.
-        //              From the server-side WSEndpoint, add the same channel handler twice.
+        //              From the server-side TCPEndpoint, add the same channel handler twice.
         //              Verify the second attempt fails.
         [TestMethod]
         public async Task Test_23a()
@@ -4294,7 +4569,7 @@ namespace OGA.TCP_Test_SP
                 // Wait a second for the server connection loop to start and mark time...
                 System.Threading.Thread.Sleep(1000);
 
-                // Add a channel handler to the server-side WSEndpoint instance...
+                // Add a channel handler to the server-side TCPEndpoint instance...
                 var res1 = this._wsl.ServerSide_TCPEndpoint.Add_ChannelHandler("somename", this.handler_callback);
                 if(res1 != 1)
                     Assert.Fail("Failed to add channel handler.");
@@ -4319,7 +4594,7 @@ namespace OGA.TCP_Test_SP
 
 
         // Test 24a -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1000 byte string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4379,7 +4654,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24b -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2047 byte string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4439,7 +4714,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24c -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2048 byte string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4499,7 +4774,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24d -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 2049 byte string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4559,7 +4834,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24e -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 10KB string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4619,7 +4894,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24f -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1MB string.
         //              Verify the server received the entire string.
         [TestMethod]
@@ -4681,7 +4956,7 @@ namespace OGA.TCP_Test_SP
         }
 
         // Test 24g -   Open a websocket connection.
-        //              Attach a handler to the Raw message delegate of the server-side WSEndpoint.
+        //              Attach a handler to the Raw message delegate of the server-side TCPEndpoint.
         //              From the client, send a 1.1MB string.
         //              Verify the server endpoint failed to receive it.
         [TestMethod]

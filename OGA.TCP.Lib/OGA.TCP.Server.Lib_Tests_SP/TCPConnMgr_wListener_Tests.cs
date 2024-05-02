@@ -234,11 +234,14 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGet_CurrentConnections().Count == 1, 400);
 
                 // Verify the connmgr lists our connection...
                 var cl1 = cm.QRYGet_CurrentConnections();
@@ -246,16 +249,28 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
 
+                // wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId) != null, 400);
+
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep1 = cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId);
                 if(ssep1 == null)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the server side status to agree with client...
+                WaitforCondition(() => client1.ConnectionId == ssep1.ClientInfo.ConnectionId, 400);
+
                 if(client1.ConnectionId != ssep1.ClientInfo.ConnectionId)
                     Assert.Fail("Wrong Value");
 
 
+                // Verify the connmgr lists our connection...
+                var cl1a = cm.QRYGet_CurrentConnections();
+                if(cl1a == null || cl1a.Count == 0)
+                    Assert.Fail("Wrong Value");
+
                 // Get the first connection entry data...
-                var ce1 = cl1.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
+                var ce1 = cl1a.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -274,11 +289,14 @@ namespace OGA.TCP_Test_SP
                 // Close the connection...
                 client1.Dispose();
 
-                System.Threading.Thread.Sleep(500);
+                WaitforCondition(() => !client1.IsConnected, 500);
 
                 // Verify connection is closed...
                 if(client1.IsConnected)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the connection to be open for business...
+                WaitforCondition(() => cm.QRYGet_CurrentConnections().Count == 0, 400);
 
                 // Verify the connmgr removed our connection...
                 var cl2 = cm.QRYGet_CurrentConnections();
@@ -360,11 +378,14 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGet_CurrentConnections().Count == 1, 400);
 
                 // Verify the connmgr lists our connection...
                 var cl1 = cm.QRYGet_CurrentConnections();
@@ -372,16 +393,28 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
 
+                // Wait for the server side status to agree with client...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId) != null, 400);
+
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep1 = cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId);
                 if(ssep1 == null)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the server side status to agree with client...
+                WaitforCondition(() => client1.ConnectionId == ssep1.ClientInfo.ConnectionId, 400);
+
                 if(client1.ConnectionId != ssep1.ClientInfo.ConnectionId)
                     Assert.Fail("Wrong Value");
 
 
+                // Repull the connection entry...
+                var cl1a = cm.QRYGet_CurrentConnections();
+                if(cl1a == null || cl1a.Count == 0)
+                    Assert.Fail("Wrong Value");
+
                 // Get the first connection entry data...
-                var ce1 = cl1.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
+                var ce1 = cl1a.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -431,7 +464,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client2.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client2.IsConnected)
@@ -442,6 +475,9 @@ namespace OGA.TCP_Test_SP
                 if(cl2 == null || cl2.Count == 0)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the connection to show up...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId) != null, 400);
+                WaitforCondition(() => client2.ConnectionId == cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId).ClientInfo.ConnectionId, 400);
 
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep2 = cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId);
@@ -451,8 +487,13 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
 
+                // Repull the connection entry...
+                var cl2a = cm.QRYGet_CurrentConnections();
+                if(cl2a == null || cl2a.Count == 0)
+                    Assert.Fail("Wrong Value");
+
                 // Get the second connection entry data...
-                var ce2 = cl2.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
+                var ce2 = cl2a.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -549,28 +590,43 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGet_CurrentConnections().Count == 1, 400);
+                
                 // Verify the connmgr lists our connection...
                 var cl1 = cm.QRYGet_CurrentConnections();
                 if(cl1 == null || cl1.Count == 0)
                     Assert.Fail("Wrong Value");
 
 
+                // Wait for the entry to show up...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId) != null, 400);
+
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep1 = cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId);
                 if(ssep1 == null)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the server side status to agree with client...
+                WaitforCondition(() => client1.ConnectionId == ssep1.ClientInfo.ConnectionId, 400);
+
                 if(client1.ConnectionId != ssep1.ClientInfo.ConnectionId)
                     Assert.Fail("Wrong Value");
 
 
+                // Repull the the connection...
+                var cl1a = cm.QRYGet_CurrentConnections();
+                if(cl1a == null || cl1a.Count == 0)
+                    Assert.Fail("Wrong Value");
+
                 // Get the first connection entry data...
-                var ce1 = cl1.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
+                var ce1 = cl1a.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -620,7 +676,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client2.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client2.IsConnected)
@@ -631,6 +687,9 @@ namespace OGA.TCP_Test_SP
                 if(cl2 == null || cl2.Count == 0)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the entry to show up...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId) != null, 400);
+                WaitforCondition(() => client2.ConnectionId == cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId).ClientInfo.ConnectionId, 400);
 
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep2 = cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId);
@@ -639,9 +698,13 @@ namespace OGA.TCP_Test_SP
                 if(client2.ConnectionId != ssep2.ClientInfo.ConnectionId)
                     Assert.Fail("Wrong Value");
 
+                // Repull the connection entry...
+                var cl2a = cm.QRYGet_CurrentConnections();
+                if(cl2a == null || cl2a.Count == 0)
+                    Assert.Fail("Wrong Value");
 
                 // Get the second connection entry data...
-                var ce2 = cl2.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
+                var ce2 = cl2a.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -748,28 +811,39 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGet_CurrentConnections().Count == 1, 400);
 
                 // Verify the connmgr lists our connection...
                 var cl1 = cm.QRYGet_CurrentConnections();
                 if(cl1 == null || cl1.Count == 0)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the connection to get listed...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId) != null, 400);
+
+
+                // Wait for the server side connectionId to agree with client...
+                WaitforCondition(() => client1.ConnectionId == cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId).ClientInfo.ConnectionId, 1000);
 
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep1 = cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId);
                 if(ssep1 == null)
                     Assert.Fail("Wrong Value");
-                if(client1.ConnectionId != ssep1.ClientInfo.ConnectionId)
+
+                // Verify the connmgr lists our connection...
+                var cl1a = cm.QRYGet_CurrentConnections();
+                if(cl1a == null || cl1a.Count == 0)
                     Assert.Fail("Wrong Value");
 
-
                 // Get the first connection entry data...
-                var ce1 = cl1.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
+                var ce1 = cl1a.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -819,7 +893,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client2.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client2.IsConnected)
@@ -830,6 +904,8 @@ namespace OGA.TCP_Test_SP
                 if(cl2 == null || cl2.Count == 0)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the connection to be lsited...
+                WaitforCondition(() => client2.ConnectionId == cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId)?.ClientInfo.ConnectionId, 400);
 
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep2 = cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId);
@@ -838,9 +914,13 @@ namespace OGA.TCP_Test_SP
                 if(client2.ConnectionId != ssep2.ClientInfo.ConnectionId)
                     Assert.Fail("Wrong Value");
 
+                // Verify the connmgr lists our connection...
+                var cl2a = cm.QRYGet_CurrentConnections();
+                if(cl2a == null || cl2a.Count == 0)
+                    Assert.Fail("Wrong Value");
 
                 // Get the second connection entry data...
-                var ce2 = cl2.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
+                var ce2 = cl2a.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2 == null)
                     Assert.Fail("Wrong Value");
                 // Verify client properties between connection manager and client...
@@ -952,7 +1032,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
@@ -972,14 +1052,16 @@ namespace OGA.TCP_Test_SP
                 //msg.Channel = "";
                 //msg.Scope = "";
 
+                // Wait for the connection to be open for business...
+                WaitforCondition(() => client1.AllowSend, 400);
+
                 // Have the client deliver the message...
                 var ressend = await client1.SendMessage_to_Endpoint(msg, TCPConnMgr_Template.TESTCHANNELNAME, "", "");
                 if(ressend != 1)
                     Assert.Fail("Wrong return");
 
                 // Wait for the server to receive it...
-                await Task.Delay(400);
-
+                WaitforCondition(() => messagetosend == serverreceivedmessagetext, 400);
 
                 // Verify the message was received...
                 if(messagetosend != serverreceivedmessagetext)
@@ -1065,7 +1147,7 @@ namespace OGA.TCP_Test_SP
                 }
 
                 // Wait for connection...
-                await Task.Delay(400);
+                WaitforCondition(() => client1.IsConnected, 400);
 
                 // Verify connection was made...
                 if(!client1.IsConnected)
@@ -1085,6 +1167,8 @@ namespace OGA.TCP_Test_SP
                 //msg.Channel = "";
                 //msg.Scope = "";
 
+                // Wait for the server side connection to show up...
+                WaitforCondition(() => cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId) != null, 1000);
 
                 // To send the message to our client, we have to get the matching connection from the conn mgr...
                 var serversideconn1 = cm.QRYGetConnection_ByClientDeviceId(client1.DeviceId);
@@ -1097,7 +1181,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Wait for the client to receive it...
-                await Task.Delay(400);
+                WaitforCondition(() => messagetosend == clientreceivedmessagetext, 400);
 
                 // Verify the message was received...
                 if(messagetosend != clientreceivedmessagetext)

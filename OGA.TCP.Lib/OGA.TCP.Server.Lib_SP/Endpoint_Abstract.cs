@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Connections;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using OGA.Common.Process;
 using OGA.TCP.Messages;
 using OGA.TCP.Server.Model;
@@ -1085,6 +1084,52 @@ namespace OGA.TCP.Server
         }
 
         /// <summary>
+        /// Called by the endpoint, after a connection registration message has been received.
+        /// This method sends back a reply that gives the client their server-created ConnectionId, and notifies the client to allow comms.
+        /// </summary>
+        /// <returns></returns>
+        protected async Task<int> SendRegistrationReply(ClientInfo ci, string oldconnid)
+        {
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendRegistrationReply)} - " +
+                "Attempting to send registration reply to client...");
+
+            // If this is the first time the client has sent a connection registration message to us,
+            //  our "oldconnid" is actually blank.
+            // This is because we didn't yet have that value, until we received the first one.
+            // So. If the "oldconnid" is blank, we will instead use the connectionIdin the given ClientInfo struct.
+
+            // Use the old connectionid, unless this is the first registration pass.
+            string connectionidtoincludeasoldvalue = "";
+            if(string.IsNullOrEmpty(oldconnid))
+            {
+                // First registration cycle.
+                // We will reply with the live connectionid (which is what the client thinks they are)...
+                connectionidtoincludeasoldvalue = ci.ConnectionId;
+            }
+            else
+            {
+                // Use the actual last registered connectionid...
+                connectionidtoincludeasoldvalue = oldconnid;
+            }
+
+            // Formulate a registration reply message...
+            var msg = new ConnRegisterReplyDTO();
+            msg.Props = new string[0];
+            // Give the client their deviceid and userid....
+            msg.DeviceId = ci.DeviceId;
+            msg.UserId = ci.UserId;
+            // We know our server-created ConnectionId at endpoint construction.
+            // It's actually the WSId property.
+            // We include it, here.
+            msg.ConnectionId = this.WSId;
+            msg.OldConnectionId = connectionidtoincludeasoldvalue;
+
+            // Send the reply to the client...
+            return await Send_Object_toClient(msg);
+        }
+
+        /// <summary>
         /// Accepts any json-serialized object type, wraps it in a message envelope, and sends it to the client.
         /// Returns  1 = Message was sent.
         /// Returns  0 = No connection. Cannot send.
@@ -1879,6 +1924,12 @@ namespace OGA.TCP.Server
                 // We will pull in others, after we've digested the Props array.
                 this.ClientInfo.UserId = dto.UserId;
                 this.ClientInfo.DeviceId = dto.DeviceId;
+
+                // Log any change to the connectionid...
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    $"Endpoint ClientInfo.Connectionid updated from '{(this.ClientInfo.ConnectionId ?? "")}' to '{(dto.ConnectionId ?? "")}'.");
+
                 this.ClientInfo.ConnectionId = dto.ConnectionId;
 
                 // These four properties were added for TCP/WSLib V2, so the cloud has more context of how to treat outgoing messages to a client.
@@ -2130,9 +2181,39 @@ namespace OGA.TCP.Server
                 var newvals = new ClientInfo();
                 newvals.CopyFrom(this.ClientInfo);
 
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    $"Endpoint ClientInfo update:\r\n" +
+                    ClientInfo.LogDelta(oldvals, this.ClientInfo));
 
-                // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
-                Task.Run(() => DispatchConnectionRegistered(oldvals, newvals));
+                // We want to send the client their registration reply before we register their connection for other clients to find.
+                // But, both actions may stall our receive loop.
+                // So, we will execute them on an alternate thread.
+                Task.Run( async () =>
+                {
+                    // Send a registration reply back to the client...
+                    var res1 = await SendRegistrationReply(this.ClientInfo, oldvals.ConnectionId);
+                    if(res1 != 1)
+                    {
+                        // The reply send call failed.
+                        // We don't really care if the registration reply message fails or not.
+                        // But, we will, for completeness, here, only dispatch the connection registered event if the reply was sent.
+
+                        // Skip calling the dispatch method...
+                        return;
+                    }
+
+                    // We have sent the client a registration reply message.
+                    // One purpose of this message is to notify the client of the ConnectionId we call it, server-side.
+                    // The client will accept this server-side ConnectionId as its ConnectionId.
+                    // We need to do the same, here...
+                    // We store the server-side Connection in 'WSId'.
+                    // We will copy that into the ConnectionId of our ClientInfo...
+                    this.ClientInfo.ConnectionId = this.WSId;
+
+                    // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
+                    DispatchConnectionRegistered(oldvals, newvals);
+                });
 
                 return 1;
             }

@@ -222,6 +222,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -233,11 +236,14 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                await Task.Delay(2000);
+                WaitforCondition(() => client.IsConnected, 2000);
 
                 // Ensure we got connected...
                 if(!client.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 2000);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -296,6 +302,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -359,6 +368,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -421,6 +433,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -485,6 +500,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -516,7 +534,6 @@ namespace OGA.TCP_Test_SP
             int clientreceivedmessagecounter = 0;
             int serverreceivedmessagecounter = 0;
 
-
             TESTINGSRVR_Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
 
             try
@@ -540,6 +557,10 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
 
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
+
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
 
@@ -550,7 +571,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                await Task.Delay(2000);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 2000);
 
                 // Ensure we got connected...
                 if(!client.IsConnected)
@@ -559,6 +580,12 @@ namespace OGA.TCP_Test_SP
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                // Wait for the client to be allowed to send...
+                WaitforCondition(() => client.AllowSend, 1000);
+
+                // Check that the client now allows messages...
+                if(!client.AllowSend)
+                    Assert.Fail("Wrong value");
 
                 // Declare the delegate callback that we will pass to the channel adapter...
                 OGA.TCP.SessionLayer.Client_v1_Abstract.DelMessageReceived callback = (mep, messagetype, msg1) =>
@@ -597,12 +624,19 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be reach the server and bounce back to us...
-                await Task.Delay(2000);
+                WaitforCondition(() => serverreceivedmessagecounter == 1, 2000);
 
 
                 // Verify the message was received...
                 if(serverreceivedmessagecounter != 1)
                     Assert.Fail("Wrong count.");
+            }
+            catch(Exception e)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
+                    "Exception caught.\r\n" +
+                    e.Message);
+                Assert.Fail("Exception Caught.");
             }
             finally
             {
@@ -647,6 +681,9 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
+                // The server-side of this test does not send connection registration replies.
+                // So, we need to tell the client to not require this...
+                client.Cfg_ConnectionWaitsforRegistrationReply = false;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -658,7 +695,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                await Task.Delay(2000);
+                WaitforCondition(() => client.IsConnected, 2000);
 
                 // Ensure we got connected...
                 if(!client.IsConnected)
@@ -705,7 +742,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be reach the client...
-                await Task.Delay(2000);
+                WaitforCondition(() => clientreceivedmessagecounter == 1, 2000);
 
                 // Verify the message was received...
                 if(clientreceivedmessagecounter != 1)

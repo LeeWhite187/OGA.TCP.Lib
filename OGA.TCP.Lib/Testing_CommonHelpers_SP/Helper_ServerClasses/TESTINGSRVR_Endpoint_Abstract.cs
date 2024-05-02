@@ -418,74 +418,94 @@ namespace OGA.TCP.Server
         /// <returns></returns>
         public async Task Stop_Async()
         {
-            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
-                $"Attempting to stop {(this.TransportLongName?.ToLower() ?? "socket")} client at connection ({this.WSId})...");
-
-            // Clear the allow sending flag, to prevent any outgoing messages...
-            this._allowsend = false;
-
-            // Disconnect any message handlers...
-            this._ChannelMessageHandlers.Clear();
-            this._delOnMessageReceived = null;
-            this._delOnRawMessageReceived = null;
-
-            await this.CloseandDisposeTransport();
-
-            // Wait a tick before cancelling the receive loop...
-            // This lets the receive handler accept any closure frames, to close gracefully.
-            await Task.Delay(100);
-
-            if (_receive_cts != null)
+            // Wrap all this in a try-catch, to ensure we don't throw an exception in the raw task...
+            try
             {
+	            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+	                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
+	                $"Attempting to stop {(this.TransportLongName?.ToLower() ?? "socket")} client at connection ({this.WSId})...");
+	
+	            // Clear the allow sending flag, to prevent any outgoing messages...
+	            this._allowsend = false;
+	
+	            // Disconnect any message handlers...
+	            this._ChannelMessageHandlers.Clear();
+	            this._delOnMessageReceived = null;
+	            this._delOnRawMessageReceived = null;
+
+                // Wrap this in a try-catch to ensure overridden method doesn't unwind us with an exception...
                 try
                 {
-                    _receive_cts?.Cancel();
+		            await this.CloseandDisposeTransport();
                 }
-                catch (Exception) { }
+                catch (Exception e) { }
 
-                await Task.Delay(100);
-
-                try
-                {
-                    _receive_cts?.Dispose();
-                }
-                catch (Exception) { }
-
-                _receive_cts = null;
-            }
-
-            if (_cts != null)
+	            // Wait a tick before cancelling the receive loop...
+	            // This lets the receive handler accept any closure frames, to close gracefully.
+	            await Task.Delay(100);
+	
+	            if (_receive_cts != null)
+	            {
+	                try
+	                {
+	                    _receive_cts?.Cancel();
+	                }
+	                catch (Exception) { }
+	
+	                await Task.Delay(100);
+	
+	                try
+	                {
+	                    _receive_cts?.Dispose();
+	                }
+	                catch (Exception) { }
+	
+	                _receive_cts = null;
+	            }
+	
+	            if (_cts != null)
+	            {
+	                try
+	                {
+	                    _cts?.Cancel();
+	                }
+	                catch (Exception) { }
+	
+	                await Task.Delay(100);
+	
+	                try
+	                {
+	                    _cts?.Dispose();
+	                }
+	                catch (Exception) { }
+	
+	                _cts = null;
+	            }
+	
+	                // Wrap in a try-catch to ensure the method override doesn't throw an exception and unwind us...
+	                try
+	                {
+	                    this.DereferenceTransport();
+	                }
+	                catch (Exception) { }
+	
+	            // Clear any delegates...
+	            this._delConnectionClosed = null;
+	            this._delConnectionRegistration = null;
+	            this._del_Status_Change = null;
+	
+	            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+	                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
+	                $"{(this.TransportLongName ?? "Socket")} connection ({this.WSId}) is closed.");
+	
+	            return;
+	        }
+            catch(Exception e)
             {
-                try
-                {
-                    _cts?.Cancel();
-                }
-                catch (Exception) { }
-
-                await Task.Delay(100);
-
-                try
-                {
-                    _cts?.Dispose();
-                }
-                catch (Exception) { }
-
-                _cts = null;
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
+                    $"Exception caught while attemptint to stop the endpoint.");
             }
-
-            this.DereferenceTransport();
-
-            // Clear any delegates...
-            this._delConnectionClosed = null;
-            this._delConnectionRegistration = null;
-            this._del_Status_Change = null;
-
-            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
-                $"{(this.TransportLongName ?? "Socket")} connection ({this.WSId}) is closed.");
-
-            return;
         }
 
         /// <summary>
@@ -838,17 +858,20 @@ namespace OGA.TCP.Server
 
                     // Do any transport-specific post connection setup work...
                     // This hook allows the TCP endpoint implementation a spot in the setup flow, to get its network stream instance.
-                    var res = await this.Do_TransportSpecific_PostConnectionWork_Async();
-                    if (res != 1)
+                    // Call this in a try-catch to ensure its override doesn't throw and unwind us...
+                    try
                     {
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
-                            $"Failed to do transport specific post connnection work. " +
-                                $"ConnectionID = {this.WSId}.");
+                        var res = await this.Do_TransportSpecific_PostConnectionWork_Async();
+                        if (res != 1)
+                        {
+                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
+                                $"Failed to do transport specific post connnection work. " +
+                                    $"ConnectionID = {this.WSId}.");
 
-                        return -3;
-                    }
-
+                            return -3;
+                        }
+                    } catch ( Exception ex ) { }
 
                     // Call the receiver loop if the transport needs one...
                     if(this.Cfg_TransportRequiresReceiverLoop)
@@ -857,7 +880,15 @@ namespace OGA.TCP.Server
                         /// Returns  0 if failed to parse the received message.
                         /// Returns -1 if unable to accept received messages.
                         /// Returns -2 if received a close message.
-                        _ = Task.Run(async () => await ReceiveLoop_from_Client());
+                        _ = Task.Run(async () =>
+                        {
+                            // Wrap this in a try-catch to ensure the implementation doesn't throw, and create an app exception.
+                            try
+                            {
+                                await ReceiveLoop_from_Client();
+                            } 
+                            catch (Exception) { }
+                        });
                     }
                 }
                 catch (Exception tre)
@@ -917,9 +948,21 @@ namespace OGA.TCP.Server
             // Signal that the connection was lost...
             DispatchConnectionClosed();
 
-            this.CloseandDisposeTransport().GetAwaiter();
+            // Wrap this in a try-catch to ensure overridden method doesn't unwind us with an exception...
+            try
+            {
+                this.CloseandDisposeTransport().GetAwaiter();
+            }
+            catch (Exception e) { }
+            
+            // Wrap this in a try-catch to ensure overridden method doesn't unwind us with an exception...
+            try
+            {
+                this.DereferenceTransport();
+            }
+            catch (Exception e) { }
 
-            this.DereferenceTransport();
+            
         }
 
         /// <summary>
@@ -1048,6 +1091,52 @@ namespace OGA.TCP.Server
                 "Attempting to send pong message to client...");
 
             return await Send_SerializedObject_toClient_Async("pong", "");
+        }
+
+        /// <summary>
+        /// Called by the endpoint, after a connection registration message has been received.
+        /// This method sends back a reply that gives the client their server-created ConnectionId, and notifies the client to allow comms.
+        /// </summary>
+        /// <returns></returns>
+        protected async Task<int> SendRegistrationReply(TESTINGSRVR_ClientInfo ci, string oldconnid)
+        {
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendRegistrationReply)} - " +
+                "Attempting to send registration reply to client...");
+
+            // If this is the first time the client has sent a connection registration message to us,
+            //  our "oldconnid" is actually blank.
+            // This is because we didn't yet have that value, until we received the first one.
+            // So. If the "oldconnid" is blank, we will instead use the connectionIdin the given ClientInfo struct.
+
+            // Use the old connectionid, unless this is the first registration pass.
+            string connectionidtoincludeasoldvalue = "";
+            if(string.IsNullOrEmpty(oldconnid))
+            {
+                // First registration cycle.
+                // We will reply with the live connectionid (which is what the client thinks they are)...
+                connectionidtoincludeasoldvalue = ci.ConnectionId;
+            }
+            else
+            {
+                // Use the actual last registered connectionid...
+                connectionidtoincludeasoldvalue = oldconnid;
+            }
+
+            // Formulate a registration reply message...
+            var msg = new ConnRegisterReplyDTO();
+            msg.Props = new string[0];
+            // Give the client their deviceid and userid....
+            msg.DeviceId = ci.DeviceId;
+            msg.UserId = ci.UserId;
+            // We know our server-created ConnectionId at endpoint construction.
+            // It's actually the WSId property.
+            // We include it, here.
+            msg.ConnectionId = this.WSId;
+            msg.OldConnectionId = connectionidtoincludeasoldvalue;
+
+            // Send the reply to the client...
+            return await Send_Object_toClient(msg);
         }
 
         /// <summary>
@@ -1706,7 +1795,15 @@ namespace OGA.TCP.Server
                     $"Sending ping reply to {(this.TransportLongName ?? "socket")} client...");
 
                 // Send a pong reply...
-                Task.Run(() => SendPong_toClient_Async());
+                Task.Run(async () =>
+                {
+                    // Wrap the send method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                    try
+                    {
+                        await this.SendPong_toClient_Async();
+                    }
+                    catch(Exception e) { }
+                });
 
                 return 1;
             }
@@ -2092,9 +2189,26 @@ namespace OGA.TCP.Server
                 var newvals = new TESTINGSRVR_ClientInfo();
                 newvals.CopyFrom(this.ClientInfo);
 
+                // We want to send the client their registration reply before we register their connection for other clients to find.
+                // But, both actions may stall our receive loop.
+                // So, we will execute them on an alternate thread.
+                Task.Run( async () =>
+                {
+                    // Send a registration reply back to the client...
+                    var res1 = await SendRegistrationReply(this.ClientInfo, oldvals.ConnectionId);
+                    if(res1 != 1)
+                    {
+                        // The reply send call failed.
+                        // We don't really care if the registration reply message fails or not.
+                        // But, we will, for completeness, here, only dispatch the connection registered event if the reply was sent.
 
-                // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
-                Task.Run(() => DispatchConnectionRegistered(oldvals, newvals));
+                        // Skip calling the dispatch method...
+                        return;
+                    }
+
+                    // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
+                    DispatchConnectionRegistered(oldvals, newvals);
+                });
 
                 return 1;
             }

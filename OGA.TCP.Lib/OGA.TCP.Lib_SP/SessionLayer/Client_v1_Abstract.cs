@@ -81,6 +81,14 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected string _connection_string;
 
+        /// <summary>
+        /// Indicates when the connection has received a registration reply.
+        /// The connection loop logic uses this flag to know when it can continue processing the new connection.
+        /// This flag is cleared each time a new connection is attempted.
+        /// It is set by the receive loop when it successfully handles a registration reply message.
+        /// </summary>
+        protected bool _registrationreplyreceived;
+
         #endregion
 
 
@@ -205,6 +213,19 @@ namespace OGA.TCP.SessionLayer
         public bool Cfg_Disable_KeepAlive { get; set; }
 
         /// <summary>
+        /// Amount of time, in milliseconds, that a new connection is willing to wait for a
+        ///     connection registration reply to be received from the server.
+        /// The connection loop logic will wait this duration to ensure a reply is received, or the connection must restart.
+        /// </summary>
+        public int Cfg_RegistrationReplyTimeout { get; set; }
+
+        /// <summary>
+        /// Defines if the connection loop requires a registration reply message be received, before allowing comms.
+        /// Is set by default.
+        /// </summary>
+        public bool Cfg_ConnectionWaitsforRegistrationReply { get; set; }
+
+        /// <summary>
         /// This defines the current TCP/WSLib version behavior of the client.
         /// It should be set in the constructor of deriving classes of this abstract.
         /// </summary>
@@ -315,6 +336,10 @@ namespace OGA.TCP.SessionLayer
             disposedValue = false;
 
             _cfg_keepAliveInterval = 60;
+
+            this.Cfg_RegistrationReplyTimeout = 5000;
+
+            this.Cfg_ConnectionWaitsforRegistrationReply = true;
 
 #if (NET452 || NET48)
             this.LastReceivedTime = DateTime.MinValue;
@@ -1231,6 +1256,9 @@ namespace OGA.TCP.SessionLayer
             // Reset the connection lost diagnostic counter...
             this.connlost_truecounter = 0;
 
+            // Reset our registration reply received flag...
+            this._registrationreplyreceived = false;
+
             this.Logger?.Trace(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
                 $"New websocket instance has been setup.");
@@ -1392,6 +1420,38 @@ namespace OGA.TCP.SessionLayer
                 // If here, we sent our registration data to the service.
                 // So, it the connectionId, userid, and device Id of our client.
 
+                // See if we are to wait for registration reply messages...
+                if(this.Cfg_ConnectionWaitsforRegistrationReply)
+                {
+                    // We are to wait for a registration reply message to be received and handled.
+
+                    // The above registration call sent a registration message to the server, with our client-created ConnectionId.
+                    // Since the server assigns us a real ConnectionId on registration, we don't know it upfront.
+                    // So, the server sends it to us in a registration reply.
+                    // We will wait for that registration reply to be handled, here.
+                    // If our receive loop gets a valid registration reply message, we consider registration complete.
+                    // Otherwise, we hit a timeout and consider the connection failed, and attempt a new one.
+                    // NOTE: The condition we gave the wait, is actually a simple check of the received boolean flag, with a check every 50 msec.
+                    // This call will return 1 if the reply is received.
+                    // Otherwise, it will return 0 (timeout) or negatives for cancelled.
+                    int rescrwait = await WaitforCondition(() => this._registrationreplyreceived, this.Cfg_RegistrationReplyTimeout, 50, this._cts.Token);
+                    if(rescrwait != 1)
+                    {
+                        // We timed out, waiting for the registration reply.
+                        // Or, the timeout was cancelled because our connection has been recycled or closed.
+                        // Regardless of the reason, we assume the valid reply never came.
+
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
+                            $"Timed out while waiting for receive loop to handle the registration reply message for our connection. Returning error." +
+                                $"ConnectionID = {(this.ConnectionId ?? "")}.");
+
+                        return -3;
+                    }
+                    // The receive loop handled a valid registration reply for our connection.
+                    // We can continue as normal.
+                }
+
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
                     $"Registered with service, ({(this._connection_string ?? "<connectionstring not defined>")}). " +
@@ -1407,6 +1467,89 @@ namespace OGA.TCP.SessionLayer
                         $"ConnectionID = {(this.ConnectionId ?? "")}.");
                 return -2;
             }
+        }
+
+        /// <summary>
+        /// Will wait for the given function to become true, the timeout to occur, or the cancellation token to signal.
+        /// Includes an optional scan parameter to define how often the given function is evaluated during the wait period.
+        /// Returns 1 if the condition evaluated as true.
+        /// Returns 0 if the timeout occurred.
+        /// Returns -1 if the token was cancelled.
+        /// </summary>
+        /// <param name="condition"></param>
+        /// <param name="timeout"></param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        static public async Task<int> WaitforCondition(Func<bool> condition, int timeout, int scaninterval = 50, CancellationToken token = default(CancellationToken))
+        {
+            DateTime starttime = DateTime.UtcNow;
+
+            TimeSpan duration = new TimeSpan();
+
+            // Ensure the scan interval is no longer than the timeout...
+            if(scaninterval > timeout)
+            {
+                // Reduce the scan interval to the timeout...
+                scaninterval = timeout;
+            }
+
+            // We employ a spin-wait, here to evaluate the condition, or leave if cancelled...
+            var reswait1 = System.Threading.SpinWait.SpinUntil(()=> condition() || token.IsCancellationRequested, timeout);
+
+            if(reswait1 && !token.IsCancellationRequested)
+            {
+                // The condition went true.
+                return 1;
+            }
+            else if(token.IsCancellationRequested)
+            {
+                // We got cancelled.
+                return -1;
+            }
+            else
+            {
+                // The timeout occurred.
+
+                duration = DateTime.UtcNow.Subtract(starttime);
+
+                return 0;
+            }
+            //try
+            //{
+
+                //// 
+
+                //// Loop until we timeout, cancelled, or condition goes true...
+                //while(!token.IsCancellationRequested)
+                //{
+                //    // Do a check...
+                //    // Wrap it in a try-catch, to ensure it can't throw and unwind our own logic.
+                //    try
+                //    {
+                //        if(condition())
+                //        {
+                //            // The condition became true.
+                //            // We can leave.
+                //            return 1;
+                //        }
+                //    }
+                //    catch(Exception e) { }
+                //    // Not yet true.
+
+                //    // We will wait a scan interval before checking it again...
+                //    await Task.Delay(scaninterval, token);
+                //}
+
+                //return 0;
+            //}
+            //catch (OperationCanceledException) when (token.IsCancellationRequested)
+            //{
+            //    return 0;
+            //}
+            //catch (Exception)
+            //{
+            //    return -1;
+            //}
         }
 
         /// <summary>
@@ -1549,6 +1692,8 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Create a new connection Id for the client.
         /// Gets called when a new connection is initiated.
+        /// NOTE: This is the client-created connectionId.
+        /// Meaning, it will be replaced by the server-created ConnectionId on successful registration.
         /// </summary>
         protected void CreateNewConnectionID()
         {
@@ -2385,7 +2530,7 @@ namespace OGA.TCP.SessionLayer
         #region Handle Internal Messages
 
         /// <summary>
-        /// Filters out any internal messages.
+        /// Filters out any internal messages (ping, pong, registration replies).
         /// Returns 1 if the message was handled.
         /// Returns 0 if the message is not internal.
         /// Returns negatives for errors.
@@ -2422,6 +2567,7 @@ namespace OGA.TCP.SessionLayer
                     catch(Exception e) { }
                 });
 
+                // Notify the caller that the received message is an internal one, and we've handled it...
                 return 1;
             }
             else if (messagetype == "pong")
@@ -2436,12 +2582,149 @@ namespace OGA.TCP.SessionLayer
                 // We can reset the ping status...
                 this._keepAliveStatus = 0;
 
+                // Notify the caller that the received message is an internal one, and we've handled it...
+                return 1;
+            }
+            else if (messagetype == nameof(ConnRegisterReplyDTO).ToLower())
+            {
+                // The received message is a Registration Reply message.
+                // This is a reply to a previously sent registration message.
+                // And, it will contain our server-created ConnectionId.
+                // We will need this before we are "open for business".
+
+                this.Logger?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    $"Registration reply received. Attempting to handle...");
+
+                // NOTE: Our client will send registration messages each time the connection context changes.
+                // This will occur at events, such as user login and logout, and when connection properties change, such as loopback, echo, etc.
+                // So, we should expect to receive these replies more than once.
+                // And, be able to handle each one.
+
+                // Attempt to deserialize the message...
+                ConnRegisterReplyDTO dto = null;
+                try
+                {
+                    if(string.IsNullOrEmpty(messagedata))
+                    {
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                            "Failed to deserialize the ConnRegisterReplyDTO. Cannot accept the reply message.");
+
+                        // We must report this as a fatal connection error...
+                        return -10;
+                    }
+
+                    dto = JsonConvert.DeserializeObject<ConnRegisterReplyDTO>(messagedata);
+                    if (dto == null)
+                    {
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                            "Failed to deserialize the ConnRegisterReplyDTO. Cannot accept the reply message.");
+
+                        // We must report this as a fatal connection error...
+                        return -10;
+                    }
+                }
+                catch (Exception e)
+                {
+                    this.Logger?.Error(e,
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                        "Failed to deserialize the ConnRegisterReplyDTO. Cannot accept the reply message.");
+
+                    // We must report this as a fatal connection error...
+                    return -10;
+                }
+                // If here, we have the ConnRegisterReplyDTO.
+                // Each time we receive this reply message, we need to accept the server-provided ConnectionId as our connectionid.
+
+                // We need to check the ConnectionId for a few things:
+                // We need to confirm the server-created ConnectionId is valid.
+                // We need to confirm that the reply message contains our current ConnectionId.
+                // This second check verifies the reply message belongs to the current connection attempt of our client.
+                // I'll explain:
+                // Since our client uses a separate thread for receiving messages, the receive loop may not be fully closed when a connection is recycled and retried.
+                // Specifically, it is possible for our receive loop to be handling a registration reply from a previous connection attempt, while we are trying to establish a new one.
+                // If this were the case, the reply message would have a ConnectionId of our previous connection.
+                // And as such, we will erroneously accept the server-provided ConnectionId of the previous connection.
+                // To prevent this from occurring, the server sends us the ConnectionId we are to accept, and the old ConnectionId that we started with.
+                // And, we simply verify the old ConnectionId matches what we currently have, disregarding the reply message if the two don't match.
+
+                // Check for connectionId and DeviceId...
+                if(string.IsNullOrEmpty(dto.ConnectionId))
+                {
+                    // The server gave us a malformed connectionid.
+                    // We will regard this as a malformed registration message.
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                        "Server sent a ConnRegisterReplyDTO, with a malformed ConnectionId. We cannot accept the server-provided connectionId, and must close.");
+
+                    // We must report this as a fatal connection error...
+                    return -10;
+                }
+
+                this.Logger?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    $"Registration reply received with valied ConnectionId.\r\n" +
+                    $"Client Current ConnectionId = '{(this.ConnectionId ?? "")}'\r\n" +
+                    $"DTO Old ConnectionId = '{(dto.OldConnectionId ?? "")}'\r\n" +
+                    $"DTO New ConnectionId = '{(dto.ConnectionId ?? "")}'");
+
+                // Verify the old ConnectionId in the reply message matches our current ConnectionId...
+                if(this.ConnectionId != dto.OldConnectionId)
+                {
+                    // The registration reply message, from the server, does not belong to our current connection attempt.
+                    // It has a previous, or unknown, OldConnectionId.
+                    // So, we must assume that may be running in an old instance of the receive loop, and are processing a reply from that previous connection.
+                    // So, we will simply disregard the reply message, and refuse handling.
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                        "Server sent us a registration reply with a mismatched OldConnectionId. We cannot accept the server-provided connectionId, from this message.");
+
+                    // It is uncertain if we need to return an error for this problem, as this receive loop has likely just not yet checked on its cancellation token, and began teardown.
+                    // The catch is that: If we do return an error from this method, the entire connection will be determined as bad and get recycled.
+                    // The problem with doing so (returning an error) is that the connection likely already got recycled and is trying to reconnect.
+                    // So, we will disregard the errant message and notify the caller that we handled it.
+
+                    // As well. Our connection loop includes logic that will wait for a registration reply to come back.
+                    // And if the wait timeout occurs, the connection loop will recycle, on its own, and reattempt.
+                    // So, we can simply let that timeout cover the scenario of having received an obsolete registration message.
+                    // So, it seems logical that we can safely return a handled response to the caller.
+
+                    // Notify the caller that we handled the registration message...
+                    // See above for rationale.
+                    return 1;
+                }
+                // If here, the registration reply includes a ConnectionId we can accept.
+
+                this.Logger?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    $"Registration reply received.\r\n" +
+                    $"Updating Connectionid from '{(this.ConnectionId ?? "")}' to '{(dto.ConnectionId ?? "")}'...");
+
+                // Update our connectionId to what the server gave us...
+                // No other properties need to be used from the reply message.
+                this.ConnectionId = dto.ConnectionId;
+
+                this.Logger?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                    "Registration reply received and handled. Setting reply received flag...");
+
+                // Now that we have accepted the server-provided ConnectionId, we can claim we are "open for business", and can allow messages to be sent.
+                // Our connection becomes open for business by setting the "_allowsend" flag.
+                // Since our receive loop is considered a slave loop to the connection loop logic, we will allow that loop to be authoritative over the "_allowsend" flag.
+                // We will notify the connection loop that we've received a valid connection reply message, here...
+                this._registrationreplyreceived = true;
+
+                // Notify the caller that the received message is an internal one, and we've handled it...
                 return 1;
             }
             // If here, the message type is not a known internal message.
             // We will return that it was unhandled.
 
-            // Return that the message was not handled, internally.
+            // Return that the message was not handled, internally...
             return 0;
         }
 

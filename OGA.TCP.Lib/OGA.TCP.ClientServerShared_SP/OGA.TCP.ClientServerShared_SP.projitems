@@ -13,14 +13,12 @@
     <Compile Include="$(MSBuildThisFileDirectory)cEndpoint_Metrics.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cReceiveLoop.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DTO\ConnRegisterReplyDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DTO\ConnRegisterDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Encoding\cCustom_Serializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enumerations.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ExpBackoff_wJitter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Messages\MessageEnvelope.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Model\Enumerations.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)DTO\" />
   </ItemGroup>
 </Project>

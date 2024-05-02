@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OGA.TCP.Messages;
 using OGA.TCP.Server;
@@ -348,7 +349,6 @@ namespace OGA.TCP_Test_SP
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
 
-
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
 
@@ -359,16 +359,17 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                await Task.Delay(2000);
+                WaitforCondition(() => client.IsConnected, 2000);
 
                 // Ensure we got connected...
                 if(!client.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 1000);
+                
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
-
 
                 if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                     Assert.Fail("Wrong Value");
@@ -396,12 +397,14 @@ namespace OGA.TCP_Test_SP
                 await client.Stop_Async();
 
                 // Wait for it to close...
-                await Task.Delay(1000);
+                WaitforCondition(() => !client.IsConnected, 1000);
 
                 // Verify the websocket is closed...
                 if(client.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                // Make sure we wait for server-side connection loss...
+                WaitforCondition(() => !_wsl.ServerSide_TCPEndpoint.IsConnected, 6000);
 
                 // Check that the server says closed as well...
                 if(_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -471,13 +474,15 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the tcpsocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
+
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 1000);
 
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -507,9 +512,8 @@ namespace OGA.TCP_Test_SP
                 // Tell the server endpoint to close the connection...
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
-                // Wait for it to get established...
-                while(wss.IsConnected)
-                    await Task.Delay(200);
+                // Wait for it to get lost...
+                WaitforCondition(() => !wss.IsConnected, 4000);
 
                 // Verify the websocket is closed...
                 if(wss.IsConnected)
@@ -584,6 +588,9 @@ namespace OGA.TCP_Test_SP
                 // Make sure the client won't timeout...
                 wss.Cfg_Disable_KeepAlive = true;
 
+                // Mark the connection start time...
+                DateTime startime = DateTime.Now;
+
                 // Start the web socket client...
                 var res = await wss.Start_Async();
                 if(res != 1)
@@ -591,13 +598,20 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
-
+                WaitforCondition(() => wss.IsConnected, 2000);
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                // Record connected time...
+                TimeSpan connectionduration = DateTime.Now.Subtract(startime);
+
+                // Wait for the allow to send...
+                WaitforCondition(() => wss.AllowSend, 6000);
+
+                // Record allowed send time...
+                TimeSpan allowedsendduration = DateTime.Now.Subtract(startime);
 
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -623,6 +637,12 @@ namespace OGA.TCP_Test_SP
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
 
+                // wait for us to reach the allowed to send state...
+                WaitforCondition(() => wss.AllowSend, 200);
+
+                // Verify allow send was hit...
+                if(!wss.AllowSend)
+                    Assert.Fail("Connection Failed");
 
                 // Verify the counter is zero...
                 if(losscounter != 0)
@@ -632,14 +652,12 @@ namespace OGA.TCP_Test_SP
                 // Close the client...
                 await wss.Stop_Async();
 
-                // Wait for it to get established...
-                while(wss.IsConnected)
-                    await Task.Delay(200);
+                // Wait for it to be lost...
+                WaitforCondition(() => !wss.IsConnected, 4000);
 
                 // Verify the websocket is closed...
                 if(wss.IsConnected)
                     Assert.Fail("Connection Failed");
-
 
                 // Check that the server says closed as well...
                 if(_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -662,6 +680,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+
+
+                // Wait to ensure we got the loss callback...
+                WaitforCondition(() => losscounter == 1, 2000);
 
                 // Verify the counter is exactly one...
                 if(losscounter != 1)
@@ -721,8 +743,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -767,7 +788,8 @@ namespace OGA.TCP_Test_SP
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
                 // Wait for things to close and reopen...
-                await Task.Delay(6000);
+                WaitforCondition(() => !wss.IsConnected, 6000);
+                WaitforCondition(() => wss.IsConnected, 6000);
 
                 // Fetch the current attempt counter...
                 var attempts_after = wss.ConnAttempt_TotalCounter;
@@ -781,6 +803,8 @@ namespace OGA.TCP_Test_SP
                 if(!wss.IsConnected)
                     Assert.Fail("Connection failed to reopen.");
 
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 1000);
 
                 // Check that the server says opened as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -857,8 +881,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -868,6 +891,8 @@ namespace OGA.TCP_Test_SP
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
 
+
+                receivedcounter = 0;
 
                 // Create a message to send to the client...
                 var msg = new SimpleGeneric<string>();
@@ -881,8 +906,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for the message to come in...
-                await Task.Delay(1000);
-
+                WaitforCondition(() => receivedcounter == 1, 1000);
 
                 // Verify the client received the message...
                 if(receivedcounter != 1)
@@ -929,8 +953,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -1015,14 +1038,15 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(100);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 1000);
+                
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -1043,25 +1067,29 @@ namespace OGA.TCP_Test_SP
                 this._wsl.ServerSide_TCPEndpoint.Cfg_DeadClientTimeout = 5;
 
 
-                // Wait for the client to be dropped...
-                while(wss.IsConnected)
-                    await Task.Delay(500);
+                // Wait an expected duration for the client to have been dropped for its silence...
+                WaitforCondition(() => !wss.IsConnected, 11000);
+
+
+                // Check that the client is dropped...
+                if(wss.IsConnected)
+                    Assert.Fail("Connection failed to reopen.");
 
                 // With the client dropped, we need to wait for it to reconnect...
-                while(!wss.IsConnected)
-                    await Task.Delay(500);
+                WaitforCondition(() => wss.IsConnected, 4000);
 
                 // Check that the client has reopened the connection...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection failed to reopen.");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 500);
 
                 // Check that the server says opened as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
 
-                while(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
-                    await Task.Delay(500);
+                // Wait for the server to claim the client as registered...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered, 500);
 
                 if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                     Assert.Fail("Wrong Value");
@@ -1135,8 +1163,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -1159,7 +1186,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be received...
-                await Task.Delay(2000);
+                WaitforCondition(() => receivecounter == 1, 2000);
 
 
                 // Verify the message was received...
@@ -1222,14 +1249,15 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 2000);
+                WaitforCondition(() => wss.AllowSend, 2000);
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -1246,7 +1274,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be reach the server and bounce back to us...
-                await Task.Delay(2000);
+                WaitforCondition(() => receivecounter == 1, 2000);
 
 
                 // Verify the message was received...
@@ -1305,13 +1333,14 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 1000);
 
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -1338,7 +1367,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be received...
-                await Task.Delay(2000);
+                WaitforCondition(() => receivecounter == 1, 2000);
 
 
                 // Verify the message was received...
@@ -1388,8 +1417,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -1413,6 +1441,8 @@ namespace OGA.TCP_Test_SP
                 // Clear the receive counter...
                 receivecounter = 0;
 
+                // Make sure we wait for registration, so we can send messages...
+                WaitforCondition(() => wss.AllowSend, 2000);
 
                 // Have the client send a non-channel message to the server...
                 var msg = new SimpleGeneric<string>();
@@ -1421,8 +1451,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Return");
 
                 // Wait for the message to be received...
-                await Task.Delay(2000);
-
+                WaitforCondition(() => receivecounter == 1, 2000);
 
                 // Verify the message was received...
                 if(receivecounter != 1)
@@ -1482,8 +1511,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
@@ -1511,7 +1539,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait an expected duration for the client to have been dropped for its silence...
-                await Task.Delay(15000);
+                WaitforCondition(() => wss.IsConnected, 15000);
 
                 // Check that the client is still open...
                 if(!wss.IsConnected)
@@ -1589,7 +1617,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait a tick before checking...
-                await Task.Delay(2000);
+                WaitforCondition(() => !wss.IsConnected, 2000);
 
 
                 // Verify the websocket remains unconnected...
@@ -1606,12 +1634,14 @@ namespace OGA.TCP_Test_SP
 
 
                 // Give the client a little bit to create a connection...
-                await Task.Delay(3000);
+                WaitforCondition(() => wss.IsConnected, 400);
 
 
                 // Verify the websocket connected...
                 if(!wss.IsConnected)
                     Assert.Fail("Wrong state");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 400);
 
                 // Check that the server has no endpoint either...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
@@ -1620,11 +1650,12 @@ namespace OGA.TCP_Test_SP
 
                 // Now that the client is connected, take away the network state...
                 wss.TESTING_NetworkIsAvailable = false;
+                // And, drop the server side....
+                await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
 
                 // Wait for things to drop out...
-                while(wss.IsConnected)
-                    await Task.Delay(500);
+                WaitforCondition(() => !wss.IsConnected, 5000);
 
                 // Save off the attempt counter...
                 var attemptbefore = wss.ConnAttempt_TotalCounter;
@@ -1688,17 +1719,21 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 1000);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 400);
 
                 // Verify the connected method was called...
                 if(wss.TESTING_ConnectedMethod_CallCounter != 1)
@@ -1758,17 +1793,20 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 500);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 500);
 
                 // Verify the connected method was called...
                 if(wss.TESTING_ConnectedMethod_CallCounter != 1)
@@ -1779,7 +1817,7 @@ namespace OGA.TCP_Test_SP
                 await wss.Stop_Async();
 
                 // Wait for it to close...
-                await Task.Delay(1000);
+                WaitforCondition(() => !wss.IsConnected, 1000);
 
                 // Verify the websocket is closed...
                 if(wss.IsConnected)
@@ -1840,19 +1878,22 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                while(!wss.IsConnected)
-                    await Task.Delay(200);
+                WaitforCondition(() => wss.IsConnected, 2000);
 
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 2000);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
                 if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                     Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => wss.AllowSend, 400);
 
                 // Check that the client indicates Allow Send...
                 if(wss.AllowSend == false)
@@ -1863,7 +1904,7 @@ namespace OGA.TCP_Test_SP
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
                 // Wait for it to close...
-                await Task.Delay(1000);
+                WaitforCondition(() => !wss.IsConnected, 1000);
 
                 // Check that the Allow Send has dropped...
                 if(wss.AllowSend == true)
