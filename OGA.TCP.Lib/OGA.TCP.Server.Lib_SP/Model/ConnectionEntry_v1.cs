@@ -34,6 +34,11 @@ namespace OGA.TCP.Server.Model
         public string DeviceId { get; set; }
 
         /// <summary>
+        /// Client-provided process PID of the running client application.
+        /// </summary>
+        public int Pid { get; set; }
+
+        /// <summary>
         /// UTC time the tcp/websocket connection was opened.
         /// </summary>
         public DateTime ConnectionTimeUTC { get; set; }
@@ -87,6 +92,7 @@ namespace OGA.TCP.Server.Model
             ConnectionId = "";
             UserId = Guid.Empty;
             DeviceId = "";
+            Pid = 0;
             ConnectionTimeUTC = DateTime.UtcNow;
             Hostname = "";
             Host_Port = 0;
@@ -102,6 +108,7 @@ namespace OGA.TCP.Server.Model
             ConnectionId = entry.ConnectionId;
             UserId = entry.UserId;
             DeviceId = entry.DeviceId;
+            Pid = entry.Pid;
             ConnectionTimeUTC = entry.ConnectionTimeUTC;
             Hostname = entry.Hostname;
             Host_Port = entry.Host_Port;
@@ -118,6 +125,7 @@ namespace OGA.TCP.Server.Model
             stringBuilder.AppendLine("ConnectionId = " + ConnectionId);
             stringBuilder.AppendLine("UserId = " + UserId.ToString());
             stringBuilder.AppendLine("DeviceId = " + DeviceId);
+            stringBuilder.AppendLine("Pid = " + Pid.ToString());
             stringBuilder.AppendLine("ConnectionTimeUTC = " + ConnectionTimeUTC.ToString("O"));
             stringBuilder.AppendLine("Hostname = " + Hostname);
             stringBuilder.AppendLine("Host_Port = " + Host_Port.ToString());

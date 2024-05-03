@@ -513,6 +513,7 @@ namespace OGA.TCP.Server
             // Copy the client info, so we can submit it for this connection...
             ce.UserId = this.ClientInfo.UserId;
             ce.DeviceId = this.ClientInfo.DeviceId;
+            ce.Pid = this.ClientInfo.Pid;
             ce.ConnectionTimeUTC = this.ClientInfo.ConnectionTimeUTC;
             ce.AppId = this.ClientInfo.AppId;
             ce.AppVersion = this.ClientInfo.AppVersion;
@@ -1940,6 +1941,8 @@ namespace OGA.TCP.Server
                 string language = "en-us";
                 // Default the ws lib version to 1, if not given...
                 string wslibver = "1";
+                // Default the process pid to unset, if not given...
+                string pid = "";
 
                 // Process any properties of the connection request...
                 try
@@ -2049,6 +2052,11 @@ namespace OGA.TCP.Server
                                 {
                                     // Read the value...
                                     appid = parts[1].Replace("\"", "");
+                                }
+                                else if (parts[0].ToLower().Contains("pid"))
+                                {
+                                    // Read the value...
+                                    pid = parts[1].Replace("\"", "");
                                 }
                                 else if (parts[0].ToLower().Contains("appver"))
                                 {
@@ -2176,6 +2184,16 @@ namespace OGA.TCP.Server
                 this.ClientInfo.AppVersion = appver;
                 this.ClientInfo.Language = language;
                 this.ClientInfo.LibVersion = wslibver;
+
+                // Accept the process pid if given...
+                if(!string.IsNullOrEmpty(pid))
+                {
+                    try
+                    {
+                        this.ClientInfo.Pid = Convert.ToInt32(pid);
+                    }
+                    catch(Exception e) { }
+                }
 
                 // Since we now register some client properties as generic strings, we will pass an instance of client info, instead of a conn registration DTO.
                 var newvals = new ClientInfo();

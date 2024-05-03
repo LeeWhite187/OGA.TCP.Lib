@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -145,6 +146,10 @@ namespace OGA.TCP.SessionLayer
         /// Usually, the RuntimeId.
         /// </summary>
         public string DeviceId { get; set; }
+        /// <summary>
+        /// Set to the process pid of the running client application.
+        /// </summary>
+        public int Pid { get; set; }
 
         /// <summary>
         /// Tracks the time of the last message received.
@@ -1813,7 +1818,8 @@ namespace OGA.TCP.SessionLayer
 
                     this.Logger?.Error(
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
-                        $"Cannot send {(this.PropName_ClientLibVer ?? "")}=1 registration data, for a non version 1 client. This method must be overridden for proper registration behavior.");
+                        $"Cannot send {(this.PropName_ClientLibVer ?? "")}=1 registration data, for a non version 1 client. " +
+                        $"This method must be overridden for proper registration behavior.");
 
                     return -3;
                 }
@@ -1861,6 +1867,13 @@ namespace OGA.TCP.SessionLayer
                 {
                     // Set a property to turn on keepalives...
                     props.Add("\"keepalive\":\"on\"");
+                }
+
+                // Set a process pid if defined...
+                if (this.Pid > 0)
+                {
+                    // Set a property for the process pid...
+                    props.Add("\"pid\":\"" + this.Pid.ToString() + "\"");
                 }
 
                 rmsg.Props = props.ToArray();

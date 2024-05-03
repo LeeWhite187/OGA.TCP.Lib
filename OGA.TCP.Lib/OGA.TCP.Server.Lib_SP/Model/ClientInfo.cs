@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Identity;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -42,6 +43,11 @@ namespace OGA.TCP.Server.Model
         /// Client-provided identifier of the remote device.
         /// </summary>
         public string DeviceId { get; set; }
+
+        /// <summary>
+        /// Client-provided process PID of the running client application.
+        /// </summary>
+        public int Pid { get; set; }
 
         /// <summary>
         /// Amount of time the tcp/websocket has existed while waiting for its client to register it
@@ -123,6 +129,8 @@ namespace OGA.TCP.Server.Model
             this.ConnectionId = dto.ConnectionId;
             this.DeviceId = dto.DeviceId;
 
+            this.Pid = dto.Pid;
+
             this.AuthLevel = dto.AuthLevel;
             this.ClientIP = dto.ClientIP;
             this.ConnectionTimeUTC = dto.ConnectionTimeUTC;
@@ -140,6 +148,8 @@ namespace OGA.TCP.Server.Model
             b.AppendLine("UserId = '" + this.UserId.ToString() + "';");
             b.AppendLine("ConnectionId = '" + this.ConnectionId ?? "" + "';");
             b.AppendLine("DeviceId = '" + this.DeviceId ?? "" + "';");
+
+            b.AppendLine("Pid = '" + this.Pid ?? "" + "';");
 
             b.AppendLine("AuthLevel = '" + this.AuthLevel.ToString() + "';");
             b.AppendLine("ClientIP = '" + this.ClientIP ?? "" + "';");
@@ -167,6 +177,8 @@ namespace OGA.TCP.Server.Model
                          "' => '" + (ci2.ConnectionId ?? "") + "';");
             b.AppendLine("DeviceId = '" + (ci1.DeviceId ?? "") +
                          "' => '" + (ci2.DeviceId ?? "") + "';");
+            b.AppendLine("Pid = '" + (ci1.Pid.ToString() ?? "") +
+                         "' => '" + (ci2.Pid.ToString() ?? "") + "';");
 
             b.AppendLine("AuthLevel = '" + ci1.AuthLevel.ToString() +
                          "' => '" + ci2.AuthLevel.ToString() + "';");
