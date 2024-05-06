@@ -46,6 +46,11 @@ namespace OGA.TCP.Server.Model
         public string DeviceId { get; set; }
 
         /// <summary>
+        /// Client-provided process PID of the running client application.
+        /// </summary>
+        public int Pid { get; set; }
+
+        /// <summary>
         /// Amount of time the tcp/websocket has existed while waiting for its client to register it
         ///     with a connection id, userid, device id, etc...
         /// This is used to determine when to purge unregistered connections that never got registered.
@@ -85,6 +90,14 @@ namespace OGA.TCP.Server.Model
         public string AppId { get; set; }
 
         /// <summary>
+        /// Available to discriminate different instances of a client process.
+        /// When a client populates this with a Guid that changes each time the client starts,
+        ///     this value will easily distinguish multiple copies of the same client instance.
+        /// This value is passed as ancillary data by the client logic.
+        /// </summary>
+        public string RuntimeId { get; set; }
+
+        /// <summary>
         /// Holds the version3 string of the connected client version.
         /// Of the form: x.y.z
         /// NOTE: We don't store the build number, as the version3 should be enough to discriminate DTO version usage.
@@ -114,6 +127,7 @@ namespace OGA.TCP.Server.Model
             this.ClientIP = "";
 
             this.AppId = "";
+            this.RuntimeId = "";
             this.AppVersion = "";
             this.Language = "";
             this.LibVersion = "";
@@ -125,11 +139,14 @@ namespace OGA.TCP.Server.Model
             this.ConnectionId = dto.ConnectionId;
             this.DeviceId = dto.DeviceId;
 
+            this.Pid = dto.Pid;
+
             this.AuthLevel = dto.AuthLevel;
             this.ClientIP = dto.ClientIP;
             this.ConnectionTimeUTC = dto.ConnectionTimeUTC;
 
             this.AppId = dto.AppId;
+            this.RuntimeId = dto.RuntimeId;
             this.AppVersion = dto.AppVersion;
             this.Language = dto.Language;
             this.LibVersion = dto.LibVersion;

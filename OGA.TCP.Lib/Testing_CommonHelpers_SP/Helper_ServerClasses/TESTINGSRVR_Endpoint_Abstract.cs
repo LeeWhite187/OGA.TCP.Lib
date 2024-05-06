@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -517,11 +518,13 @@ namespace OGA.TCP.Server
             // Copy the client info, so we can submit it for this connection...
             ce.UserId = this.ClientInfo.UserId;
             ce.DeviceId = this.ClientInfo.DeviceId;
+            ce.Pid = this.ClientInfo.Pid;
             ce.ConnectionTimeUTC = this.ClientInfo.ConnectionTimeUTC;
-            ce.AppId = this.ClientInfo.AppId;
-            ce.AppVersion = this.ClientInfo.AppVersion;
-            ce.Language = this.ClientInfo.Language;
-            ce.LibVersion = this.ClientInfo.LibVersion;
+            ce.AppId = this.ClientInfo.AppId ?? "";
+            ce.RuntimeId = this.ClientInfo.RuntimeId ?? "";
+            ce.AppVersion = this.ClientInfo.AppVersion ?? "";
+            ce.Language = this.ClientInfo.Language ?? "";
+            ce.LibVersion = this.ClientInfo.LibVersion ?? "";
             // These last three values are not known by the TCP/WSEndpoint. They will be populated by the owning Connection Manager.
             ce.Hostname = "";
             ce.Host_Port = 0;
@@ -1944,6 +1947,10 @@ namespace OGA.TCP.Server
                 string language = "en-us";
                 // Default the ws lib version to 1, if not given...
                 string wslibver = "1";
+                // Default the process pid to unset, if not given...
+                string pid = "";
+                // Default the RuntimeId to unset, if not given...
+                string runtimeid = "";
 
                 // Process any properties of the connection request...
                 try
@@ -2057,6 +2064,16 @@ namespace OGA.TCP.Server
                                 {
                                     // Read the value...
                                     appid = parts[1].Replace("\"", "");
+                                }
+                                else if (parts[0].ToLower().Contains("runtimeid"))
+                                {
+                                    // Read the value...
+                                    runtimeid = parts[1].Replace("\"", "");
+                                }
+                                else if (parts[0].ToLower().Contains("pid"))
+                                {
+                                    // Read the value...
+                                    pid = parts[1].Replace("\"", "");
                                 }
                                 else if (parts[0].ToLower().Contains("appver"))
                                 {
@@ -2180,10 +2197,21 @@ namespace OGA.TCP.Server
 
                 // Several client properties should have been received, via Props array.
                 // We will retrieve them, here...
-                this.ClientInfo.AppId = appid;
-                this.ClientInfo.AppVersion = appver;
-                this.ClientInfo.Language = language;
+                this.ClientInfo.AppId = appid ?? "";
+                this.ClientInfo.AppVersion = appver ?? "";
+                this.ClientInfo.Language = language ?? "";
                 this.ClientInfo.LibVersion = wslibver;
+                this.ClientInfo.RuntimeId = runtimeid ?? "";
+
+                // Accept the process pid if given...
+                if(!string.IsNullOrEmpty(pid))
+                {
+                    try
+                    {
+                        this.ClientInfo.Pid = Convert.ToInt32(pid);
+                    }
+                    catch(Exception e) { }
+                }
 
                 // Since we now register some client properties as generic strings, we will pass an instance of client info, instead of a conn registration DTO.
                 var newvals = new TESTINGSRVR_ClientInfo();
@@ -2205,6 +2233,14 @@ namespace OGA.TCP.Server
                         // Skip calling the dispatch method...
                         return;
                     }
+
+                    // We have sent the client a registration reply message.
+                    // One purpose of this message is to notify the client of the ConnectionId we call it, server-side.
+                    // The client will accept this server-side ConnectionId as its ConnectionId.
+                    // We need to do the same, here...
+                    // We store the server-side Connection in 'WSId'.
+                    // We will copy that into the ConnectionId of our ClientInfo...
+                    this.ClientInfo.ConnectionId = this.WSId;
 
                     // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
                     DispatchConnectionRegistered(oldvals, newvals);
@@ -2435,3 +2471,4 @@ namespace OGA.TCP.Server
         #endregion
     }
 }
+

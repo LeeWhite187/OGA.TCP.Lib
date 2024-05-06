@@ -550,6 +550,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ep.ClientInfo.UserId != Guid.Empty)
                     Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.RuntimeId != "")
+                    Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.Pid != 0)
+                    Assert.Fail("Wrong Value");
             }
             finally
             {
@@ -617,6 +621,10 @@ namespace OGA.TCP_Test_SP
                 if(!string.IsNullOrEmpty(ep.ClientInfo.LibVersion))
                     Assert.Fail("Wrong Value");
                 if(ep.ClientInfo.UserId != Guid.Empty)
+                    Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.RuntimeId != "")
+                    Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.Pid != 0)
                     Assert.Fail("Wrong Value");
             }
             finally
@@ -735,6 +743,10 @@ namespace OGA.TCP_Test_SP
                 if(!string.IsNullOrEmpty(ep.ClientInfo.LibVersion))
                     Assert.Fail("Wrong Value");
                 if(ep.ClientInfo.UserId != Guid.Empty)
+                    Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.RuntimeId != "")
+                    Assert.Fail("Wrong Value");
+                if(ep.ClientInfo.Pid != 0)
                     Assert.Fail("Wrong Value");
             }
             finally
@@ -1450,6 +1462,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("TCPEndpoint has wrong Language.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != connentry.LibVersion)
                     Assert.Fail("TCPEndpoint has wrong WSLibVersion.");
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != connentry.RuntimeId)
+                    Assert.Fail("TCPEndpoint has wrong AppId.");
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != connentry.Pid)
+                    Assert.Fail("TCPEndpoint has wrong AppId.");
             }
             finally
             {
@@ -3543,6 +3559,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Connection Registration Data.");
                 if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != connentry.LibVersion)
                     Assert.Fail("Wrong Connection Registration Data.");
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != connentry.RuntimeId)
+                    Assert.Fail("Wrong Connection Registration Data.");
+                if(this._wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != connentry.Pid)
+                    Assert.Fail("Wrong Connection Registration Data.");
 
                 int x = 0;
             }
@@ -5211,6 +5231,11 @@ namespace OGA.TCP_Test_SP
 
             List<string> props = new List<string>();
 
+            if(cd.Pid > 0)
+                props.Add("\"pid\":\"" + cd.Pid.ToString() + "\"");
+            if(!string.IsNullOrEmpty(cd.RuntimeId))
+                props.Add("\"runtimeid\":\"" + cd.RuntimeId + "\"");
+
             // Add wslibver=2 properties if set...
             if(cd.WSLibVersion > 1)
             {
@@ -5256,6 +5281,11 @@ namespace OGA.TCP_Test_SP
 
 
             List<string> props = new List<string>();
+
+            if(cd.Pid > 0)
+                props.Add("\"pid\":\"" + cd.Pid.ToString() + "\"");
+            if(!string.IsNullOrEmpty(cd.RuntimeId))
+                props.Add("\"runtimeid\":\"" + cd.RuntimeId + "\"");
 
             // Add wslibver=2 properties if set...
             if(cd.WSLibVersion > 1)
@@ -5303,6 +5333,11 @@ namespace OGA.TCP_Test_SP
 
             List<string> props = new List<string>();
 
+            if(cd.Pid > 0)
+                props.Add("\"pid\":\"" + cd.Pid.ToString() + "\"");
+            if(!string.IsNullOrEmpty(cd.RuntimeId))
+                props.Add("\"runtimeid\":\"" + cd.RuntimeId + "\"");
+
             // Add wslibver=2 properties if set...
             if(cd.WSLibVersion > 1)
             {
@@ -5348,6 +5383,11 @@ namespace OGA.TCP_Test_SP
 
 
             List<string> props = new List<string>();
+
+            if(cd.Pid > 0)
+                props.Add("\"pid\":\"" + cd.Pid.ToString() + "\"");
+            if(!string.IsNullOrEmpty(cd.RuntimeId))
+                props.Add("\"runtimeid\":\"" + cd.RuntimeId + "\"");
 
             // Add wslibver=2 properties if set...
             if(cd.WSLibVersion > 1)
@@ -5396,6 +5436,11 @@ namespace OGA.TCP_Test_SP
 
 
             List<string> props = new List<string>();
+
+            if(cd.Pid > 0)
+                props.Add("\"pid\":\"" + cd.Pid.ToString() + "\"");
+            if(!string.IsNullOrEmpty(cd.RuntimeId))
+                props.Add("\"runtimeid\":\"" + cd.RuntimeId + "\"");
 
             // Add wslibver=2 properties if set...
             if(cd.WSLibVersion > 1)

@@ -19,6 +19,8 @@ namespace WSEndpoint_Tests.HelperClasses
         public Guid? UserId { get; set; }
         public string DeviceId { get; set; }
         public string ConnectionId { get; set; }
+        public string RuntimeId { get; set; }
+        public int Pid { get; set; }
 
 
         public clientproperties()
@@ -36,6 +38,8 @@ namespace WSEndpoint_Tests.HelperClasses
             v.UserId = Guid.NewGuid();
             v.DeviceId = "did-" + Guid.NewGuid().ToString();
             v.ConnectionId = "cid-" + Guid.NewGuid().ToString();
+            v.RuntimeId = "rid-" + Guid.NewGuid().ToString();
+            v.Pid = OGA.Testing.Helpers.RandomValueGenerators.CreateRandomInt();
 
             return v;
         }
@@ -50,6 +54,8 @@ namespace WSEndpoint_Tests.HelperClasses
             v.UserId = Guid.NewGuid();
             v.DeviceId = "did-" + Guid.NewGuid().ToString();
             v.ConnectionId = "cid-" + Guid.NewGuid().ToString();
+            v.RuntimeId = "rid-" + Guid.NewGuid().ToString();
+            v.Pid = OGA.Testing.Helpers.RandomValueGenerators.CreateRandomInt();
 
             return v;
         }
@@ -57,12 +63,14 @@ namespace WSEndpoint_Tests.HelperClasses
         public void CopyFrom(clientproperties crd)
         {
             this.WSLibVersion = crd.WSLibVersion;
-            this.AppId = crd.AppId;
             this.AppVersion = crd.AppVersion;
+            this.AppId = crd.AppId;
             this.Language = crd.Language;
             this.UserId = crd.UserId;
             this.DeviceId = crd.DeviceId;
             this.ConnectionId = crd.ConnectionId;
+            this.RuntimeId = crd.RuntimeId;
+            this.Pid = crd.Pid;
         }
     }
 }

@@ -515,10 +515,11 @@ namespace OGA.TCP.Server
             ce.DeviceId = this.ClientInfo.DeviceId;
             ce.Pid = this.ClientInfo.Pid;
             ce.ConnectionTimeUTC = this.ClientInfo.ConnectionTimeUTC;
-            ce.AppId = this.ClientInfo.AppId;
-            ce.AppVersion = this.ClientInfo.AppVersion;
-            ce.Language = this.ClientInfo.Language;
-            ce.LibVersion = this.ClientInfo.LibVersion;
+            ce.AppId = this.ClientInfo.AppId ?? "";
+            ce.RuntimeId = this.ClientInfo.RuntimeId ?? "";
+            ce.AppVersion = this.ClientInfo.AppVersion ?? "";
+            ce.Language = this.ClientInfo.Language ?? "";
+            ce.LibVersion = this.ClientInfo.LibVersion ?? "";
             // These last three values are not known by the TCP/WSEndpoint. They will be populated by the owning Connection Manager.
             ce.Hostname = "";
             ce.Host_Port = 0;
@@ -1943,6 +1944,8 @@ namespace OGA.TCP.Server
                 string wslibver = "1";
                 // Default the process pid to unset, if not given...
                 string pid = "";
+                // Default the RuntimeId to unset, if not given...
+                string runtimeid = "";
 
                 // Process any properties of the connection request...
                 try
@@ -2052,6 +2055,11 @@ namespace OGA.TCP.Server
                                 {
                                     // Read the value...
                                     appid = parts[1].Replace("\"", "");
+                                }
+                                else if (parts[0].ToLower().Contains("runtimeid"))
+                                {
+                                    // Read the value...
+                                    runtimeid = parts[1].Replace("\"", "");
                                 }
                                 else if (parts[0].ToLower().Contains("pid"))
                                 {
@@ -2180,10 +2188,11 @@ namespace OGA.TCP.Server
 
                 // Several client properties should have been received, via Props array.
                 // We will retrieve them, here...
-                this.ClientInfo.AppId = appid;
-                this.ClientInfo.AppVersion = appver;
-                this.ClientInfo.Language = language;
+                this.ClientInfo.AppId = appid ?? "";
+                this.ClientInfo.AppVersion = appver ?? "";
+                this.ClientInfo.Language = language ?? "";
                 this.ClientInfo.LibVersion = wslibver;
+                this.ClientInfo.RuntimeId = runtimeid ?? "";
 
                 // Accept the process pid if given...
                 if(!string.IsNullOrEmpty(pid))

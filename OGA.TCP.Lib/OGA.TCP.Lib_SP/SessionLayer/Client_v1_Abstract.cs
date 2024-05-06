@@ -127,37 +127,6 @@ namespace OGA.TCP.SessionLayer
         abstract public bool Cfg_TransportRequiresReceiverLoop { get; }
 
         /// <summary>
-        /// Instance Id of the endpoint.
-        /// </summary>
-        public int InstanceId { get; protected set; }
-
-        /// <summary>
-        /// Holds the unique connectionId of the websocket client.
-        /// </summary>
-        public string ConnectionId { get; protected set; }
-
-        /// <summary>
-        /// Id of the active user on the client.
-        /// If no user logged in, set to Guid.Empty.
-        /// </summary>
-        public Guid UserId { get; set; }
-        /// <summary>
-        /// Set to the string indentifier of the client device.
-        /// Usually, the RuntimeId.
-        /// </summary>
-        public string DeviceId { get; set; }
-        /// <summary>
-        /// Set to the process pid of the running client application.
-        /// </summary>
-        public int Pid { get; set; }
-
-        /// <summary>
-        /// Tracks the time of the last message received.
-        /// Could be an actual message, or a keepalive ping.
-        /// </summary>
-        public DateTime LastReceivedTime { get; protected set; }
-
-        /// <summary>
         /// Duration, in seconds, after the most recent message that a keep alive is performed.
         /// This controls the period between ping-pong checks.
         /// </summary>
@@ -191,6 +160,70 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
+        /// Set this flag if the client wants to have a session without any keepalive messages.
+        /// This is used for testing, so that, breakpointing will not cause a timeout to occur and cause a connection to be declared as dead.
+        /// </summary>
+        public bool Cfg_Disable_KeepAlive { get; set; }
+
+        /// <summary>
+        /// Amount of time, in milliseconds, that a new connection is willing to wait for a
+        ///     connection registration reply to be received from the server.
+        /// The connection loop logic will wait this duration to ensure a reply is received, or the connection must restart.
+        /// </summary>
+        public int Cfg_RegistrationReplyTimeout { get; set; }
+
+        /// <summary>
+        /// Defines if the connection loop requires a registration reply message be received, before allowing comms.
+        /// Is set by default.
+        /// </summary>
+        public bool Cfg_ConnectionWaitsforRegistrationReply { get; set; }
+
+        /// <summary>
+        /// Instance Id of the endpoint.
+        /// </summary>
+        public int InstanceId { get; protected set; }
+
+        /// <summary>
+        /// Holds the unique connectionId of the websocket client.
+        /// </summary>
+        public string ConnectionId { get; protected set; }
+
+        /// <summary>
+        /// Id of the active user on the client.
+        /// If no user logged in, set to Guid.Empty.
+        /// </summary>
+        public Guid UserId { get; set; }
+        /// <summary>
+        /// Set to the string indentifier of the client device.
+        /// Usually, the RuntimeId.
+        /// </summary>
+        public string DeviceId { get; set; }
+        /// <summary>
+        /// Set to the process pid of the running client application.
+        /// </summary>
+        public int Pid { get; set; }
+
+        /// <summary>
+        /// Available to discriminate different instances of a client process.
+        /// When a client populates this with a Guid that changes each time the client starts,
+        ///     this value will easily distinguish multiple copies of the same client instance.
+        /// This value is passed as ancillary data by the client logic.
+        /// </summary>
+        public string RuntimeId { get; set; }
+
+        /// <summary>
+        /// This defines the current TCP/WSLib version behavior of the client.
+        /// It should be set in the constructor of deriving classes of this abstract.
+        /// </summary>
+        public string LibVersion { get; protected set; }
+
+        /// <summary>
+        /// Tracks the time of the last message received.
+        /// Could be an actual message, or a keepalive ping.
+        /// </summary>
+        public DateTime LastReceivedTime { get; protected set; }
+
+        /// <summary>
         /// Set when the websocket allows sending messages.
         /// </summary>
         public bool AllowSend { get => this._allowsend; }
@@ -212,31 +245,6 @@ namespace OGA.TCP.SessionLayer
         public bool Register_with_Loopback_AllMessages { get; set; }
 
         /// <summary>
-        /// Set this flag if the client wants to have a session without any keepalive messages.
-        /// This is used for testing, so that, breakpointing will not cause a timeout to occur and cause a connection to be declared as dead.
-        /// </summary>
-        public bool Cfg_Disable_KeepAlive { get; set; }
-
-        /// <summary>
-        /// Amount of time, in milliseconds, that a new connection is willing to wait for a
-        ///     connection registration reply to be received from the server.
-        /// The connection loop logic will wait this duration to ensure a reply is received, or the connection must restart.
-        /// </summary>
-        public int Cfg_RegistrationReplyTimeout { get; set; }
-
-        /// <summary>
-        /// Defines if the connection loop requires a registration reply message be received, before allowing comms.
-        /// Is set by default.
-        /// </summary>
-        public bool Cfg_ConnectionWaitsforRegistrationReply { get; set; }
-
-        /// <summary>
-        /// This defines the current TCP/WSLib version behavior of the client.
-        /// It should be set in the constructor of deriving classes of this abstract.
-        /// </summary>
-        public string LibVersion { get; protected set; }
-
-        /// <summary>
         /// Total number of connection attempts of the instance, regardless of success or failure.
         /// </summary>
         public int ConnAttempt_TotalCounter { get => _connattempt_totalcounter; }
@@ -248,6 +256,9 @@ namespace OGA.TCP.SessionLayer
         public int ReceivedMessage_Counter { get => _receivedmessage_counter; }
         protected volatile int _receivedmessage_counter;
 
+        /// <summary>
+        /// Tracks current client state.
+        /// </summary>
         public eEndpoint_ConnectionStatus State { get; protected set; }
 
         #endregion
@@ -1874,6 +1885,13 @@ namespace OGA.TCP.SessionLayer
                 {
                     // Set a property for the process pid...
                     props.Add("\"pid\":\"" + this.Pid.ToString() + "\"");
+                }
+
+                // Set a RuntimeId if defined...
+                if (!string.IsNullOrEmpty(this.RuntimeId))
+                {
+                    // Set a property for the process RuntimeId...
+                    props.Add("\"runtimeid\":\"" + this.RuntimeId + "\"");
                 }
 
                 rmsg.Props = props.ToArray();

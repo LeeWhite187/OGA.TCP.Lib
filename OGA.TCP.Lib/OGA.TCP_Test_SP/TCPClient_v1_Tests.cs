@@ -348,6 +348,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -391,6 +393,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
+                    Assert.Fail("Wrong Value");
 
 
                 // Close the client...
@@ -427,6 +433,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
+                    Assert.Fail("Wrong Value");
             }
             finally
             {
@@ -462,6 +472,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Make sure the client won't timeout...
@@ -507,6 +519,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
+                    Assert.Fail("Wrong Value");
 
 
                 // Tell the server endpoint to close the connection...
@@ -540,6 +556,10 @@ namespace OGA.TCP_Test_SP
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
             }
             finally
@@ -583,6 +603,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Make sure the client won't timeout...
@@ -636,6 +658,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
+                    Assert.Fail("Wrong Value");
 
                 // wait for us to reach the allowed to send state...
                 WaitforCondition(() => wss.AllowSend, 200);
@@ -679,6 +705,10 @@ namespace OGA.TCP_Test_SP
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
 
 
@@ -731,6 +761,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Make sure the client won't timeout...
@@ -772,6 +804,10 @@ namespace OGA.TCP_Test_SP
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
 
 
@@ -827,6 +863,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
+                    Assert.Fail("Wrong Value");
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
+                    Assert.Fail("Wrong Value");
 
                 // Verify the counter is exactly one...
                 if(losscounter != 1)
@@ -873,6 +913,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
                 // Start the web socket client...
                 var res = await wss.Start_Async();
@@ -945,6 +987,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
                 // Start the web socket client...
                 var res = await wss.Start_Async();
@@ -1029,6 +1073,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1154,6 +1200,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1240,6 +1288,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1324,6 +1374,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1408,6 +1460,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1502,6 +1556,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1608,6 +1664,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1710,6 +1768,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Start the web socket client...
@@ -1781,6 +1841,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Make sure the client won't timeout...
@@ -1866,6 +1928,8 @@ namespace OGA.TCP_Test_SP
                 // Give the ws client the device client data...
                 wss.DeviceId = cp.DeviceId;
                 wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
 
 
                 // Make sure the client won't timeout...

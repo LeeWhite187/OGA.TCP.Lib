@@ -221,6 +221,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -301,6 +303,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -367,6 +371,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -432,6 +438,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -499,6 +507,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -555,6 +565,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
 
                 // The server-side of this test does not send connection registration replies.
@@ -680,6 +692,8 @@ namespace OGA.TCP_Test_SP
                 // Give the client the device client data...
                 client.DeviceId = cp.DeviceId;
                 client.UserId = (Guid)cp.UserId;
+                client.RuntimeId = cp.RuntimeId;
+                client.Pid = cp.Pid;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...

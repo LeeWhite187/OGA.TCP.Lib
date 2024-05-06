@@ -222,6 +222,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp.DeviceId;
                     client1.UserId = (Guid)cp.UserId;
+                    client1.RuntimeId = cp.RuntimeId;
+                    client1.Pid = cp.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -283,6 +285,10 @@ namespace OGA.TCP_Test_SP
                 if(ce1.LibVersion != client1.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
+                    Assert.Fail("Wrong Value");
+                if(ce1.Pid != client1.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce1.RuntimeId != client1.RuntimeId)
                     Assert.Fail("Wrong Value");
 
 
@@ -366,6 +372,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp1.DeviceId;
                     client1.UserId = (Guid)cp1.UserId;
+                    client1.RuntimeId = cp1.RuntimeId;
+                    client1.Pid = cp1.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -428,6 +436,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
                     Assert.Fail("Wrong Value");
+                if(ce1.Pid != client1.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce1.RuntimeId != client1.RuntimeId)
+                    Assert.Fail("Wrong Value");
 
 
                 // Stand up a second client connection...
@@ -452,6 +464,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client2.DeviceId = cp2.DeviceId;
                     client2.UserId = (Guid)cp2.UserId;
+                    client2.RuntimeId = cp2.RuntimeId;
+                    client2.Pid = cp2.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -506,6 +520,10 @@ namespace OGA.TCP_Test_SP
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)
+                    Assert.Fail("Wrong Value");
+                if(ce2.Pid != client2.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce2.RuntimeId != client2.RuntimeId)
                     Assert.Fail("Wrong Value");
             }
             finally
@@ -578,6 +596,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp1.DeviceId;
                     client1.UserId = (Guid)cp1.UserId;
+                    client1.RuntimeId = cp1.RuntimeId;
+                    client1.Pid = cp1.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -640,6 +660,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
                     Assert.Fail("Wrong Value");
+                if(ce1.Pid != client1.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce1.RuntimeId != client1.RuntimeId)
+                    Assert.Fail("Wrong Value");
 
 
                 // Stand up a second client connection...
@@ -664,6 +688,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client2.DeviceId = cp2.DeviceId;
                     client2.UserId = (Guid)cp2.UserId;
+                    client2.RuntimeId = cp2.RuntimeId;
+                    client2.Pid = cp2.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -717,6 +743,10 @@ namespace OGA.TCP_Test_SP
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)
+                    Assert.Fail("Wrong Value");
+                if(ce2.Pid != client2.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce2.RuntimeId != client2.RuntimeId)
                     Assert.Fail("Wrong Value");
 
 
@@ -799,6 +829,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp1.DeviceId;
                     client1.UserId = (Guid)cp1.UserId;
+                    client1.RuntimeId = cp1.RuntimeId;
+                    client1.Pid = cp1.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -857,6 +889,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
                     Assert.Fail("Wrong Value");
+                if(ce1.Pid != client1.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce1.RuntimeId != client1.RuntimeId)
+                    Assert.Fail("Wrong Value");
 
 
                 // Stand up a second client connection...
@@ -881,6 +917,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client2.DeviceId = cp2.DeviceId;
                     client2.UserId = (Guid)cp2.UserId;
+                    client2.RuntimeId = cp2.RuntimeId;
+                    client2.Pid = cp2.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -933,6 +971,10 @@ namespace OGA.TCP_Test_SP
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)
+                    Assert.Fail("Wrong Value");
+                if(ce2.Pid != client2.Pid)
+                    Assert.Fail("Wrong Value");
+                if(ce2.RuntimeId != client2.RuntimeId)
                     Assert.Fail("Wrong Value");
 
 
@@ -1020,6 +1062,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp1.DeviceId;
                     client1.UserId = (Guid)cp1.UserId;
+                    client1.RuntimeId = cp1.RuntimeId;
+                    client1.Pid = cp1.Pid;
 
 
                     // Make sure the client won't timeout...
@@ -1135,6 +1179,8 @@ namespace OGA.TCP_Test_SP
                     // Give the client the device client data...
                     client1.DeviceId = cp1.DeviceId;
                     client1.UserId = (Guid)cp1.UserId;
+                    client1.RuntimeId = cp1.RuntimeId;
+                    client1.Pid = cp1.Pid;
 
 
                     // Make sure the client won't timeout...

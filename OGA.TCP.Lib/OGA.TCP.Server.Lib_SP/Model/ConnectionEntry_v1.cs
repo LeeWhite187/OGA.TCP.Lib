@@ -68,6 +68,14 @@ namespace OGA.TCP.Server.Model
         public string AppId { get; set; }
 
         /// <summary>
+        /// Available to discriminate different instances of a client process.
+        /// When a client populates this with a Guid that changes each time the client starts,
+        ///     this value will easily distinguish multiple copies of the same client instance.
+        /// This value is passed as ancillary data by the client logic.
+        /// </summary>
+        public string RuntimeId { get; set; }
+
+        /// <summary>
         /// Region identifier of the connected client.
         /// Doesn't relate to end user language or culture data.
         /// Is to identify the region where the client is located or connected.
@@ -87,6 +95,10 @@ namespace OGA.TCP.Server.Model
         /// </summary>
         public string LibVersion { get; set; }
 
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
         public ConnectionEntry_v1()
         {
             ConnectionId = "";
@@ -97,12 +109,17 @@ namespace OGA.TCP.Server.Model
             Hostname = "";
             Host_Port = 0;
             AppId = "";
+            RuntimeId = "";
             AppVersion = "";
             Region = "";
             Language = "en-us";
             LibVersion = "";
         }
 
+        /// <summary>
+        /// Performs a deep copy from the given instance.
+        /// </summary>
+        /// <param name="entry"></param>
         public void CopyFrom(ConnectionEntry_v1 entry)
         {
             ConnectionId = entry.ConnectionId;
@@ -113,27 +130,33 @@ namespace OGA.TCP.Server.Model
             Hostname = entry.Hostname;
             Host_Port = entry.Host_Port;
             AppId = entry.AppId;
+            RuntimeId = entry.RuntimeId;
             AppVersion = entry.AppVersion;
             Region = entry.Region;
             Language = entry.Language;
             LibVersion = entry.LibVersion;
         }
 
+        /// <summary>
+        /// Outputs the entry to a loggable format.
+        /// </summary>
+        /// <returns></returns>
         public string ToLogString()
         {
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.AppendLine("ConnectionId = " + ConnectionId);
+            stringBuilder.AppendLine("ConnectionId = " + ConnectionId ?? "");
             stringBuilder.AppendLine("UserId = " + UserId.ToString());
-            stringBuilder.AppendLine("DeviceId = " + DeviceId);
+            stringBuilder.AppendLine("DeviceId = " + DeviceId ?? "");
             stringBuilder.AppendLine("Pid = " + Pid.ToString());
             stringBuilder.AppendLine("ConnectionTimeUTC = " + ConnectionTimeUTC.ToString("O"));
-            stringBuilder.AppendLine("Hostname = " + Hostname);
+            stringBuilder.AppendLine("Hostname = " + Hostname ?? "");
             stringBuilder.AppendLine("Host_Port = " + Host_Port.ToString());
-            stringBuilder.AppendLine("AppId = " + AppId);
-            stringBuilder.AppendLine("AppVersion = " + AppVersion);
-            stringBuilder.AppendLine("Region = " + Region);
-            stringBuilder.AppendLine("Language = " + Language);
-            stringBuilder.AppendLine("LibVersion = " + LibVersion);
+            stringBuilder.AppendLine("AppId = " + AppId ?? "");
+            stringBuilder.AppendLine("RuntimeId = " + RuntimeId ?? "");
+            stringBuilder.AppendLine("AppVersion = " + AppVersion ?? "");
+            stringBuilder.AppendLine("Region = " + Region ?? "");
+            stringBuilder.AppendLine("Language = " + Language ?? "");
+            stringBuilder.AppendLine("LibVersion = " + LibVersion ?? "");
             return stringBuilder.ToString();
         }
     }

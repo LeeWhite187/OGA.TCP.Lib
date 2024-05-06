@@ -89,6 +89,14 @@ namespace OGA.TCP.Server.Model
         public string AppId { get; set; }
 
         /// <summary>
+        /// Available to discriminate different instances of a client process.
+        /// When a client populates this with a Guid that changes each time the client starts,
+        ///     this value will easily distinguish multiple copies of the same client instance.
+        /// This value is passed as ancillary data by the client logic.
+        /// </summary>
+        public string RuntimeId { get; set; }
+
+        /// <summary>
         /// Holds the version3 string of the connected client version.
         /// Of the form: x.y.z
         /// NOTE: We don't store the build number, as the version3 should be enough to discriminate DTO version usage.
@@ -109,6 +117,9 @@ namespace OGA.TCP.Server.Model
         public string LibVersion { get; set; }
 
 
+        /// <summary>
+        /// Default constructor
+        /// </summary>
         public ClientInfo()
         {
             AuthLevel = eAuthLevel.NoAuth;
@@ -118,11 +129,16 @@ namespace OGA.TCP.Server.Model
             this.ClientIP = "";
 
             this.AppId = "";
+            this.RuntimeId = "";
             this.AppVersion = "";
             this.Language = "";
             this.LibVersion = "";
         }
 
+        /// <summary>
+        /// Performs a deep copy from the given instance.
+        /// </summary>
+        /// <param name="dto"></param>
         public void CopyFrom(ClientInfo dto)
         {
             this.UserId = dto.UserId;
@@ -136,11 +152,16 @@ namespace OGA.TCP.Server.Model
             this.ConnectionTimeUTC = dto.ConnectionTimeUTC;
 
             this.AppId = dto.AppId;
+            this.RuntimeId = dto.RuntimeId;
             this.AppVersion = dto.AppVersion;
             this.Language = dto.Language;
             this.LibVersion = dto.LibVersion;
         }
 
+        /// <summary>
+        /// Outputs the entry to a loggable format.
+        /// </summary>
+        /// <returns></returns>
         public string ToLogString()
         {
             StringBuilder b = new StringBuilder();
@@ -156,6 +177,7 @@ namespace OGA.TCP.Server.Model
             b.AppendLine("ConnectionTimeUTC = '" + this.ConnectionTimeUTC.ToString("O") + "';");
 
             b.AppendLine("AppId = '" + this.AppId ?? "" + "';");
+            b.AppendLine("RuntimeId = '" + this.RuntimeId ?? "" + "';");
             b.AppendLine("AppVersion = '" + this.AppVersion ?? "" + "';");
             b.AppendLine("Language = '" + this.Language ?? "" + "';");
             b.AppendLine("LibVersion = '" + this.LibVersion ?? "" + "';");
@@ -166,7 +188,12 @@ namespace OGA.TCP.Server.Model
             return b.ToString();
         }
 
-
+        /// <summary>
+        /// Creates a loggable delta of two given client info instances.
+        /// </summary>
+        /// <param name="ci1"></param>
+        /// <param name="ci2"></param>
+        /// <returns></returns>
         static public string LogDelta(ClientInfo ci1, ClientInfo ci2)
         {
             StringBuilder b = new StringBuilder();
@@ -189,6 +216,8 @@ namespace OGA.TCP.Server.Model
 
             b.AppendLine("AppId = '" + (ci1.AppId ?? "") +
                          "' => '" + (ci2.AppId ?? "") + "';");
+            b.AppendLine("RuntimeId = '" + (ci1.RuntimeId ?? "") +
+                         "' => '" + (ci2.RuntimeId ?? "") + "';");
             b.AppendLine("AppVersion = '" + (ci1.AppVersion ?? "") +
                          "' => '" + (ci2.AppVersion ?? "") + "';");
             b.AppendLine("Language = '" + (ci1.Language ?? "") +
