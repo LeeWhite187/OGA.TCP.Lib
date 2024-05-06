@@ -199,7 +199,7 @@ namespace OGA.TCP.Server
                 // Close the connection...
                 try
                 {
-                    this._client.Close();
+                    this._client?.Close();
                 }
                 catch (Exception) { }
 

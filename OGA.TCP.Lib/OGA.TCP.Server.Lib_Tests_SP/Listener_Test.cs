@@ -298,7 +298,7 @@ namespace OGA.TCP_Test_SP
                     {
                         try
                         {
-                            tc.Close();
+                            tc?.Close();
                         }
                         catch(Exception e) { }
                     }

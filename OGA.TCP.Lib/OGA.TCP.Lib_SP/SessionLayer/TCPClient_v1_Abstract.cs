@@ -234,7 +234,7 @@ namespace OGA.TCP.SessionLayer
 
             // Dispose of the old one...
 #if (NET452)
-            try { oldclient.Close(); } catch (Exception e) { }
+            try { oldclient?.Close(); } catch (Exception e) { }
 #else
             try { oldclient?.Dispose(); } catch (Exception e) { }
 #endif
@@ -464,7 +464,7 @@ namespace OGA.TCP.SessionLayer
                 // Close the connection...
                 try
                 {
-                    this._client.Close();
+                    this._client?.Close();
                 }
                 catch (Exception) { }
                 try
