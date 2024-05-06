@@ -1934,6 +1934,12 @@ namespace OGA.TCP.Server
 
                 this.ClientInfo.ConnectionId = dto.ConnectionId;
 
+                // These two properties are included in the v1 client type.
+                // Default the process pid to unset, if not given...
+                string pid = "";
+                // Default the RuntimeId to unset, if not given...
+                string runtimeid = "";
+
                 // These four properties were added for TCP/WSLib V2, so the cloud has more context of how to treat outgoing messages to a client.
                 // They are submitted, by clients, in the Props array of a connection registration.
                 string appid = "";
@@ -1942,10 +1948,6 @@ namespace OGA.TCP.Server
                 string language = "en-us";
                 // Default the ws lib version to 1, if not given...
                 string wslibver = "1";
-                // Default the process pid to unset, if not given...
-                string pid = "";
-                // Default the RuntimeId to unset, if not given...
-                string runtimeid = "";
 
                 // Process any properties of the connection request...
                 try
