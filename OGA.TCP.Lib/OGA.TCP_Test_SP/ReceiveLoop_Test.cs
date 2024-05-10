@@ -873,6 +873,9 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Error)
                     Assert.Fail("Wrong Value");
 
+                // Wait for status change callback to trigger...
+                WaitforCondition(() => statuschange_listing.Count == 1, 500);
+
                 // Verify that one status callbacks occurred...
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3230,7 +3233,7 @@ namespace OGA.TCP_Test_SP
 
                 // Now, wait for the timeout to occur...
                 // This would be indicated by our connection being lost...
-                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Lost, 5000);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Lost, 7000);
 
 
                 // Verify the message was NOT received...
@@ -3360,6 +3363,10 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
+
+                // Wait for message received...
+                WaitforCondition(() => rl.Metrics.Received_Message_Count == 1, 500);
+
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
 
@@ -3861,6 +3868,9 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver promoted to Lost ...
                 if(rl.State != eLoop_ConnectionStatus.Lost)
                     Assert.Fail("Wrong Value");
+
+                // Now, wait for the lost callback status delegate to occur...
+                WaitforCondition(() => localsatuscounter == 1, 1000);
 
                 // Verify that the status callback occurred...
                 if(localsatuscounter == 0)

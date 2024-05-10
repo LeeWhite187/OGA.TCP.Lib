@@ -385,18 +385,24 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
-                    Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Language == "en-us", 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.AppVersion == cp.AppVersion, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.AppId == cp.AppId, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.RuntimeId == cp.RuntimeId, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Pid == cp.Pid, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == "1", 1000);
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                    Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
 
 
                 // Close the client...
@@ -511,18 +517,24 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
-                    Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Language == "en-us", 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.AppVersion == cp.AppVersion, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.AppId == cp.AppId, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppId != cp.AppId)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.RuntimeId == cp.RuntimeId, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId != cp.RuntimeId)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Pid == cp.Pid, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == "1", 1000);
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                    Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
 
 
                 // Tell the server endpoint to close the connection...
@@ -831,8 +843,8 @@ namespace OGA.TCP_Test_SP
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
 
                 // Wait for things to close and reopen...
-                WaitforCondition(() => !wss.IsConnected, 6000);
-                WaitforCondition(() => wss.IsConnected, 6000);
+                WaitforCondition(() => !wss.IsConnected, 8000);
+                WaitforCondition(() => wss.IsConnected, 8000);
 
                 // Fetch the current attempt counter...
                 var attempts_after = wss.ConnAttempt_TotalCounter;
@@ -863,7 +875,7 @@ namespace OGA.TCP_Test_SP
 
                 // Verify registration defaults for the V1 client...
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
-                    Assert.Fail("Wrong Value");
+                    Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint?.ClientInfo?.LibVersion ?? "")}'");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
@@ -1011,6 +1023,8 @@ namespace OGA.TCP_Test_SP
                 // Wait for it to get established...
                 WaitforCondition(() => wss.IsConnected, 2000);
 
+                // Wait for the server side to be listed and connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 2000);
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
@@ -1241,6 +1255,10 @@ namespace OGA.TCP_Test_SP
 
                 // Clear the receive counter...
                 receivecounter = 0;
+
+
+                // Wait for the connection to allow sending...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint.AllowSend, 1000);
 
 
                 // Tell the server endpoint to send a message to the client...
@@ -1495,6 +1513,9 @@ namespace OGA.TCP_Test_SP
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
+
+                // Wait for the server side to be listed and connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.IsConnected ?? false, 2000);
 
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)

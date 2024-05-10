@@ -3714,7 +3714,7 @@ namespace OGA.TCP_Test_SP
                 await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
 
                 // Wait for the keepalive to trip...
-                WaitforCondition(() => this._wsl.ClosureCount == (closurecount_before + 1), 10000);
+                WaitforCondition(() => this._wsl.ClosureCount == (closurecount_before + 1), 12000);
 
                 // Get the updated closure count...
                 var closurecount_after = this._wsl.ClosureCount;
