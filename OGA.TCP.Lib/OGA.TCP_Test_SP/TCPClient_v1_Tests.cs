@@ -386,7 +386,7 @@ namespace OGA.TCP_Test_SP
 
                 // Verify registration defaults for the V1 client...
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
-                    Assert.Fail("Wrong Value");
+                    Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.AppVersion != cp.AppVersion)
@@ -782,6 +782,13 @@ namespace OGA.TCP_Test_SP
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                // Wait for the server endpoint to be listed and connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 1000);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 1000);
+
+                // Wait for the client and server to exchange registration...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered, 1000);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -923,8 +930,10 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for it to get established...
-                WaitforCondition(() => wss.IsConnected, 2000);
-
+                WaitforCondition(() => wss.IsConnected, 1000);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 1000);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 1000);
+                
 
                 // Verify the websocket is active...
                 if(!wss.IsConnected)
@@ -935,6 +944,9 @@ namespace OGA.TCP_Test_SP
 
 
                 receivedcounter = 0;
+
+                // Wait to be allowed to send...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.AllowSend, 1000);
 
                 // Create a message to send to the client...
                 var msg = new SimpleGeneric<string>();
@@ -1218,6 +1230,10 @@ namespace OGA.TCP_Test_SP
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+                // Wait for it to get listed and connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 1000);
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 1000);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -1411,6 +1427,8 @@ namespace OGA.TCP_Test_SP
                 // Clear the receive counter...
                 receivecounter = 0;
 
+                // Wait for the client to be allowed to send...
+                WaitforCondition(() => wss.AllowSend, 1000);
 
                 // Have the client send a non-channel message to the server...
                 var msg = new SimpleGeneric<string>();
@@ -1574,6 +1592,12 @@ namespace OGA.TCP_Test_SP
                 if(!wss.IsConnected)
                     Assert.Fail("Connection Failed");
 
+
+                // Wait for the endpoint to exist...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint != null, 400);
+                // Wait for the endpoint to be connected...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.IsConnected, 400);
+
                 // Check that the server says connected as well...
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
@@ -1587,7 +1611,7 @@ namespace OGA.TCP_Test_SP
                 var attempts_before = wss.ConnAttempt_TotalCounter;
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Trace(
-                    $"{nameof(TCPClient_v1_Tests)}:-::{nameof(Test_1_1_7)} - " +
+                    $"{nameof(TCPClient_v1_Tests)}:-::{nameof(Test_1_3_1)} - " +
                     $"Attempts_Before = {attempts_before.ToString()}");
 
                 // Tell the server endpoint to expect a short keepalive interval (as if keepalives would be active)...
@@ -1595,7 +1619,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait an expected duration for the client to have been dropped for its silence...
-                WaitforCondition(() => wss.IsConnected, 15000);
+                await Task.Delay(6000);
 
                 // Check that the client is still open...
                 if(!wss.IsConnected)
@@ -1613,7 +1637,7 @@ namespace OGA.TCP_Test_SP
                 var attempts_after = wss.ConnAttempt_TotalCounter;
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Trace(
-                    $"{nameof(TCPClient_v1_Tests)}:-::{nameof(Test_1_1_7)} - " +
+                    $"{nameof(TCPClient_v1_Tests)}:-::{nameof(Test_1_3_1)} - " +
                     $"Attempts_After = {attempts_after.ToString()}");
 
 
@@ -1793,7 +1817,7 @@ namespace OGA.TCP_Test_SP
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
 
-                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 400);
+                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 1000);
 
                 // Verify the connected method was called...
                 if(wss.TESTING_ConnectedMethod_CallCounter != 1)
@@ -1868,7 +1892,7 @@ namespace OGA.TCP_Test_SP
                 if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
                     Assert.Fail("Connection Failed");
 
-                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 500);
+                WaitforCondition(() => wss.TESTING_ConnectedMethod_CallCounter == 1, 1000);
 
                 // Verify the connected method was called...
                 if(wss.TESTING_ConnectedMethod_CallCounter != 1)

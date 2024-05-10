@@ -97,8 +97,9 @@ namespace OGA.TCP.Server
 
         public int Stop()
         {
-            this._cts?.Cancel();
-            this._cts?.Dispose();
+			try { this._cts?.Cancel(); } catch (Exception) { }
+            System.Threading.Thread.Sleep(100);
+			try { this._cts?.Dispose(); } catch (Exception) { }
             this._cts = null;
             
             this.Listener?.CloseDown_Listener();

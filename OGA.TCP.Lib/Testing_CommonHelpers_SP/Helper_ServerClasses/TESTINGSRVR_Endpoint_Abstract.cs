@@ -290,7 +290,7 @@ namespace OGA.TCP.Server
 
             _alreadydisposed = false;
 
-            _cfg_deadClientTimeout = 600;
+            _cfg_deadClientTimeout = 30;
 
 #if (NET452 || NET48)
             // DateTime.UnixEpoch is not available in NET Framework versions of the DateTime.
@@ -851,9 +851,10 @@ namespace OGA.TCP.Server
                 {
                     if (_receive_cts != null)
                     {
-                        _receive_cts.Cancel();
-                        await Task.Delay(100);
-                        _receive_cts.Dispose();
+			            try { this._receive_cts?.Cancel(); } catch (Exception) { }
+                        await Task.Delay(200);
+			            try { this._receive_cts?.Dispose(); } catch (Exception) { }
+                        await Task.Delay(200);
                         _receive_cts = null;
                     }
 

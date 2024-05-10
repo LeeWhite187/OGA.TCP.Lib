@@ -291,7 +291,7 @@ namespace OGA.TCP.Server
 
             _alreadydisposed = false;
 
-            _cfg_deadClientTimeout = 600;
+            _cfg_deadClientTimeout = 30;
 
             LastReceivedTimeUTC = DateTime.UnixEpoch;
 

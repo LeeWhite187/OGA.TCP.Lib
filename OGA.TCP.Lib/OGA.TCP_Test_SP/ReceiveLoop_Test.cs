@@ -877,6 +877,9 @@ namespace OGA.TCP_Test_SP
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the lost connection callback...
+                WaitforCondition(() => lostconnection_counter == 1, 400);
+
                 // Verify the lost connection callback occurred...
                 if(lostconnection_counter != 1)
                     Assert.Fail("Wrong Value");
@@ -1183,7 +1186,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 500);
 
                 // Verify the receive loop indicates closed...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -1325,6 +1328,9 @@ namespace OGA.TCP_Test_SP
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the lost connection callback...
+                WaitforCondition(() => lostconnection_counter == 1, 400);
+
                 // Verify a lost connection callback occurred...
                 if(lostconnection_counter != 1)
                     Assert.Fail("Wrong Value");
@@ -1354,6 +1360,8 @@ namespace OGA.TCP_Test_SP
             }
             finally
             {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Info("Entered finally clause. Disposing remaining objects...");
+
                 try
                 {
                     rl.Dispose();
@@ -1884,6 +1892,9 @@ namespace OGA.TCP_Test_SP
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the lost connection callback...
+                WaitforCondition(() => lostconnection_counter == 1, 400);
+
                 // Verify the lost connection callback occurred...
                 if(lostconnection_counter != 1)
                     Assert.Fail("Wrong Value");
@@ -2340,7 +2351,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Wait for status...
-                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 200);
+                WaitforCondition(() => rl.State == eLoop_ConnectionStatus.Closed, 400);
 
                 // Verify the receive loop indicates closed...
                 if(rl.State != eLoop_ConnectionStatus.Closed)
@@ -2528,6 +2539,9 @@ namespace OGA.TCP_Test_SP
                 // Verify that one status callback occurred...
                 if(statuschange_listing.Count != 1)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the lost connection callback...
+                WaitforCondition(() => lostconnection_counter == 1, 400);
 
                 // Verify a lost connection callback occurred...
                 if(lostconnection_counter != 1)

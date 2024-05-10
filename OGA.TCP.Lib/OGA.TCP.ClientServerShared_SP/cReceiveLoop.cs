@@ -380,6 +380,7 @@ namespace OGA.TCP
 			if(this._readcts != null)
 			{
 				try { this._readcts?.Cancel(); } catch (Exception e) { }
+				System.Threading.Thread.Sleep(100);
 				try { this._readcts?.Dispose(); } catch (Exception e) { }
 				this._readcts = null;
 			}
@@ -514,7 +515,9 @@ namespace OGA.TCP
 					// So, we will start a timeout, to ensure we do either read the frame, or throw an error.
 
 					// Re arm the read token...
-					this._readcts?.Dispose();
+					try { this._readcts?.Cancel(); } catch (Exception) { }
+					System.Threading.Thread.Sleep(100);
+					try { this._readcts?.Dispose(); } catch (Exception) { }
 					this._readcts = new CancellationTokenSource();
 
 					// And, arm the frame read timeout logic...
@@ -538,10 +541,32 @@ namespace OGA.TCP
 			{
 				// Not sure what exception occurred here.
 
-				// Log a message here.
-				this.Logger?.Error(ode,
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(Queue_Async_Read)} - " +
-					"An exception was caught while attempting to register a callback to wait for a message.");
+				if (ode.ObjectName == "System.Net.Sockets.NetworkStream")
+				{
+					// The stream got disposed.
+					// We don't own the networkstream instance, ourselves.
+					// It is owned by the TcpClient instance.
+					// And the TcpClient instance is disposed by our parent.
+					// So, we must conclude that we are shutting down.
+					// We will not regard this as an error.
+					// But, will log it and do the normal closure things,
+
+					// Log a message here.
+					this.Logger?.Info(ode,
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Queue_Async_Read)} - " +
+						"The networkstream was disposed while attempting to register a callback to wait for a message.");
+				}
+				else
+				{
+					// ODE is not for the networkstream.
+					// So, we will log it as error.
+					// Not sure what exception occurred here.
+
+					// Log a message here.
+					this.Logger?.Error(ode,
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Queue_Async_Read)} - " +
+						"An exception was caught while attempting to register a callback to wait for a message.");
+				}
 
 				// Change to the error state.
 				this.UpdateState(eLoop_ConnectionStatus.Error);
@@ -659,6 +684,7 @@ namespace OGA.TCP
 			if(this._readcts != null)
 			{
 				try { this._readcts?.Cancel(); } catch (Exception) { }
+				System.Threading.Thread.Sleep(100);
 				try { this._readcts?.Dispose(); } catch (Exception) { }
 				//this._readcts = null;
 			}
@@ -746,10 +772,30 @@ namespace OGA.TCP
 			{
 				// Not sure what exception occurred here.
 
-				// Log a message here.
-				this.Logger?.Error(ode,
-					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
-					"An exception was caught while attempting to read data from the connection.");
+				if (ode.ObjectName == "System.Net.Sockets.NetworkStream")
+				{
+					// The stream got disposed.
+					// We don't own the networkstream instance, ourselves.
+					// It is owned by the TcpClient instance.
+					// And the TcpClient instance is disposed by our parent.
+					// So, we must conclude that we are shutting down.
+					// We will not regard this as an error.
+					// But, will log it and do the normal closure things,
+
+					this.Logger?.Debug(
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
+						"Receive data callback observed Networkstream is disposed. Closing down the message endpoint...");
+				}
+				else
+				{
+					// ODE is not for the networkstream.
+					// So, we will log it as error.
+
+					// Log a message here.
+					this.Logger?.Error(ode,
+						$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
+						"An exception was caught while attempting to read data from the connection.");
+				}
 
 				this.Logger?.Info(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(CALLBACK_Receive_Read_Data)} - " +
@@ -1480,7 +1526,7 @@ namespace OGA.TCP
 			{
 				if (this._del_dwent_bad != null)
 				{
-					this.Logger?.Error(
+					this.Logger?.Debug(
 						$"{_classname}:{this.InstanceId.ToString()}::{nameof(Call_del_dwent_bad)} - " +
 						"Calling the went bad delegate...");
 
@@ -1514,7 +1560,17 @@ namespace OGA.TCP
 			// We will consider these as terminal states.
 			if (this.State == eLoop_ConnectionStatus.Closed)
 			{
-				// No state change.
+				// No state change allowed from here.
+
+				// For logging purposes, we will ignore attempts to change to Error, Lost, or Shutting_Down.
+				if(newstate == eLoop_ConnectionStatus.Shutting_Down ||
+					newstate == eLoop_ConnectionStatus.Error ||
+					newstate == eLoop_ConnectionStatus.Lost)
+				{
+					// We will not log this prevented transition.
+					return;
+				}
+
 				this.Logger?.Error(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
@@ -1523,7 +1579,17 @@ namespace OGA.TCP
 			}
 			if (this.State == eLoop_ConnectionStatus.Lost)
 			{
-				// No state change.
+				// No state change allowed from here.
+
+				// For logging purposes, we will ignore attempts to change to Error, Closed, or Shutting_Down.
+				if(newstate == eLoop_ConnectionStatus.Shutting_Down ||
+					newstate == eLoop_ConnectionStatus.Closed ||
+					newstate == eLoop_ConnectionStatus.Lost)
+				{
+					// We will not log this prevented transition.
+					return;
+				}
+
 				this.Logger?.Error(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
@@ -1531,7 +1597,17 @@ namespace OGA.TCP
 			}
 			if (this.State == eLoop_ConnectionStatus.Error)
 			{
-				// No state change.
+				// No state change allowed from here.
+
+				// For logging purposes, we will ignore attempts to change to Lost, Closed, or Shutting_Down.
+				if(newstate == eLoop_ConnectionStatus.Shutting_Down ||
+					newstate == eLoop_ConnectionStatus.Closed ||
+					newstate == eLoop_ConnectionStatus.Lost)
+				{
+					// We will not log this prevented transition.
+					return;
+				}
+
 				this.Logger?.Error(
 					$"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
 					"State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");

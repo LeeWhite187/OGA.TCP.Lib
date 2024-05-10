@@ -1330,9 +1330,9 @@ namespace OGA.TCP.SessionLayer
                 {
                     if (this._receive_cts != null)
                     {
-                        this._receive_cts.Cancel();
+					    try { this._receive_cts?.Cancel(); } catch (Exception) { }
                         await Task.Delay(100);
-                        this._receive_cts.Dispose();
+					    try { this._receive_cts?.Dispose(); } catch (Exception) { }
                         this._receive_cts = null;
                     }
 

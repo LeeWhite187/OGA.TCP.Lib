@@ -749,6 +749,9 @@ namespace OGA.TCP_Test_SP
                 clientreceivedmessagecounter = 0;
 
 
+                // Wait for server to be open for business...
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint.AllowSend, 1000);
+
                 // Send a channel message to the client...
                 var msg = new SimpleGeneric<string>();
                 var res1 = await _wsl.ServerSide_TCPEndpoint.SendMessage_toClient(msg, channelname);

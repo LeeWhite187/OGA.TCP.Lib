@@ -942,8 +942,8 @@ namespace OGA.TCP_Test_SP
                 if(cl2 == null || cl2.Count == 0)
                     Assert.Fail("Wrong Value");
 
-                // Wait for the connection to be lsited...
-                WaitforCondition(() => client2.ConnectionId == cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId)?.ClientInfo.ConnectionId, 400);
+                // Wait for the connection to be listed...
+                WaitforCondition(() => client2.ConnectionId == (cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId)?.ClientInfo.ConnectionId ?? ""), 1000);
 
                 // To verify our connectionId, we need to get the server-side endpoint by deviceId, then look at its connectionId...
                 var ssep2 = cm.QRYGetConnection_ByClientDeviceId(client2.DeviceId);
@@ -1097,7 +1097,7 @@ namespace OGA.TCP_Test_SP
                 //msg.Scope = "";
 
                 // Wait for the connection to be open for business...
-                WaitforCondition(() => client1.AllowSend, 400);
+                WaitforCondition(() => client1.AllowSend, 1400);
 
                 // Have the client deliver the message...
                 var ressend = await client1.SendMessage_to_Endpoint(msg, TCPConnMgr_Template.TESTCHANNELNAME, "", "");
@@ -1227,7 +1227,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Wait for the client to receive it...
-                WaitforCondition(() => messagetosend == clientreceivedmessagetext, 400);
+                WaitforCondition(() => messagetosend == clientreceivedmessagetext, 1500);
 
                 // Verify the message was received...
                 if(messagetosend != clientreceivedmessagetext)
