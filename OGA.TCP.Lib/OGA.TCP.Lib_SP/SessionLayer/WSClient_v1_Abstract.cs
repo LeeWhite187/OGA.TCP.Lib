@@ -70,7 +70,7 @@ namespace OGA.TCP.SessionLayer
             {
                 try
                 {
-                    if(_alreadydisposed)
+                    if(this.disposedValue)
                         return false;
 
                     if (cws == null)

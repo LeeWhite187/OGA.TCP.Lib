@@ -27,14 +27,12 @@ namespace OGA.TCP.SessionLayer
 
         protected NLog.ILogger Logger;
 
-        protected bool _alreadydisposed;
-
         protected string _classname;
 
         static protected int _instance_counter;
 
-        protected int _Startup_Connect_Retry_Delay = 10000;
-        protected int _PostConnect_FailDelay = 15000;
+        protected int _Startup_Connect_Retry_Delay = 5000;
+        protected int _PostConnect_FailDelay = 5000;
         /// <summary>
         /// Number of milliseconds between checkups of the connection loop's connected state.
         /// This value gets lowered if the keepalive interval goes below 5 seconds.
@@ -944,6 +942,8 @@ namespace OGA.TCP.SessionLayer
                                     // Wait a little bit, before attempting to connect again...
                                     //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
                                     postconnect_delay_eb.Delay(_cts.Token);
+
+                                    int x = 0;
                                 }
                                 else
                                 {
@@ -1401,7 +1401,7 @@ namespace OGA.TCP.SessionLayer
                             $"Exception caught while performing transport specific post connnection work. " +
                                 $"ConnectionID = {(this.ConnectionId ?? "")}.");
 
-                        return -3;
+                        return -4;
                     }
 
                     // Call the receiver loop if the transport needs one...
@@ -1429,7 +1429,7 @@ namespace OGA.TCP.SessionLayer
                         $"Exception occurred while attempting to setup receive loop cancelation token and receive loop. " +
                             $"ConnectionID = {(this.ConnectionId ?? "")}.");
 
-                    return -3;
+                    return -5;
                 }
 
                 this.Logger?.Debug(
@@ -1462,7 +1462,7 @@ namespace OGA.TCP.SessionLayer
                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
                             $"Connection was lost while sending registration data to service.");
 
-                        return -1;
+                        return -6;
                     }
 
                     this.Logger?.Error(
@@ -1471,7 +1471,7 @@ namespace OGA.TCP.SessionLayer
 
                     // Cannot continue without proper registration.
 
-                    return -1;
+                    return -7;
                 }
                 // If here, we sent our registration data to the service.
                 // So, it the connectionId, userid, and device Id of our client.
@@ -1502,7 +1502,7 @@ namespace OGA.TCP.SessionLayer
                             $"Timed out while waiting for receive loop to handle the registration reply message for our connection. Returning error." +
                                 $"ConnectionID = {(this.ConnectionId ?? "")}.");
 
-                        return -3;
+                        return -8;
                     }
                     // The receive loop handled a valid registration reply for our connection.
                     // We can continue as normal.
@@ -1521,7 +1521,7 @@ namespace OGA.TCP.SessionLayer
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
                     $"Exception occurred while attempting to register with service, ({(this._connection_string ?? "<connectionstring not defined>")}). " +
                         $"ConnectionID = {(this.ConnectionId ?? "")}.");
-                return -2;
+                return -9;
             }
         }
 
@@ -3376,34 +3376,6 @@ namespace OGA.TCP.SessionLayer
             if (this.State == newstate)
             {
                 // No change.
-                return;
-            }
-
-            // Also, we will not allow changes from aborted or completed, except to retired.
-            // We will consider these as terminal states.
-            if (this.State == eEndpoint_ConnectionStatus.Closed)
-            {
-                // No state change.
-                this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-                    "State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
-
-                return;
-            }
-            if (this.State == eEndpoint_ConnectionStatus.Lost)
-            {
-                // No state change.
-                this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-                    "State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
-                return;
-            }
-            if (this.State == eEndpoint_ConnectionStatus.Error)
-            {
-                // No state change.
-                this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(UpdateState)} - " +
-                    "State change attempted but prevented, from, " + this.State.ToString() + ", to, " + newstate.ToString() + ".");
                 return;
             }
             // The state is changing.
