@@ -782,7 +782,7 @@ namespace OGA.TCP.SessionLayer
                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
                             "Exception occurred while connecting to server.");
 
-                        await Task.Delay(this._Startup_Connect_Retry_Delay, _cts.Token);
+                        await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
                     }
                 }
                 // Bottom of the outer loop.

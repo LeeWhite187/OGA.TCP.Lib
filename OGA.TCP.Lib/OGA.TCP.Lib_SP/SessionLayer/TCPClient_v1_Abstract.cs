@@ -143,18 +143,21 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
-        // NoDelay disables nagle algorithm. lowers CPU% and latency but
-        // increases bandwidth
-        public bool NoDelay { get; set; } = true;
+        /// <summary>
+        /// NoDelay disables nagle algorithm. lowers CPU% and latency but increases bandwidth.
+        /// </summary>
+        public bool Cfg_NoDelay { get; set; } = true;
 
-        // Send would stall forever if the network is cut off during a send, so
-        // we need a timeout (in milliseconds)
-        public int SendTimeout { get; set; } = 5000;
+        /// <summary>
+        /// Send would stall forever if the network is cut off during a send, so we need a timeout (in milliseconds).
+        /// This value gets applied to the actual Tcpclient instance, to serve as its timeout for sends.
+        /// </summary>
+        public int Cfg_SendTimeout { get; set; } = 5000;
 
         /// <summary>
         /// Amount of time, in milliseconds, to allow connection before failing.
         /// </summary>
-        public int ConnectTimeout { get; set; } = 5000;
+        public int Cfg_ConnectTimeout { get; set; } = 5000;
 
         #endregion
 
@@ -261,7 +264,7 @@ namespace OGA.TCP.SessionLayer
 
                 // We've simplified the connection logic, here, to make it compatible across net framework and core versions.
                 // In doing so, we got rid of the ContinueWith clause.
-                var timeoutTask = Task.Delay(this.ConnectTimeout);
+                var timeoutTask = Task.Delay(this.Cfg_ConnectTimeout);
                 var connectTask = _client.ConnectAsync(this.tcpconnection_host, this.tcpconnection_port);
                 var completedTask = await Task.WhenAny(timeoutTask, connectTask);
                 if (completedTask == timeoutTask)
@@ -355,8 +358,8 @@ namespace OGA.TCP.SessionLayer
 
                             // set socket options after the socket was created in Connect()
                             // (not after the constructor because we clear the socket there)
-                            this._client.NoDelay = NoDelay;
-                            this._client.SendTimeout = SendTimeout;
+                            this._client.NoDelay = Cfg_NoDelay;
+                            this._client.SendTimeout = Cfg_SendTimeout;
 
                             this.Logger?.Debug(
                                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(TransportSpecific_Connect)} - " +
@@ -486,6 +489,23 @@ namespace OGA.TCP.SessionLayer
         override protected void DereferenceTransport()
         {
             this._client = null;
+        }
+
+        /// <summary>
+        /// Creates a loggable string block of the current configuration for the client.
+        /// </summary>
+        /// <returns></returns>
+        override public string ToLogString_Config()
+        {
+            StringBuilder b = new StringBuilder();
+
+            b.Append(base.ToLogString_Config());
+            b.AppendLine($"Cfg_NoDelay = " + Cfg_NoDelay.ToString() + ";");
+            b.AppendLine($"Cfg_SendTimeout = " + Cfg_SendTimeout.ToString() + ";");
+            b.AppendLine($"Cfg_ConnectTimeout = " + Cfg_ConnectTimeout.ToString() + ";");
+            b.AppendLine($"***End of Configuration***");
+
+            return b.ToString();
         }
 
         #endregion

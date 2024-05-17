@@ -66,6 +66,17 @@ namespace OGA.TCP.Server
         override public string PropName_ClientLibVer { get; } = "tcplibver";
 
         /// <summary>
+        /// NoDelay disables nagle algorithm. lowers CPU% and latency but increases bandwidth.
+        /// </summary>
+        public bool Cfg_NoDelay { get; set; } = true;
+
+        /// <summary>
+        /// Send would stall forever if the network is cut off during a send, so we need a timeout (in milliseconds).
+        /// This value gets applied to the actual Tcpclient instance, to serve as its timeout for sends.
+        /// </summary>
+        public int Cfg_SendTimeout { get; set; } = 5000;
+
+        /// <summary>
         /// Can be checked for a positive connection.
         /// Your implementation should verify the endpoint is NOT disposed, the underlying transport instance is not null, and indicates connected.
         /// </summary>
@@ -144,6 +155,11 @@ namespace OGA.TCP.Server
             //  if it's passed a closed tcpclient.
             try
             {
+                // set socket options after the socket was created in Connect()
+                // (not after the constructor because we clear the socket there)
+                this._client.NoDelay = this.Cfg_NoDelay;
+                this._client.SendTimeout = this.Cfg_SendTimeout;
+
                 // Create a network stream.
                 this._conn_networkstream = this._client.GetStream();
 
@@ -222,6 +238,23 @@ namespace OGA.TCP.Server
         override protected void DereferenceTransport()
         {
             this._client = null;
+        }
+
+        /// <summary>
+        /// Creates a loggable string block of the current configuration for the client.
+        /// </summary>
+        /// <returns></returns>
+        override public string ToLogString_Config()
+        {
+            StringBuilder b = new StringBuilder();
+
+            b.Append(base.ToLogString_Config());
+
+            b.AppendLine($"Cfg_NoDelay = " + Cfg_NoDelay.ToString() + ";");
+            b.AppendLine($"Cfg_SendTimeout = " + Cfg_SendTimeout.ToString() + ";");
+            b.AppendLine($"***End of Configuration***");
+
+            return b.ToString();
         }
 
         #endregion

@@ -523,7 +523,7 @@ namespace OGA.TCP.Server
 
                         return 1;
                         //// Pausing for a bit, before attempting to connect again...
-                        //await Task.Delay(_Startup_Connect_Retry_Delay, _receive_cts.Token);
+                        //await Task.Delay(Cfg_Startup_Connect_Retry_Delay, _receive_cts.Token);
                     }
                 }
                 // Bottom of the outer loop.

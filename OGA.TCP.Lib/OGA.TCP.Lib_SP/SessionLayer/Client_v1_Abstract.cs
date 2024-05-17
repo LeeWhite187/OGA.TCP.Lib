@@ -31,26 +31,18 @@ namespace OGA.TCP.SessionLayer
 
         static protected int _instance_counter;
 
-        protected int _Startup_Connect_Retry_Delay = 5000;
-        protected int _PostConnect_FailDelay = 5000;
-        /// <summary>
-        /// Number of milliseconds between checkups of the connection loop's connected state.
-        /// This value gets lowered if the keepalive interval goes below 5 seconds.
-        /// </summary>
-        protected int _Connected_InnerLoop_Delay = 5000;
-        protected int _networkLoss_WaitDelay = 5000;
-
         /// <summary>
         /// Duration, in seconds, after the most recent message that a keep alive is performed.
         /// This controls the period between ping-pong checks.
         /// </summary>
         protected int _cfg_keepAliveInterval;
+
         protected int _keepAliveStatus;
-        protected int _keepAlive_ReplyMaxDuration = 20;
 
         static protected int _last_messageid = 0;
 
         protected CancellationTokenSource _cts;
+
         protected bool disposedValue;
 
         protected CancellationTokenSource _receive_cts;
@@ -152,13 +144,13 @@ namespace OGA.TCP.SessionLayer
                 {
                     // The given keepalive interval is to be set less than the current inner loop delay.
                     // So, we will depress the inner loop delay as well...
-                    this._Connected_InnerLoop_Delay = (int)(value * 1000);
+                    this.Cfg_Connected_InnerLoop_Delay = (int)(value * 1000);
                 }
                 else
                 {
                     // The given keepalive interval is above the standard inner loop delay.
                     // So, we will ensure the inner loop delay is baselined to its standard level...
-                    this._Connected_InnerLoop_Delay = 5000;
+                    this.Cfg_Connected_InnerLoop_Delay = 5000;
                 }
 
                 // Accept the keep alive interval...
@@ -167,10 +159,19 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
+        /// Max receiver idle time in seconds before a keepalive ping is sent over the connection.
+        /// If a ping-pong is inflight, this duration becomes the connection timeout.
+        /// Specifically, the connection will recycle if the last received message is older than this duration, while a ping-pong is inflight.
+        /// If no ping is inflight, the normal Cfg_KeepAliveInterval duration applies.
+        /// </summary>
+        public int Cfg_KeepAlive_ReplyMaxDuration = 20;
+
+
+        /// <summary>
         /// Set this flag if the client wants to have a session without any keepalive messages.
         /// This is used for testing, so that, breakpointing will not cause a timeout to occur and cause a connection to be declared as dead.
         /// </summary>
-        public bool Cfg_Disable_KeepAlive { get; set; }
+        public bool Cfg_Disable_KeepAlive { get; set; } = false;
 
         /// <summary>
         /// Amount of time, in milliseconds, that a new connection is willing to wait for a
@@ -198,6 +199,27 @@ namespace OGA.TCP.SessionLayer
         /// Is set by default.
         /// </summary>
         public bool Cfg_ConnectionWaitsforRegistrationReply { get; set; }
+
+        /// <summary>
+        /// Max amount of time the connection loop will delay between connection attempt retries.
+        /// </summary>
+        public int Cfg_Startup_Connect_Retry_Delay { get; set; } = 5000;
+
+        /// <summary>
+        /// Number of milliseconds between checkups of the connection loop's connected state.
+        /// This value gets lowered if the keepalive interval goes below 5 seconds.
+        /// </summary>
+        public int Cfg_Connected_InnerLoop_Delay  { get; set; } = 5000;
+
+        /// <summary>
+        /// Amount of time, in milliseconds, to wait before retrying the connection, after it was lost during post-conn work or keepalive.
+        /// </summary>
+        public int Cfg_PostConnect_FailDelay { get; set; }  = 5000;
+
+        /// <summary>
+        /// Amount of delay before retrying the connection, after a network loss has been observed.
+        /// </summary>
+        public int Cfg_NetworkLoss_WaitDelay { get; set; } = 5000;
 
         /// <summary>
         /// Instance Id of the endpoint.
@@ -377,7 +399,7 @@ namespace OGA.TCP.SessionLayer
 
             disposedValue = false;
 
-            _cfg_keepAliveInterval = 60;
+            this._cfg_keepAliveInterval = 15;
 
             this.Cfg_RegistrationReplyTimeout = 5000;
 
@@ -691,6 +713,33 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Creates a loggable string block of the current configuration for the client.
+        /// </summary>
+        /// <returns></returns>
+        public virtual string ToLogString_Config()
+        {
+            StringBuilder b= new StringBuilder();
+
+            b.AppendLine($"***Client Configuration***");
+            b.AppendLine($"LibVersion = " + LibVersion.ToString() + ";");
+            b.AppendLine($"TransportLongName = " + TransportLongName.ToString() + ";");
+            b.AppendLine($"Cfg_ConnectionWaitsforRegistrationReply = " + Cfg_ConnectionWaitsforRegistrationReply.ToString() + ";");
+            b.AppendLine($"Cfg_Connected_InnerLoop_Delay = " + Cfg_Connected_InnerLoop_Delay.ToString() + ";");
+            b.AppendLine($"Cfg_Disable_KeepAlive = " + Cfg_Disable_KeepAlive.ToString() + ";");
+            b.AppendLine($"Cfg_EnableChannelLayerChunking = " + Cfg_EnableChannelLayerChunking.ToString() + ";");
+            b.AppendLine($"Cfg_KeepAliveInterval = " + Cfg_KeepAliveInterval.ToString() + ";");
+            b.AppendLine($"Cfg_KeepAlive_ReplyMaxDuration = " + Cfg_KeepAlive_ReplyMaxDuration.ToString() + ";");
+            b.AppendLine($"Cfg_NetworkLoss_WaitDelay = " + Cfg_NetworkLoss_WaitDelay.ToString() + ";");
+            b.AppendLine($"Cfg_PostConnect_FailDelay = " + Cfg_PostConnect_FailDelay.ToString() + ";");
+            b.AppendLine($"Cfg_RegistrationReplyTimeout = " + Cfg_RegistrationReplyTimeout.ToString() + ";");
+            b.AppendLine($"Cfg_ReceiverTimeout = " + Cfg_ReceiverTimeout.ToString() + ";");
+            b.AppendLine($"Cfg_Startup_Connect_Retry_Delay = " + Cfg_Startup_Connect_Retry_Delay.ToString() + ";");
+            b.AppendLine($"MaxMessageSize = " + MaxMessageSize.ToString() + ";");
+
+            return b.ToString();
+        }
+
         #endregion
 
 
@@ -724,24 +773,24 @@ namespace OGA.TCP.SessionLayer
 
 
             // Create an exponential backoff instance that will slow down network status checks as failures grow...
-            ExpBackoff_wJitter network_visibility_delay_eb = new ExpBackoff_wJitter(0, 200, this._networkLoss_WaitDelay);
+            ExpBackoff_wJitter network_visibility_delay_eb = new ExpBackoff_wJitter(0, 200, this.Cfg_NetworkLoss_WaitDelay);
             network_visibility_delay_eb.EnableJitter = true;
             // Reset it to minimum...
             network_visibility_delay_eb.Reset();
 
             // Create an exponential backoff instance that will let us quickly reconnect, but slow down as failure count grows...
-            ExpBackoff_wJitter startup_delay_eb = new ExpBackoff_wJitter(0, 200, this._Startup_Connect_Retry_Delay);
+            ExpBackoff_wJitter startup_delay_eb = new ExpBackoff_wJitter(0, 200, this.Cfg_Startup_Connect_Retry_Delay);
             startup_delay_eb.EnableJitter = true;
             // Reset it to minimum...
             startup_delay_eb.Reset();
 
             // Use an exponential backoff instance for post-connect failure delay...
             // But, we only want to use the jitter function of it... not the growing delay.
-            ExpBackoff_wJitter postconnect_delay_eb = new ExpBackoff_wJitter(0, this._PostConnect_FailDelay, this._PostConnect_FailDelay);
-            postconnect_delay_eb.EnableJitter = true;
-            postconnect_delay_eb.JitterHeight = 0.7f;
+            ExpBackoff_wJitter postconnect_fail_delay_eb = new ExpBackoff_wJitter(0, this.Cfg_PostConnect_FailDelay, this.Cfg_PostConnect_FailDelay);
+            postconnect_fail_delay_eb.EnableJitter = true;
+            postconnect_fail_delay_eb.JitterHeight = 0.7f;
             // Reset it to minimum...
-            postconnect_delay_eb.Reset();
+            postconnect_fail_delay_eb.Reset();
 
 
             // Enter the loop...
@@ -798,7 +847,7 @@ namespace OGA.TCP.SessionLayer
                                 $"Could not finish setup before {(this.TransportLongName?.ToLower() ?? "socket")} connection.");
 
                             // We will do an exponential backoff retry...
-                            //await Task.Delay(this._Startup_Connect_Retry_Delay, _cts.Token);
+                            //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
                             startup_delay_eb.Delay(_cts.Token);
 
                             continue;
@@ -829,7 +878,7 @@ namespace OGA.TCP.SessionLayer
 
                                     // Pausing for a bit, before attempting to connect again...
                                     // We will do an exponential backoff retry...
-                                    //await Task.Delay(this._Startup_Connect_Retry_Delay, _cts.Token);
+                                    //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
                                     startup_delay_eb.Delay(_cts.Token);
 
                                     continue;
@@ -873,7 +922,7 @@ namespace OGA.TCP.SessionLayer
 
                                     // Pausing for a bit, before attempting to connect again...
                                     // We will do an exponential backoff retry...
-                                    //await Task.Delay(this._Startup_Connect_Retry_Delay, _cts.Token);
+                                    //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
                                     startup_delay_eb.Delay(_cts.Token);
 
                                     continue;
@@ -941,7 +990,7 @@ namespace OGA.TCP.SessionLayer
 
                                     // Wait a little bit, before attempting to connect again...
                                     //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                    postconnect_delay_eb.Delay(_cts.Token);
+                                    postconnect_fail_delay_eb.Delay(_cts.Token);
 
                                     int x = 0;
                                 }
@@ -1005,7 +1054,7 @@ namespace OGA.TCP.SessionLayer
 
                                             // Wait a little bit, before attempting to connect again...
                                             //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                            postconnect_delay_eb.Delay(_cts.Token);
+                                            postconnect_fail_delay_eb.Delay(_cts.Token);
 
                                             // Leave the inner status while loop...
                                             break;
@@ -1058,7 +1107,7 @@ namespace OGA.TCP.SessionLayer
 
                                                 // Wait a little bit, before attempting to connect again...
                                                 //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                                postconnect_delay_eb.Delay(_cts.Token);
+                                                postconnect_fail_delay_eb.Delay(_cts.Token);
 
                                                 // Leave the inner status while loop...
                                                 break;
@@ -1068,7 +1117,7 @@ namespace OGA.TCP.SessionLayer
                                         //// Add any periodic things to do, here...
                                         //_ = Task.Run(() => Send_Test_Data("sfsdfsdsdf"));
 
-                                        await Task.Delay(_Connected_InnerLoop_Delay, _cts.Token);
+                                        await Task.Delay(Cfg_Connected_InnerLoop_Delay, _cts.Token);
                                     }
                                     // Bottom of Inner Status While Loop.
                                     // If here, we either lost connection, or are cancelled.
@@ -1185,7 +1234,7 @@ namespace OGA.TCP.SessionLayer
                                 $"Exception occurred while connecting to server, ConnectionID = {(this.ConnectionId ?? "")}.");
 
                             // Pausing for a bit, before attempting to connect again...
-                            //await Task.Delay(this._Startup_Connect_Retry_Delay, _cts.Token);
+                            //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
                             startup_delay_eb.Delay(_cts.Token);
                         }
                     }
@@ -1681,7 +1730,7 @@ namespace OGA.TCP.SessionLayer
                 // We are waiting on a reply for it.
 
                 // Check if it's been too long...
-                if (ctime.CompareTo(LastReceivedTime.AddSeconds(this._keepAlive_ReplyMaxDuration)) < 0)
+                if (ctime.CompareTo(LastReceivedTime.AddSeconds(this.Cfg_KeepAlive_ReplyMaxDuration)) < 0)
                 {
                     // We have not received an expected pong reply from the server.
                     // We will assume it is dead.
@@ -2560,7 +2609,7 @@ namespace OGA.TCP.SessionLayer
 
         //                return 1;
         //                //// Pausing for a bit, before attempting to connect again...
-        //                //await Task.Delay(_Startup_Connect_Retry_Delay, _receive_cts.Token);
+        //                //await Task.Delay(Cfg_Startup_Connect_Retry_Delay, _receive_cts.Token);
         //            }
         //        }
         //        // Bottom of the outer loop.

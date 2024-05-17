@@ -37,14 +37,6 @@ namespace OGA.TCP.Server
 
         static protected int _instance_counter;
 
-        protected int _Startup_Connect_Retry_Delay = 20000;
-
-        /// <summary>
-        /// Number of milliseconds between checkups of the connection loop's connected state.
-        /// This value gets lowered if the keepalive interval goes below 5 seconds.
-        /// </summary>
-        protected int _Connected_InnerLoop_Delay = 5000;
-
         protected int _last_messageid = 0;
 
         protected CancellationTokenSource _cts;
@@ -123,6 +115,12 @@ namespace OGA.TCP.Server
         }
 
         /// <summary>
+        /// Number of milliseconds between checkups of the connection loop's connected state.
+        /// This value gets lowered if the keepalive interval goes below 5 seconds.
+        /// </summary>
+        public int Cfg_Connected_InnerLoop_Delay  { get; set; } = 5000;
+
+        /// <summary>
         /// Instance Id of the tcp/websocket endpoint.
         /// </summary>
         public int InstanceId { get; protected set; }
@@ -196,16 +194,19 @@ namespace OGA.TCP.Server
                     _cfg_deadClientTimeout = value;
             }
         }
+
         /// <summary>
         /// Set this flag for normal operation.
         /// Clear it if we are breakpointing other things, and the stoppage may trigger connection closure.
         /// </summary>
         public bool Cfg_We_Require_Clients_to_Be_Chatty { get; set; }
+
         /// <summary>
         /// This property is set on connection registration by the client, if it wants all messages to be echoed back to him.
         /// Of course, there are some message types that don't get echo'd by this: ping, pong, registration, closure, etc...
         /// </summary>
         public bool Cfg_Connection_LoopBack_All { get; set; }
+
         /// <summary>
         /// Set this flag if the client wants to have a session without any keepalive messages.
         /// This is used for testing, so that, breakpointing will not cause a timeout to occur and cause a connection to be declared as dead.
@@ -598,6 +599,28 @@ namespace OGA.TCP.Server
             return 1;
         }
 
+        /// <summary>
+        /// Creates a loggable string block of the current configuration for the client.
+        /// </summary>
+        /// <returns></returns>
+        public virtual string ToLogString_Config()
+        {
+            StringBuilder b= new StringBuilder();
+
+            b.AppendLine($"***Endpoint Configuration***");
+            b.AppendLine($"TransportLongName = " + TransportLongName.ToString() + ";");
+            b.AppendLine($"Cfg_Connected_InnerLoop_Delay = " + Cfg_Connected_InnerLoop_Delay.ToString() + ";");
+            b.AppendLine($"Cfg_Connection_LoopBack_All = " + Cfg_Connection_LoopBack_All.ToString() + ";");
+            b.AppendLine($"Cfg_Disable_KeepAlive = " + Cfg_Disable_KeepAlive.ToString() + ";");
+            b.AppendLine($"Cfg_DeadClientTimeout = " + Cfg_DeadClientTimeout.ToString() + ";");
+            b.AppendLine($"Cfg_EnableChannelLayerChunking = " + Cfg_EnableChannelLayerChunking.ToString() + ";");
+            b.AppendLine($"Cfg_ReceiverTimeout = " + Cfg_ReceiverTimeout.ToString() + ";");
+            b.AppendLine($"Cfg_We_Require_Clients_to_Be_Chatty = " + Cfg_We_Require_Clients_to_Be_Chatty.ToString() + ";");
+            b.AppendLine($"MaxMessageSize = " + MaxMessageSize.ToString() + ";");
+
+            return b.ToString();
+        }
+
         #endregion
 
 
@@ -715,7 +738,7 @@ namespace OGA.TCP.Server
                             // We will loop back to the top for another iteration.
 
                             // Slow down the connection loop, so we're not hogging CPU, but can still monitor watchdogs and such...
-                            await Task.Delay(_Connected_InnerLoop_Delay, _cts.Token);
+                            await Task.Delay(Cfg_Connected_InnerLoop_Delay, _cts.Token);
                         }
                         // Bottom of the connection monitoring loop.
                         // If we fell here, we lost connection, got cancelled, or the client went silent.
@@ -1738,7 +1761,7 @@ namespace OGA.TCP.Server
 
         //                return 1;
         //                //// Pausing for a bit, before attempting to connect again...
-        //                //await Task.Delay(_Startup_Connect_Retry_Delay, _receive_cts.Token);
+        //                //await Task.Delay(Cfg_Startup_Connect_Retry_Delay, _receive_cts.Token);
         //            }
         //        }
         //        // Bottom of the outer loop.
