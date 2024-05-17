@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Google.Protobuf.WellKnownTypes;
@@ -15,6 +16,7 @@ using OGA.TCP.Shared.Encoding;
 using Testing.WSEndpoint_Tests.HelperClasses;
 using Testing_CommonHelpers_SP.Helpers;
 using WSEndpoint_Tests.HelperClasses;
+using System.Data;
 
 namespace OGA.TCP_Test_SP
 {
@@ -181,6 +183,51 @@ namespace OGA.TCP_Test_SP
         //              Verify the server shows the client is registered.
         //              Close the client.
         //              Verify the AllowSend flag drops.
+
+        //  Test_1_7_1  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 20KB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        //  Test_1_7_2  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 1MB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        //  Test_1_7_3  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 100MB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        //  Test_1_7_4  Verify that a client can send multiple large messages, and the chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose several 10MB large messages at the client.
+        //              Calculate a hash of the message.
+        //              Send each message from the client at the same time.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
 
      */
 
@@ -2034,7 +2081,789 @@ namespace OGA.TCP_Test_SP
             }
         }
         
-        
+
+        //  Test_1_7_1  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 20KB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        [TestMethod]
+        public async Task Test_1_7_1()
+        {
+            int messagesize = 20000;
+
+            DateTime starttime = DateTime.Now;
+            DateTime endtime;
+            TimeSpan duration;
+            float transfervelocity;
+
+            string clientreceivedmessagetype = "";
+            string serverreceivedmessagetype = "";
+            string clientreceivedmessagedata = "";
+            string serverreceivedmessagedata = "";
+
+            var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
+            TCPClient_v1_Impl wss = null;
+            try
+            {
+                // Create data for a V1 client...
+                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+
+                // Setup the tcpsocket client...
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                wss.OnConnectionLost = this.Handle_OnConnectionlost;
+                wss.OnMessageReceived = this.Handle_OnMessageReceived;
+
+                // Give the ws client the device client data...
+                wss.DeviceId = cp.DeviceId;
+                wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
+
+                // Add a message handler to the client...
+                // Create a channel name...
+                var channelname = Guid.NewGuid().ToString();
+                wss.Add_ChannelHandler(channelname, (Client_v1_Abstract mep, string messagetype, string jsonmsg) =>
+                {
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    clientreceivedmessagedata = msg.MessageData;
+                    clientreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+                // Make sure the client won't timeout...
+                wss.Cfg_Disable_KeepAlive = true;
+
+                // Start the web socket client...
+                var res = await wss.Start_Async();
+                if(res != 1)
+                    Assert.Fail("Wrong return");
+
+
+                // Wait for it to get established...
+                WaitforCondition(() => wss.IsConnected, 2000);
+
+
+                // Verify the websocket is active...
+                if(!wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 2000);
+
+                // Check that the server says connected as well...
+                if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+                if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => wss.AllowSend, 800);
+
+                // Check that the client indicates Allow Send...
+                if(wss.AllowSend == false)
+                    Assert.Fail("Wrong Value");
+
+
+                // Add a channel handler to the server endpoint...
+                _wsl.ServerSide_TCPEndpoint.Add_ChannelHandler(channelname, (TESTINGSRVR_Endpoint_Abstract mep, string messagetype, string jsonmsg, string corelationid) =>
+                {
+                    endtime = DateTime.Now;
+                    duration = endtime - starttime;
+                    transfervelocity = (float)(messagesize / duration.TotalSeconds / 1000);
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Info($"Transferred {messagesize.ToString()} bytes at {transfervelocity.ToString()} KBps");
+
+
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    serverreceivedmessagedata = msg.MessageData;
+                    serverreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+
+                // Have the client send a message to the server...
+                {
+                    // Compose a 20KB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+                    starttime = DateTime.Now;
+                    // Have the client send the message...
+                    var ressend = await wss.SendMessage_to_Endpoint(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    // Wait for the server to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(serverreceivedmessagetype), 1000);
+
+
+                    // Verify the message type and data...
+                    if(serverreceivedmessagetype != nameof(LargeMessage).ToLower())
+                        Assert.Fail("Wrong Value");
+                    var severmessagehash = GetHashString(serverreceivedmessagedata);
+                    if(hashstring != severmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+
+                // Now, have the server send a message to the client...
+                {
+                    // Compose a 20KB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+
+                    // Have the server send the message...
+                    var ressend = await _wsl.ServerSide_TCPEndpoint.SendMessage_toClient(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    // Wait for the client to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(clientreceivedmessagetype), 1000);
+
+
+                    // Verify the message type and data...
+                    if(clientreceivedmessagetype != nameof(LargeMessage).ToLower())
+                        Assert.Fail("Wrong Value");
+                    var clientmessagehash = GetHashString(clientreceivedmessagedata);
+                    if(hashstring != clientmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+                // Tell the server endpoint to close the connection...
+                await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
+
+                // Wait for it to close...
+                WaitforCondition(() => !wss.IsConnected, 1000);
+
+                // Check that the Allow Send has dropped...
+                if(wss.AllowSend == true)
+                    Assert.Fail("Wrong Value");
+
+                // Verify the websocket is closed...
+                if(wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+
+                // Check that the server says closed as well...
+                if(_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+            }
+            finally
+            {
+                wss?.Dispose();
+            }
+        }
+
+        //  Test_1_7_2  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 1MB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        [TestMethod]
+        public async Task Test_1_7_2()
+        {
+            int messagesize = 1000000;
+
+            DateTime starttime = DateTime.Now;
+            DateTime endtime;
+            TimeSpan duration;
+            float transfervelocity;
+
+            string clientreceivedmessagetype = "";
+            string serverreceivedmessagetype = "";
+            string clientreceivedmessagedata = "";
+            string serverreceivedmessagedata = "";
+
+            var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
+            TCPClient_v1_Impl wss = null;
+            try
+            {
+                // Create data for a V1 client...
+                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+
+                // Setup the tcpsocket client...
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                wss.OnConnectionLost = this.Handle_OnConnectionlost;
+                wss.OnMessageReceived = this.Handle_OnMessageReceived;
+
+                // Give the ws client the device client data...
+                wss.DeviceId = cp.DeviceId;
+                wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
+
+                // Add a message handler to the client...
+                // Create a channel name...
+                var channelname = Guid.NewGuid().ToString();
+                wss.Add_ChannelHandler(channelname, (Client_v1_Abstract mep, string messagetype, string jsonmsg) =>
+                {
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    clientreceivedmessagedata = msg.MessageData;
+                    clientreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+                // Make sure the client won't timeout...
+                wss.Cfg_Disable_KeepAlive = true;
+
+                // Start the web socket client...
+                var res = await wss.Start_Async();
+                if(res != 1)
+                    Assert.Fail("Wrong return");
+
+
+                // Wait for it to get established...
+                WaitforCondition(() => wss.IsConnected, 2000);
+
+
+                // Verify the websocket is active...
+                if(!wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 2000);
+
+                // Check that the server says connected as well...
+                if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+                if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => wss.AllowSend, 800);
+
+                // Check that the client indicates Allow Send...
+                if(wss.AllowSend == false)
+                    Assert.Fail("Wrong Value");
+
+
+                // Add a channel handler to the server endpoint...
+                _wsl.ServerSide_TCPEndpoint.Add_ChannelHandler(channelname, (TESTINGSRVR_Endpoint_Abstract mep, string messagetype, string jsonmsg, string corelationid) =>
+                {
+                    endtime = DateTime.Now;
+                    duration = endtime - starttime;
+                    transfervelocity = (float)(messagesize / duration.TotalSeconds / 1000);
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Info($"Transferred {messagesize.ToString()} bytes at {transfervelocity.ToString()} KBps");
+
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    serverreceivedmessagedata = msg.MessageData;
+                    serverreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+
+                // Have the client send a message to the server...
+                {
+                    // Compose a 1MB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+
+                    starttime = DateTime.Now;
+                    // Have the client send the message...
+                    var ressend = await wss.SendMessage_to_Endpoint(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    // Wait for the server to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(serverreceivedmessagetype), 1000);
+
+
+                    // Verify the message type and data...
+                    if(serverreceivedmessagetype != nameof(LargeMessage).ToLower())
+                        Assert.Fail("Wrong Value");
+                    var severmessagehash = GetHashString(serverreceivedmessagedata);
+                    if(hashstring != severmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+
+                // Now, have the server send a message to the client...
+                {
+                    // Compose a 1MB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+
+                    // Have the server send the message...
+                    var ressend = await _wsl.ServerSide_TCPEndpoint.SendMessage_toClient(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    // Wait for the client to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(clientreceivedmessagetype), 1000);
+
+
+                    // Verify the message type and data...
+                    if(clientreceivedmessagetype != nameof(LargeMessage).ToLower())
+                        Assert.Fail("Wrong Value");
+                    var clientmessagehash = GetHashString(clientreceivedmessagedata);
+                    if(hashstring != clientmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+                // Tell the server endpoint to close the connection...
+                await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
+
+                // Wait for it to close...
+                WaitforCondition(() => !wss.IsConnected, 1000);
+
+                // Check that the Allow Send has dropped...
+                if(wss.AllowSend == true)
+                    Assert.Fail("Wrong Value");
+
+                // Verify the websocket is closed...
+                if(wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+
+                // Check that the server says closed as well...
+                if(_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+            }
+            finally
+            {
+                wss?.Dispose();
+            }
+        }
+
+        //  Test_1_7_3  Verify that a client can send a large message, and its chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose a 10MB large message at the client.
+        //              Calculate a hash of the message.
+        //              Send the message from the client.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        [TestMethod]
+        public async Task Test_1_7_3()
+        {
+            int messagesize = 10000000;
+
+            DateTime starttime = DateTime.Now;
+            DateTime endtime;
+            TimeSpan duration;
+            float transfervelocity;
+
+            string clientreceivedmessagetype = "";
+            string serverreceivedmessagetype = "";
+            string clientreceivedmessagedata = "";
+            string serverreceivedmessagedata = "";
+
+            var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
+            TCPClient_v1_Impl wss = null;
+            try
+            {
+                // Create data for a V1 client...
+                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+
+                // Setup the tcpsocket client...
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                wss.OnConnectionLost = this.Handle_OnConnectionlost;
+                wss.OnMessageReceived = this.Handle_OnMessageReceived;
+
+                // Give the ws client the device client data...
+                wss.DeviceId = cp.DeviceId;
+                wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
+
+                // Add a message handler to the client...
+                // Create a channel name...
+                var channelname = Guid.NewGuid().ToString();
+                wss.Add_ChannelHandler(channelname, (Client_v1_Abstract mep, string messagetype, string jsonmsg) =>
+                {
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    clientreceivedmessagedata = msg.MessageData;
+                    clientreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+                // Make sure the client won't timeout...
+                wss.Cfg_Disable_KeepAlive = true;
+
+                // Start the web socket client...
+                var res = await wss.Start_Async();
+                if(res != 1)
+                    Assert.Fail("Wrong return");
+
+
+                // Wait for it to get established...
+                WaitforCondition(() => wss.IsConnected, 2000);
+
+
+                // Verify the websocket is active...
+                if(!wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 2000);
+
+                // Check that the server says connected as well...
+                if(!_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+                if(!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => wss.AllowSend, 800);
+
+                // Check that the client indicates Allow Send...
+                if(wss.AllowSend == false)
+                    Assert.Fail("Wrong Value");
+
+
+                // Add a channel handler to the server endpoint...
+                _wsl.ServerSide_TCPEndpoint.Add_ChannelHandler(channelname, (TESTINGSRVR_Endpoint_Abstract mep, string messagetype, string jsonmsg, string corelationid) =>
+                {
+                    endtime = DateTime.Now;
+                    duration = endtime - starttime;
+                    transfervelocity = (float)(messagesize / duration.TotalSeconds / 1000);
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Info($"Transferred {messagesize.ToString()} bytes at {transfervelocity.ToString()} KBps");
+
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    serverreceivedmessagedata = msg.MessageData;
+                    serverreceivedmessagetype = messagetype;
+                    return 1;
+                });
+
+
+                // Have the client send a message to the server...
+                {
+                    // Compose a 100MB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+
+                    starttime = DateTime.Now;
+                    // Have the client send the message...
+                    var ressend = await wss.SendMessage_to_Endpoint(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    //await Task.Delay(500000);
+                    // Wait for the server to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(serverreceivedmessagetype), 10000);
+
+
+                    // Verify the message type and data...
+                    if(serverreceivedmessagetype != nameof(LargeMessage))
+                        Assert.Fail("Wrong Value");
+                    var severmessagehash = GetHashString(serverreceivedmessagedata);
+                    if(hashstring != severmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+
+                // Now, have the server send a message to the client...
+                {
+                    // Compose a 100MB message for the client to send...
+                    var lm = new LargeMessage();
+                    lm.MessageData = CreateString(messagesize);
+
+
+                    // Hash the message...
+                    var hashstring = GetHashString(lm.MessageData);
+
+
+                    // Have the server send the message...
+                    var ressend = await _wsl.ServerSide_TCPEndpoint.SendMessage_toClient(lm, channelname, "", "");
+                    if(ressend != 1)
+                        Assert.Fail("Wrong Value");
+
+
+                    //await Task.Delay(10000);
+                    // Wait for the client to receive the message...
+                    WaitforCondition(() => !string.IsNullOrEmpty(clientreceivedmessagetype), 10000);
+
+
+                    // Verify the message type and data...
+                    if(clientreceivedmessagetype != nameof(LargeMessage))
+                        Assert.Fail("Wrong Value");
+                    var clientmessagehash = GetHashString(clientreceivedmessagedata);
+                    if(hashstring != clientmessagehash)
+                        Assert.Fail("Wrong Value");
+                }
+
+                // Tell the server endpoint to close the connection...
+                await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
+
+                // Wait for it to close...
+                WaitforCondition(() => !wss.IsConnected, 1000);
+
+                // Check that the Allow Send has dropped...
+                if(wss.AllowSend == true)
+                    Assert.Fail("Wrong Value");
+
+                // Verify the websocket is closed...
+                if(wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+
+                // Check that the server says closed as well...
+                if(_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+            }
+            finally
+            {
+                wss?.Dispose();
+            }
+        }
+
+        //  Test_1_7_4  Verify that a client can send multiple large messages, and the chunks get reassembled appropriately by the server endpoint.
+        //              Create an instance of the v1 tcpsocket client.
+        //              Attempt to connect to the test tcpendpoint.
+        //              Verify client and server both agree as connected.
+        //              Wait for the client to indicate AllowSend == true.
+        //              Verify the server shows the client is registered.
+        //              Compose several 10MB large messages at the client.
+        //              Calculate a hash of the message.
+        //              Send each message from the client at the same time.
+        //              Verify the server received the message.
+        //              Verify the message hash is correct.
+        [TestMethod]
+        public async Task Test_1_7_4()
+        {
+            int messagesize = 4000000;
+            int messagecount = 10;
+
+            Dictionary<string, string> clientreceiveddata = new Dictionary<string, string>();
+            Dictionary<string, string> serverreceiveddata = new Dictionary<string, string>();
+            Dictionary<string, string> clientreceivedtype = new Dictionary<string, string>();
+            Dictionary<string, string> serverreceivedtype = new Dictionary<string, string>();
+
+            Dictionary<string, string> sentmessages = new Dictionary<string, string>();
+
+            var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
+            TCPClient_v1_Impl wss = null;
+            try
+            {
+                // Create data for a V1 client...
+                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+
+                // Setup the tcpsocket client...
+                wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                wss.OnConnectionLost = this.Handle_OnConnectionlost;
+                wss.OnMessageReceived = this.Handle_OnMessageReceived;
+
+                // Give the ws client the device client data...
+                wss.DeviceId = cp.DeviceId;
+                wss.UserId = (Guid)cp.UserId;
+                wss.RuntimeId = cp.RuntimeId;
+                wss.Pid = cp.Pid;
+
+                // Add a message handler to the client...
+                // Create a channel name...
+                var channelname = Guid.NewGuid().ToString();
+                wss.Add_ChannelHandler(channelname, (Client_v1_Abstract mep, string messagetype, string jsonmsg) =>
+                {
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    clientreceiveddata.Add(msg.trackingid, msg.MessageData);
+                    clientreceivedtype.Add(msg.trackingid, messagetype);
+                    return 1;
+                });
+
+                // Make sure the client won't timeout...
+                wss.Cfg_Disable_KeepAlive = true;
+
+                // Start the web socket client...
+                var res = await wss.Start_Async();
+                if (res != 1)
+                    Assert.Fail("Wrong return");
+
+
+                // Wait for it to get established...
+                WaitforCondition(() => wss.IsConnected, 2000);
+
+
+                // Verify the websocket is active...
+                if (!wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.IsRegistered ?? false, 2000);
+
+                // Check that the server says connected as well...
+                if (!_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+                if (!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("Wrong Value");
+
+                WaitforCondition(() => wss.AllowSend, 800);
+
+                // Check that the client indicates Allow Send...
+                if (wss.AllowSend == false)
+                    Assert.Fail("Wrong Value");
+
+
+                // Add a channel handler to the server endpoint...
+                _wsl.ServerSide_TCPEndpoint.Add_ChannelHandler(channelname, (TESTINGSRVR_Endpoint_Abstract mep, string messagetype, string jsonmsg, string corelationid) =>
+                {
+                    var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<LargeMessage>(jsonmsg);
+                    serverreceiveddata.Add(msg.trackingid, msg.MessageData);
+                    serverreceivedtype.Add(msg.trackingid, messagetype);
+                    return 1;
+                });
+
+
+                // Have the client send several messages to the server...
+                {
+                    for(int sx = 0; sx < messagecount; sx++)
+                    {
+                        // Compose a 100MB message for the client to send...
+                        var lm = new LargeMessage();
+                        lm.MessageData = CreateString(messagesize);
+                        lm.trackingid = Guid.NewGuid().ToString();
+
+                        // Store it for reference...
+                        sentmessages.Add(lm.trackingid, lm.MessageData);
+
+
+                        // Have the client send the message...
+                        var ressend = await wss.SendMessage_to_Endpoint(lm, channelname, "", "");
+                        if (ressend != 1)
+                            Assert.Fail("Wrong Value");
+                    }
+
+
+                    //await Task.Delay(500000);
+                    // Wait for the server to receive all messages...
+                    WaitforCondition(() => serverreceivedtype.Count == messagecount, 10000);
+
+
+                    // Verify each message was received and is correct...
+                    foreach(var sm in sentmessages)
+                    {
+                        // Get the current message id...
+                        var mid = sm.Key;
+
+                        // Hash the sent message...
+                        var senthash = GetHashString(sm.Value);
+
+                        // Verify the message type...
+                        var smt = serverreceivedtype[mid];
+                        if (smt != nameof(LargeMessage))
+                            Assert.Fail("Wrong Value");
+
+                        // Verify the message data...
+                        var smd = serverreceiveddata[mid];
+                        var severmessagehash = GetHashString(smd);
+                        if (senthash != severmessagehash)
+                            Assert.Fail("Wrong Value");
+                    }
+                }
+
+                // Clear the send list...
+                sentmessages.Clear();
+
+
+                // Now, have the server send several message to the client...
+                {
+                    for(int sx = 0; sx < messagecount; sx++)
+                    {
+                        // Compose a 100MB message for the server to send...
+                        var lm = new LargeMessage();
+                        lm.MessageData = CreateString(messagesize);
+                        lm.trackingid = Guid.NewGuid().ToString();
+
+                        // Store it for reference...
+                        sentmessages.Add(lm.trackingid, lm.MessageData);
+
+
+                        // Have the server send the message...
+                        var ressend = await _wsl.ServerSide_TCPEndpoint.SendMessage_toClient(lm, channelname, "", "");
+                        if (ressend != 1)
+                            Assert.Fail("Wrong Value");
+                    }
+
+
+                    //await Task.Delay(500000);
+                    // Wait for the server to receive all messages...
+                    WaitforCondition(() => clientreceivedtype.Count == messagecount, 10000);
+
+
+                    // Verify each message was received and is correct...
+                    foreach(var sm in sentmessages)
+                    {
+                        // Get the current message id...
+                        var mid = sm.Key;
+
+                        // Hash the sent message...
+                        var senthash = GetHashString(sm.Value);
+
+                        // Verify the message type...
+                        var smt = clientreceivedtype[mid];
+                        if (smt != nameof(LargeMessage))
+                            Assert.Fail("Wrong Value");
+
+                        // Verify the message data...
+                        var smd = clientreceiveddata[mid];
+                        var clientmessagehash = GetHashString(smd);
+                        if (senthash != clientmessagehash)
+                            Assert.Fail("Wrong Value");
+                    }
+                }
+
+
+                // Tell the server endpoint to close the connection...
+                await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
+
+                // Wait for it to close...
+                WaitforCondition(() => !wss.IsConnected, 1000);
+
+                // Check that the Allow Send has dropped...
+                if (wss.AllowSend == true)
+                    Assert.Fail("Wrong Value");
+
+                // Verify the websocket is closed...
+                if (wss.IsConnected)
+                    Assert.Fail("Connection Failed");
+
+
+                // Check that the server says closed as well...
+                if (_wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Connection Failed");
+            }
+            finally
+            {
+                wss?.Dispose();
+            }
+        }
+
         #endregion
 
 
@@ -2073,6 +2902,37 @@ namespace OGA.TCP_Test_SP
             int x = 0;
         }
 
-        #endregion
+
+        static protected Random rd = new Random();
+        static protected string CreateString(int stringLength)
+        {
+            const string allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@$?_-";
+            char[] chars = new char[stringLength];
+
+            for (int i = 0; i < stringLength; i++)
+            {
+                chars[i] = allowedChars[rd.Next(0, allowedChars.Length)];
+            }
+
+            return new string(chars);
+        }
+        
+
+        public static byte[] GetHash(string inputString)
+        {
+            using (HashAlgorithm algorithm = SHA256.Create())
+                return algorithm.ComputeHash(Encoding.UTF8.GetBytes(inputString));
+        }
+
+        public static string GetHashString(string inputString)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in GetHash(inputString))
+                sb.Append(b.ToString("X2"));
+
+            return sb.ToString();
+        }
+
+    #endregion
     }
 }

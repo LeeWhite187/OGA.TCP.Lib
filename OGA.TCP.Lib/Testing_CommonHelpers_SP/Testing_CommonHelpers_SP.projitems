@@ -9,6 +9,7 @@
     <Import_RootNamespace>Testing_CommonHelpers_SP</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)HelperMessages\LargeMessage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClientServer_Test_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClient_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\clientproperties.cs" />
@@ -21,8 +22,5 @@
     <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_ClientInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_Endpoint_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_TCPEndpoint.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)HelperMessages\" />
   </ItemGroup>
 </Project>

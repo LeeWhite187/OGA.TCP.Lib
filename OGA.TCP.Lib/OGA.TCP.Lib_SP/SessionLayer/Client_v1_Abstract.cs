@@ -1,4 +1,6 @@
 ﻿using Newtonsoft.Json;
+using OGA.TCP.Chunking.DTO;
+using OGA.TCP.Chunking.Helpers;
 using OGA.TCP.ClientAdapters;
 using OGA.TCP.Messages;
 using OGA.TCP.Shared;
@@ -90,6 +92,13 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected bool _registrationreplyreceived;
 
+        /// <summary>
+        /// List of large message receivers, keyed by messageid.
+        /// </summary>
+        protected Dictionary<string, LargeMsgReceiver> _largemsgreceivers;
+
+        protected int _cfg_ReceiverTimeout;
+
         #endregion
 
 
@@ -171,6 +180,20 @@ namespace OGA.TCP.SessionLayer
         /// The connection loop logic will wait this duration to ensure a reply is received, or the connection must restart.
         /// </summary>
         public int Cfg_RegistrationReplyTimeout { get; set; }
+
+        /// <summary>
+        /// Amount of time, in seconds, that a large message receiver can sit idle before
+        ///     it gets recycled, for not finishing.
+        /// </summary>
+        public int Cfg_ReceiverTimeout
+        {
+            get => _cfg_ReceiverTimeout;
+            set
+            {
+                if(value < 5) _cfg_ReceiverTimeout = 5;
+                else _cfg_ReceiverTimeout = value;
+            }
+        }
 
         /// <summary>
         /// Defines if the connection loop requires a registration reply message be received, before allowing comms.
@@ -260,6 +283,11 @@ namespace OGA.TCP.SessionLayer
         /// Tracks current client state.
         /// </summary>
         public eEndpoint_ConnectionStatus State { get; protected set; }
+
+        /// <summary>
+        /// Set if the connection supports chunking of large messages at the channel layer.
+        /// </summary>
+        public bool Cfg_EnableChannelLayerChunking { get; set; } = true;
 
         #endregion
 
@@ -364,6 +392,10 @@ namespace OGA.TCP.SessionLayer
 #endif
 
             _ChannelMessageHandlers = new Dictionary<string, IChannelAdapter>();
+
+            this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
+
+            this._cfg_ReceiverTimeout = 120;
 
             // Clear the allow sending flag, to prevent any outgoing messages...
             this._allowsend = false;
@@ -484,6 +516,9 @@ namespace OGA.TCP.SessionLayer
 
             // Clear the allow sending flag, to prevent any outgoing messages...
             this._allowsend = false;
+
+            // Clear out any large message receivers...
+            this._largemsgreceivers.Clear();
 
             // Disconnect any message handlers...
             this.Close_ChannelAdapters();
@@ -981,6 +1016,9 @@ namespace OGA.TCP.SessionLayer
                                             $"Inner Connection Loop with server, ({(this._connection_string ?? "<connectionstring not defined>")}). " +
                                             $"ConnectionID = {(this.ConnectionId ?? "")}.");
 
+                                        // Prune any old/stale large message receivers...
+                                        this.PruneStaleLargeMessageReceivers();
+
                                         // See if we need to send a keep alive...
                                         if (Cfg_Disable_KeepAlive)
                                         {
@@ -1243,6 +1281,8 @@ namespace OGA.TCP.SessionLayer
             // Assign a new connectionId for each connection/attempt...
             this.CreateNewConnectionID();
 
+            // Clear out any large message receivers...
+            this._largemsgreceivers.Clear();
 
             // This is a call point, for the transport specific implementation, to create its socket, websocket, etc...
             // Wrap it in a try-catch to ensure it doesn't throw and unwind us...
@@ -1938,6 +1978,84 @@ namespace OGA.TCP.SessionLayer
             string messagetype = payload.GetType().Name;
             string jsonmsg = JsonConvert.SerializeObject(payload);
 
+            // See if chunking is enabled for this connection...
+            if(!this.Cfg_EnableChannelLayerChunking)
+            {
+                // Chunking is off.
+                // We will attempt to send all messages in a single frame.
+                // This will be done, below.
+            }
+            else
+            {
+                // Chunking is enabled.
+                // We will check if the message needs to be split up for sending.
+
+                // Ensure the serialized buffer is not too large for the receiver...
+                // We derate the max size enough to fit the message envelope and header (length value).
+                if (jsonmsg.Length > (this.MaxMessageSize - 1024))
+                {
+                    // Message is too large to fit in a single message frame.
+                    // Message needs to be split up.
+
+                    // Given message frame is too large to send in one frame.
+                    // We will chunk it up, sending pieces, and the other end will reassemble them for processing.
+
+                    // The given message has an assigned channel.
+                    // We will attempt to honor that channel assignment, and send chunks over it.
+
+                    // Setup our large message sender...
+                    var lms = new LargeMsgSender();
+                    lms.MaxChunkSize = (this.MaxMessageSize - 1024);
+                    // Load the raw message to be chunked out...
+                    // Give the chunker the messageid of the composed message...
+                    var resload = lms.Load(GetNextMessageId(), messagetype, jsonmsg, channel, scope, corelationid);
+                    if (resload != 1)
+                    {
+                        // Failed to load the message for chunking.
+
+                        this.Logger?.Debug(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
+                            $"Failed to load outgoing message for chunking.");
+
+                        return -1;
+                    }
+
+                    // Tell it to do a blocking send, to our send call...
+                    // This will block the thread, until all chunks are sent, the connection drops, or we are cancelled.
+                    // Give it a send delegate, a delegate for creating messageIds, and our cancellation token.
+                    var ressend = await lms.SendChunksAsync(this.Send_SerializedObject_toEndpoint_Async, this._cts.Token);
+                    if (ressend == 0)
+                    {
+                        // The send was cancelled.
+
+                        this.Logger?.Debug(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
+                            $"Send was cancelled while conveying chunked message to the remote endpoint.");
+
+                        return 0;
+                    }
+                    else if (ressend < 0)
+                    {
+                        // The send failed.
+
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
+                            $"Send failed while conveying chunked message to the remote endpoint.");
+
+                        return -1;
+                    }
+                    // If here, we were able to send all chunks of the message.
+
+                    return 1;
+                }
+                else
+                {
+                    // Message can be sent in a single frame.
+                    // We will pass it along like normal.
+                    // This will be done, below.
+                }
+            }
+
             this.Logger?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
                 $"Attempting to send object to {(this.TransportShortName?.ToUpper() ?? "")}Endpoint...");
@@ -1989,24 +2107,29 @@ namespace OGA.TCP.SessionLayer
             if (jsonobject == null)
                 jsonobject = "";
 
-            // Ensure the serialized buffer is not too large for the receiver...
-            // We derate the max size enough to fit the message envelope and header (length value).
-            if (jsonobject.Length > (this.MaxMessageSize - 1024))
+            if(!this.Cfg_EnableChannelLayerChunking)
             {
-                // Message is too large to fit in a single message frame.
-                // We will tell the caller, so they can send the message, piece-wise.
+                // No large message support.
 
-                this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
-                    $"Message is too large ({(jsonobject?.Length.ToString() ?? "unknown size")}) to send to the remote endpoint.");
+                // Ensure the serialized buffer is not too large for the receiver...
+                // We derate the max size enough to fit the message envelope and header (length value).
+                if(jsonobject.Length > (this.MaxMessageSize - 1024))
+                {
+                    // Message is too large to fit in a single message frame.
+                    // We will tell the caller, so they can send the message, piece-wise.
 
-                return -10;
+                    this.Logger?.Debug(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toEndpoint_Async)} - " +
+                        $"Message is too large ({(jsonobject?.Length.ToString() ?? "unknown size")}) to send to the remote endpoint.");
+
+                    return -10;
+                }
             }
             // The raw message will fit into a single message frame.
 
             // Create and stuff an envelope...
             MessageEnvelope me = new MessageEnvelope();
-            me.MsgId = _last_messageid++.ToString();
+            me.MsgId = GetNextMessageId();
             me.SentTimeUTC = DateTime.UtcNow;
             // Ensure that the data section is never null...
             me.Data = jsonobject ?? "";
@@ -2019,7 +2142,7 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Accepts a prepared message envelope, and sends it to the websocket service.
+        /// Accepts a prepared message envelope, and sends it to the tcp/websocket service.
         /// </summary>
         /// <param name="me"></param>
         /// <returns></returns>
@@ -2047,12 +2170,13 @@ namespace OGA.TCP.SessionLayer
 
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
-                    "Attempting to send message to web service...");
+                    "Attempting to send message to remote endpoint...");
 
                 // Serialize the envelope and convert it to bytes...
                 var jsonmsg = JsonConvert.SerializeObject(me);
                 // Convert the string to bytes for transport...
                 byte[] d = Encoding.UTF8.GetBytes(jsonmsg);
+
 
                 //************************************************************************************************************
                 // Start Send Thread Lock
@@ -2064,9 +2188,16 @@ namespace OGA.TCP.SessionLayer
                     // Send the message...
                     var res = await this.RawTransportSend(d);
                     if (res >= 1)
-                        return 1;
+                    {
+                        // Send was successful.
+                        // We will return after the finally.
+                    }
                     else
+                    {
+                        // Call failed.
+                        // We will return, here, and the finally will release our send mutex.
                         return res;
+                    }
                 }
                 finally
                 {
@@ -2078,7 +2209,7 @@ namespace OGA.TCP.SessionLayer
 
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
-                    "Message sent to web service.");
+                    "Message sent to remote endpoint.");
 
                 return 1;
             }
@@ -2131,7 +2262,7 @@ namespace OGA.TCP.SessionLayer
                 var f = e.GetType();
 
                 this.Logger?.Error(e,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
                     $"Unknown exception type occurred ({f}) while attempting to send message over {(this.TransportLongName?.ToLower() ?? "socket")}.");
 
                 return -1;
@@ -2149,6 +2280,20 @@ namespace OGA.TCP.SessionLayer
         //    await _webSocket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
         //    return 1;
         //}
+
+        /// <summary>
+        /// Call this to create the identifier for each message to be sent.
+        /// </summary>
+        /// <returns></returns>
+        protected string GetNextMessageId()
+        {
+            // Create a new messageid...
+            // This is done in a thread-safe manner, as the send is multi-threaded.
+            // And, we do it, here, since both single message and chunked messages use the same message identifier.
+            var newval = Interlocked.Increment(ref _last_messageid);
+
+            return newval.ToString();
+        }
 
         #endregion
 
@@ -2529,6 +2674,27 @@ namespace OGA.TCP.SessionLayer
                     return 0;
                 }
 
+                // Here, we intercept incoming messages, and handling any chunking of large messages.
+                // We will look for any of the chunk message types...
+                // ChunkAckDTO, ChunkRequestDTO, ChunkDTO, ChunkStartDTO.
+                // If we encounter one, we forward it to the chunk handler...
+                if(mt == nameof(ChunkStartDTO).ToLower() ||
+                    mt == nameof(ChunkDTO).ToLower() ||
+                    //mt == nameof(ChunkAckDTO).ToLower() \\
+                    //mt == nameof(ChunkCancelDTO).ToLower() ||
+                    //mt == nameof(ChunkRequestDTO).ToLower() ||
+                    mt == nameof(ChunkEndDTO).ToLower()
+                    )
+                {
+                    // Received message is a chunking message.
+                    // We will forward it to our chunking handler...
+                    ProcessChunkingMessage(me.MsgId, mt, me.Data, me.Channel, me.Scope);
+
+                    return 1;
+                }
+                // Not a chunking message type.
+                // We will dispatch it as normal.
+
                 // We will let subscribers of our received delegate do deserialization...
                 DispatchReceivedMessage(mt, me.Data, me.Channel, me.Scope);
 
@@ -2553,6 +2719,288 @@ namespace OGA.TCP.SessionLayer
 
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// Process large messages that are conveyed via chunks on channels.
+        /// </summary>
+        /// <param name="msgId"></param>
+        /// <param name="messagetype"></param>
+        /// <param name="data"></param>
+        /// <param name="channel"></param>
+        /// <param name="scope"></param>
+        private async void ProcessChunkingMessage(string msgId, string messagetype, string data, string channel, string scope)
+        {
+            if(string.IsNullOrEmpty(msgId))
+            {
+                // Invalid messageid.
+                return;
+            }
+            if(string.IsNullOrEmpty(messagetype))
+            {
+                // Invalid message type.
+                return;
+            }
+            if(string.IsNullOrEmpty(data))
+            {
+                // Invalid message data.
+                return;
+            }
+
+            // Determine what action to take...
+            if(messagetype == nameof(ChunkStartDTO).ToLower())
+            {
+                // The far end is attempting to send us a large message, one chunk at a time.
+                // And, they've sent us the metadata for the message.
+
+                ChunkStartDTO dto;
+                try
+                {
+                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkStartDTO>(data);
+                    if(dto == null)
+                    {
+                        // Failed to deserialize chunk start message.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to deserialize chunk start message.");
+
+                        return;
+                    }
+                }
+                catch(Exception e)
+                {
+                    this.Logger?.Error(e,
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Exception occurred while attempting to deserialize chunk start message.");
+
+                    return;
+                }
+
+                // We will create a new large message receiver, to handle the in-progress large message...
+                var lmr = new LargeMsgReceiver();
+                lmr.Scope = scope;
+                lmr.Channel = channel;
+                var res = await lmr.AcceptChunkStart(dto);
+                if(res != 1)
+                {
+                    // Failed to accept chunk start message.
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Failed to accept chunk start for large message.");
+
+                    return;
+                }
+                // If here, we accepted the chunk start message.
+                // We can add the receiver to our running list.
+                this._largemsgreceivers.Add(dto.MsgId, lmr);
+
+                return;
+            }
+            else if(messagetype == nameof(ChunkDTO).ToLower())
+            {
+                // The far end has sent us a chunk that we need to include with the large message we're building.
+
+                ChunkDTO dto;
+                try
+                {
+                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkDTO>(data);
+                    if(dto == null)
+                    {
+                        // Failed to deserialize chunk message.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to deserialize chunk message.");
+
+                        return;
+                    }
+                }
+                catch(Exception e)
+                {
+                    this.Logger?.Error(e,
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Exception occurred while attempting to deserialize chunk message.");
+
+                    return;
+                }
+
+                // Look for the receiver...
+                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
+                {
+                    // Have a receiver for the in-progress message.
+                    var rcv = this._largemsgreceivers[dto.MsgId];
+
+                    // Accept the received chunk...
+                    var res = await rcv.AcceptChunk(dto);
+                    if(res != 1)
+                    {
+                        // Failed to accept message chunk.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to accept message chunk of large message.");
+
+                        return;
+                    }
+                }
+                else
+                {
+                    // We don't have a receiver for the message.
+                    // Since, we never received a start message, we cannot handle it.
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Received message chunk without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
+
+                    return;
+                }
+            }
+            else if(messagetype == nameof(ChunkEndDTO).ToLower())
+            {
+                // The far end has sent us an end message, so we know that we can compose and handle the large message.
+
+                ChunkEndDTO dto;
+                try
+                {
+                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkEndDTO>(data);
+                    if(dto == null)
+                    {
+                        // Failed to deserialize chunk start message.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to deserialize chunk end message.");
+
+                        return;
+                    }
+                }
+                catch(Exception e)
+                {
+                    this.Logger?.Error(e,
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Exception occurred while attempting to deserialize chunk end message.");
+
+                    return;
+                }
+
+                // Look for the receiver...
+                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
+                {
+                    // Have a receiver for the in-progress message.
+                    var rcv = this._largemsgreceivers[dto.MsgId];
+
+                    // Accept the chunk end message...
+                    var res = await rcv.AcceptChunkEnd(dto);
+                    if(res.res != 1 && res.me != null)
+                    {
+                        // Failed to accept chunk end message.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to accept chunk end message.");
+
+                        return;
+                    }
+                    // If here, we have composed the large message, and can dispatch it as we would normal size messages.
+
+                    // We will let subscribers of our received delegate do deserialization...
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
+                    DispatchReceivedMessage(res.me.MessageType, res.me.Data, res.me.Channel, res.me.Scope);
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
+                }
+                else
+                {
+                    // We don't have a receiver for the message.
+                    // Since, we never received a start message, we cannot handle it.
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Received chunk end message without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
+
+                    return;
+                }
+            }
+            else if(messagetype == nameof(ChunkCancelDTO).ToLower())
+            {
+                // The far end has sent us a cancel message.
+                // We need to teardown any receiver for the message.
+
+                ChunkCancelDTO dto;
+                try
+                {
+                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkCancelDTO>(data);
+                    if(dto == null)
+                    {
+                        // Failed to deserialize chunk cancel message.
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                            $"Failed to deserialize chunk cancel message.");
+
+                        return;
+                    }
+                }
+                catch(Exception e)
+                {
+                    this.Logger?.Error(e,
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                        $"Exception occurred while attempting to deserialize chunk cancel message.");
+
+                    return;
+                }
+
+                // Remove the receiver...
+                this._largemsgreceivers.Remove(dto.MsgId);
+            }
+            else
+            {
+                // Unknown chunking message type.
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
+                    $"Received unknown chunking message type: ({(messagetype ?? "")}).");
+
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Removes any large message receivers that haven't been updated in a while.
+        /// </summary>
+        private void PruneStaleLargeMessageReceivers()
+        {
+            if(this._largemsgreceivers == null)
+                this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
+
+            if (this._largemsgreceivers.Count == 0)
+                return;
+
+            // Get the current time...
+            var ctime = DateTime.UtcNow;
+
+            List<string> entriestodelete = new List<string>();
+
+            // Loop through each receiver...
+            foreach(var r in this._largemsgreceivers)
+            {
+                if (r.Value == null)
+                {
+                    entriestodelete.Add(r.Key);
+                    continue;
+                }
+
+                // Calculate when the entry expires...
+                if(!r.Value.LastReceivedTimeUTC.HasValue)
+                    continue;
+
+                // Calculate when the receiver expires...
+                var etime = r.Value.LastReceivedTimeUTC.Value.AddSeconds(this._cfg_ReceiverTimeout);
+
+                // See if it expired...
+                if(etime.CompareTo(ctime) < 0)
+                {
+                    // The receiver has expired.
+                    entriestodelete.Add(r.Key);
+                }
+            }
+
+            // Delete entries...
+            foreach(var d in entriestodelete)
+                this._largemsgreceivers.Remove(d);
         }
 
         #endregion

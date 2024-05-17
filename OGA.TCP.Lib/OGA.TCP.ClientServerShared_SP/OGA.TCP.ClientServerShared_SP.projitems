@@ -11,6 +11,14 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)cBuffer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cEndpoint_Metrics.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkCancelDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkRequestDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkAckDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkEndDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkStartDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\Helpers\LargeMsgReceiver.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\Helpers\LargeMsgSender.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cReceiveLoop.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DTO\ConnRegisterReplyDTO.cs" />

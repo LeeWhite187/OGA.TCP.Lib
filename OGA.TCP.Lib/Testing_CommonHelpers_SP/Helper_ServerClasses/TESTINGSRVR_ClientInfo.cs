@@ -151,6 +151,51 @@ namespace OGA.TCP.Server.Model
             this.Language = dto.Language;
             this.LibVersion = dto.LibVersion;
         }
+
+        /// <summary>
+        /// Creates a loggable delta of two given client info instances.
+        /// </summary>
+        /// <param name="ci1"></param>
+        /// <param name="ci2"></param>
+        /// <returns></returns>
+        static public string LogDelta(TESTINGSRVR_ClientInfo ci1, TESTINGSRVR_ClientInfo ci2)
+        {
+            StringBuilder b = new StringBuilder();
+
+            b.AppendLine("UserId : '" + ci1.UserId.ToString() +
+                         "' => '" + ci2.UserId.ToString() + "';");
+            b.AppendLine("ConnectionId = '" + (ci1.ConnectionId ?? "") +
+                         "' => '" + (ci2.ConnectionId ?? "") + "';");
+            b.AppendLine("DeviceId = '" + (ci1.DeviceId ?? "") +
+                         "' => '" + (ci2.DeviceId ?? "") + "';");
+            b.AppendLine("Pid = '" + (ci1.Pid.ToString() ?? "") +
+                         "' => '" + (ci2.Pid.ToString() ?? "") + "';");
+
+            b.AppendLine("AuthLevel = '" + ci1.AuthLevel.ToString() +
+                         "' => '" + ci2.AuthLevel.ToString() + "';");
+            b.AppendLine("ClientIP = '" + (ci1.ClientIP ?? "") +
+                         "' => '" + (ci2.ClientIP ?? "") + "';");
+            b.AppendLine("ConnectionTimeUTC = '" + ci1.ConnectionTimeUTC.ToString("O") +
+                         "' => '" + ci2.ConnectionTimeUTC.ToString("O") + "';");
+
+            b.AppendLine("AppId = '" + (ci1.AppId ?? "") +
+                         "' => '" + (ci2.AppId ?? "") + "';");
+            b.AppendLine("RuntimeId = '" + (ci1.RuntimeId ?? "") +
+                         "' => '" + (ci2.RuntimeId ?? "") + "';");
+            b.AppendLine("AppVersion = '" + (ci1.AppVersion ?? "") +
+                         "' => '" + (ci2.AppVersion ?? "") + "';");
+            b.AppendLine("Language = '" + (ci1.Language ?? "") +
+                         "' => '" + (ci2.Language ?? "") + "';");
+            b.AppendLine("LibVersion = '" + (ci1.LibVersion ?? "") +
+                          "' => '" + (ci2.LibVersion ?? "") + "';");
+
+            b.AppendLine("UnRegisteredAge = '" + ci1.UnRegisteredAge.ToString() +
+                         "' => '" + ci2.UnRegisteredAge.ToString() + "';");
+            b.AppendLine("IsRegistered = '" + ci1.IsRegistered.ToString() +
+                         "' => '" + ci2.IsRegistered.ToString() + "';");
+
+            return b.ToString();
+        }
     }
 }
 
