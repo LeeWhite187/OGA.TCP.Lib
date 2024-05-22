@@ -1004,7 +1004,7 @@ namespace OGA.TCP.Server
             // Reset the allow sending flag, to prevent outgoing messages...
             this._allowsend = false;
 
-            OGA.SharedKernel.Logging_Base.Logger_Ref?.Warn(
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(DoCommonClosureThings)} - " +
                 $"Closing connection ({this.WSId})...");
 
