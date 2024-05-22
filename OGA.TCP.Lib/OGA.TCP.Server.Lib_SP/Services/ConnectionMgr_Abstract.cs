@@ -648,6 +648,12 @@ namespace OGA.TCP.Server.Services
 
             try
             {
+                if (string.IsNullOrEmpty(connid))
+                {
+                    // Invalid connectionid.
+                    return null;
+                }
+
                 // Look in the connections list for the given connection id...
                 lock (_connections)
                 {
