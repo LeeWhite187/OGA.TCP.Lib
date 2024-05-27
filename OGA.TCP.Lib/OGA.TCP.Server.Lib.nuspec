@@ -19,7 +19,7 @@
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.2.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.2.10" exclude="Build,Analyzers" />
         <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
@@ -27,7 +27,7 @@
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.2.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.2.10" exclude="Build,Analyzers" />
         <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
@@ -35,7 +35,7 @@
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.2.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.2.10" exclude="Build,Analyzers" />
         <dependency id="OGA.SharedKernel" version="3.5.4" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
