@@ -388,7 +388,7 @@ namespace OGA.TCP_Test_SP
         private List<MessageEnvelope> receivedmsgs = new List<MessageEnvelope>();
 
         private Simple_TCPListener _wsl;
-        string tcphost = "192.168.1.128";
+        string tcphost = "192.168.70.103";
         int tcpport = 5000;
 
         private CancellationTokenSource _receive_cts = new CancellationTokenSource();

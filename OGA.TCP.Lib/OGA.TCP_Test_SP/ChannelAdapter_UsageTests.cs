@@ -67,7 +67,7 @@ namespace OGA.TCP_Test_SP
 
         private List<MessageEnvelope> receivedmsgs = new List<MessageEnvelope>();
 
-        protected string RemoteHost = "192.168.1.128";
+        protected string RemoteHost = "192.168.70.103";
         protected int RemotePort = 5003;
 
         private TESTINGSRVR_Simple_TCPListener _wsl;
