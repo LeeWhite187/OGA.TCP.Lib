@@ -76,6 +76,12 @@ namespace OGA.TCP.Server
             }
         }
 
+        /// <summary>
+        /// Allows the consumer to alter the receive buffer size.
+        /// Defaults to our standard 2048.
+        /// </summary>
+        public int Cfg_ReceiveBufferSize { get; set; } = 2048;
+
         #endregion
 
 
@@ -273,7 +279,9 @@ namespace OGA.TCP.Server
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop_from_Client)} - " +
                 $"{(this.TransportLongName ?? "Socket")} receive loop is starting...");
 
-            var buffer = new ArraySegment<byte>(new byte[2048]);
+            // Changed how we create the buffer instance, so we can get around a compiler warning...
+            var bufferArray = new byte[this.Cfg_ReceiveBufferSize];
+            var buffer = new ArraySegment<byte>(bufferArray);
             WebSocketReceiveResult result;
 
             // Enter the loop...
@@ -389,7 +397,8 @@ namespace OGA.TCP.Server
                                     }
 
                                     // If here, we will accept the received block of data...
-                                    ms.Write(buffer.Array, buffer.Offset, result.Count);
+                                    // We changed how the buffer instance is created, so this statement is a little different, but avoids a compiler warning...
+                                    ms.Write(bufferArray, buffer.Offset, result.Count);
                                 }
                                 while (!result.EndOfMessage);
 
