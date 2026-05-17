@@ -189,7 +189,7 @@ namespace OGA.TCP.SessionLayer
             get => _cfg_ReceiverTimeout;
             set
             {
-                if(value < 5) _cfg_ReceiverTimeout = 5;
+                if (value < 5) _cfg_ReceiverTimeout = 5;
                 else _cfg_ReceiverTimeout = value;
             }
         }
@@ -209,12 +209,12 @@ namespace OGA.TCP.SessionLayer
         /// Number of milliseconds between checkups of the connection loop's connected state.
         /// This value gets lowered if the keepalive interval goes below 5 seconds.
         /// </summary>
-        public int Cfg_Connected_InnerLoop_Delay  { get; set; } = 5000;
+        public int Cfg_Connected_InnerLoop_Delay { get; set; } = 5000;
 
         /// <summary>
         /// Amount of time, in milliseconds, to wait before retrying the connection, after it was lost during post-conn work or keepalive.
         /// </summary>
-        public int Cfg_PostConnect_FailDelay { get; set; }  = 5000;
+        public int Cfg_PostConnect_FailDelay { get; set; } = 5000;
 
         /// <summary>
         /// Amount of delay before retrying the connection, after a network loss has been observed.
@@ -505,7 +505,7 @@ namespace OGA.TCP.SessionLayer
                     {
                         await ConnectionLoop();
                     }
-                    catch(Exception e) { }
+                    catch (Exception e) { }
                 });
 
                 this.Logger?.Debug(
@@ -618,20 +618,20 @@ namespace OGA.TCP.SessionLayer
         /// <returns></returns>
         public int Add_ChannelAdapter(IChannelAdapter adapter)
         {
-            if(adapter == null)
+            if (adapter == null)
             {
                 return -1;
             }
 
             // Validate the adapter...
-            if(string.IsNullOrEmpty(adapter.ChannelId))
+            if (string.IsNullOrEmpty(adapter.ChannelId))
             {
                 // Invalid channel name.
                 return -2;
             }
 
             // Make sure the channel is empty...
-            if(this._ChannelMessageHandlers.ContainsKey(adapter.ChannelId))
+            if (this._ChannelMessageHandlers.ContainsKey(adapter.ChannelId))
             {
                 // The channel is already assigned.
                 return -1;
@@ -675,7 +675,7 @@ namespace OGA.TCP.SessionLayer
             {
                 ca = this._ChannelMessageHandlers[channel];
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 // Not found.
                 return -1;
@@ -698,7 +698,7 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected void Close_ChannelAdapters()
         {
-            while(this._ChannelMessageHandlers.Count != 0)
+            while (this._ChannelMessageHandlers.Count != 0)
             {
                 try
                 {
@@ -709,7 +709,7 @@ namespace OGA.TCP.SessionLayer
                     // Remove it from the listing...
                     this._ChannelMessageHandlers.Remove(ch.Key);
                 }
-                catch(Exception) { }
+                catch (Exception) { }
             }
         }
 
@@ -719,7 +719,7 @@ namespace OGA.TCP.SessionLayer
         /// <returns></returns>
         public virtual string ToLogString_Config()
         {
-            StringBuilder b= new StringBuilder();
+            StringBuilder b = new StringBuilder();
 
             b.AppendLine($"***Client Configuration***");
             b.AppendLine($"LibVersion = " + LibVersion.ToString() + ";");
@@ -815,7 +815,7 @@ namespace OGA.TCP.SessionLayer
                         try
                         {
                             inetavail = this.IsInternetAvailable();
-                        } catch(Exception e) { }
+                        } catch (Exception e) { }
                         if (!inetavail)
                         {
                             // We will pause for a little bit, while waiting for internet visibility.
@@ -898,7 +898,7 @@ namespace OGA.TCP.SessionLayer
                                 {
                                     success = await this.TransportSpecific_Connect();
                                 }
-                                catch(Exception ex)
+                                catch (Exception ex)
                                 {
                                     // Assume failure...
                                     success = false;
@@ -1009,7 +1009,7 @@ namespace OGA.TCP.SessionLayer
                                     {
                                         DispatchConnected();
                                     }
-                                    catch(Exception) { }
+                                    catch (Exception) { }
 
                                     // Start the inner status loop...
                                     while (!_cts.IsCancellationRequested && this.IsConnected)
@@ -1021,7 +1021,7 @@ namespace OGA.TCP.SessionLayer
                                         try
                                         {
                                             inetavail2 = this.IsInternetAvailable();
-                                        } catch(Exception e) { }
+                                        } catch (Exception e) { }
                                         if (!inetavail2)
                                         {
                                             // The device platform is reporting that internet access has been lost.
@@ -1310,7 +1310,7 @@ namespace OGA.TCP.SessionLayer
                     return 0;
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Error(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
@@ -1349,7 +1349,7 @@ namespace OGA.TCP.SessionLayer
                     return 0;
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.Logger?.Warn(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Setup_Before_Connection)} - " +
@@ -1419,9 +1419,9 @@ namespace OGA.TCP.SessionLayer
                 {
                     if (this._receive_cts != null)
                     {
-					    try { this._receive_cts?.Cancel(); } catch (Exception) { }
+                        try { this._receive_cts?.Cancel(); } catch (Exception) { }
                         await Task.Delay(100);
-					    try { this._receive_cts?.Dispose(); } catch (Exception) { }
+                        try { this._receive_cts?.Dispose(); } catch (Exception) { }
                         this._receive_cts = null;
                     }
 
@@ -1443,7 +1443,7 @@ namespace OGA.TCP.SessionLayer
                             return -3;
                         }
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         this.Logger?.Error(
                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Do_Post_Connection_Work_Async)} - " +
@@ -1467,7 +1467,7 @@ namespace OGA.TCP.SessionLayer
                             {
                                 await ReceiveLoop();
                             }
-                            catch(Exception e) { }
+                            catch (Exception e) { }
                         });
                     }
                 }
@@ -1526,7 +1526,7 @@ namespace OGA.TCP.SessionLayer
                 // So, it the connectionId, userid, and device Id of our client.
 
                 // See if we are to wait for registration reply messages...
-                if(this.Cfg_ConnectionWaitsforRegistrationReply)
+                if (this.Cfg_ConnectionWaitsforRegistrationReply)
                 {
                     // We are to wait for a registration reply message to be received and handled.
 
@@ -1540,7 +1540,7 @@ namespace OGA.TCP.SessionLayer
                     // This call will return 1 if the reply is received.
                     // Otherwise, it will return 0 (timeout) or negatives for cancelled.
                     int rescrwait = await WaitforCondition(() => this._registrationreplyreceived, this.Cfg_RegistrationReplyTimeout, 50, this._cts.Token);
-                    if(rescrwait != 1)
+                    if (rescrwait != 1)
                     {
                         // We timed out, waiting for the registration reply.
                         // Or, the timeout was cancelled because our connection has been recycled or closed.
@@ -1592,21 +1592,21 @@ namespace OGA.TCP.SessionLayer
             TimeSpan duration = new TimeSpan();
 
             // Ensure the scan interval is no longer than the timeout...
-            if(scaninterval > timeout)
+            if (scaninterval > timeout)
             {
                 // Reduce the scan interval to the timeout...
                 scaninterval = timeout;
             }
 
             // We employ a spin-wait, here to evaluate the condition, or leave if cancelled...
-            var reswait1 = System.Threading.SpinWait.SpinUntil(()=> condition() || token.IsCancellationRequested, timeout);
+            var reswait1 = System.Threading.SpinWait.SpinUntil(() => condition() || token.IsCancellationRequested, timeout);
 
-            if(reswait1 && !token.IsCancellationRequested)
+            if (reswait1 && !token.IsCancellationRequested)
             {
                 // The condition went true.
                 return 1;
             }
-            else if(token.IsCancellationRequested)
+            else if (token.IsCancellationRequested)
             {
                 // We got cancelled.
                 return -1;
@@ -1622,30 +1622,30 @@ namespace OGA.TCP.SessionLayer
             //try
             //{
 
-                //// 
+            //// 
 
-                //// Loop until we timeout, cancelled, or condition goes true...
-                //while(!token.IsCancellationRequested)
-                //{
-                //    // Do a check...
-                //    // Wrap it in a try-catch, to ensure it can't throw and unwind our own logic.
-                //    try
-                //    {
-                //        if(condition())
-                //        {
-                //            // The condition became true.
-                //            // We can leave.
-                //            return 1;
-                //        }
-                //    }
-                //    catch(Exception e) { }
-                //    // Not yet true.
+            //// Loop until we timeout, cancelled, or condition goes true...
+            //while(!token.IsCancellationRequested)
+            //{
+            //    // Do a check...
+            //    // Wrap it in a try-catch, to ensure it can't throw and unwind our own logic.
+            //    try
+            //    {
+            //        if(condition())
+            //        {
+            //            // The condition became true.
+            //            // We can leave.
+            //            return 1;
+            //        }
+            //    }
+            //    catch(Exception e) { }
+            //    // Not yet true.
 
-                //    // We will wait a scan interval before checking it again...
-                //    await Task.Delay(scaninterval, token);
-                //}
+            //    // We will wait a scan interval before checking it again...
+            //    await Task.Delay(scaninterval, token);
+            //}
 
-                //return 0;
+            //return 0;
             //}
             //catch (OperationCanceledException) when (token.IsCancellationRequested)
             //{
@@ -2028,7 +2028,7 @@ namespace OGA.TCP.SessionLayer
             string jsonmsg = JsonConvert.SerializeObject(payload);
 
             // See if chunking is enabled for this connection...
-            if(!this.Cfg_EnableChannelLayerChunking)
+            if (!this.Cfg_EnableChannelLayerChunking)
             {
                 // Chunking is off.
                 // We will attempt to send all messages in a single frame.
@@ -2156,13 +2156,13 @@ namespace OGA.TCP.SessionLayer
             if (jsonobject == null)
                 jsonobject = "";
 
-            if(!this.Cfg_EnableChannelLayerChunking)
+            if (!this.Cfg_EnableChannelLayerChunking)
             {
                 // No large message support.
 
                 // Ensure the serialized buffer is not too large for the receiver...
                 // We derate the max size enough to fit the message envelope and header (length value).
-                if(jsonobject.Length > (this.MaxMessageSize - 1024))
+                if (jsonobject.Length > (this.MaxMessageSize - 1024))
                 {
                     // Message is too large to fit in a single message frame.
                     // We will tell the caller, so they can send the message, piece-wise.
@@ -2383,7 +2383,6 @@ namespace OGA.TCP.SessionLayer
 
         //    var buffer = new ArraySegment<byte>(new byte[2048]);
         //    WebSocketReceiveResult result;
-        //    MemoryStream ms = null;
 
         //    // Enter the loop...
         //    try
@@ -2411,136 +2410,138 @@ namespace OGA.TCP.SessionLayer
         //                {
         //                    // We can receive.
 
-        //                    ms = new MemoryStream();
+                            // Changed memorystream creation to a using block, to control disposal...
+                            //using (var ms = new MemoryStream())
+                            //{
+            //                    // Loop until we receive the entire message...
+            //                    do
+            //                    {
+            //                        // Collect the available piece...
+            //                        result = await _webSocket.ReceiveAsync(buffer, _receive_cts.Token);
 
-        //                    // Loop until we receive the entire message...
-        //                    do
-        //                    {
-        //                        // Collect the available piece...
-        //                        result = await _webSocket.ReceiveAsync(buffer, _receive_cts.Token);
+            //                        // Check if we were given a close message...
+            //                        if(result.MessageType == WebSocketMessageType.Close)
+            //                        {
+            //                            // We were given a close message.
 
-        //                        // Check if we were given a close message...
-        //                        if(result.MessageType == WebSocketMessageType.Close)
-        //                        {
-        //                            // We were given a close message.
+            //                            // Clear the send flag, to prevent outgoing messages...
+            //                            this._allowsend = false;
 
-        //                            // Clear the send flag, to prevent outgoing messages...
-        //                            this._allowsend = false;
+            //                            try
+            //                            {
+            //                                // Reply back with a close message...
+            //                                // See this for which close method to call:
+            //                                // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
+            //                                await _webSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", _receive_cts.Token);
+            //                            }
+            //                            catch(WebSocketException wse)
+            //                            {
+            //                                int x = 0;
+            //                            }
+            //                            catch(Exception e)
+            //                            {
+            //                                int x = 0;
+            //                            }
 
-        //                            try
-        //                            {
-        //                                // Reply back with a close message...
-        //                                // See this for which close method to call:
-        //                                // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
-        //                                await _webSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", _receive_cts.Token);
-        //                            }
-        //                            catch(WebSocketException wse)
-        //                            {
-        //                                int x = 0;
-        //                            }
-        //                            catch(Exception e)
-        //                            {
-        //                                int x = 0;
-        //                            }
+            //                            return -2;
+            //                        }
+            //                        // Check if we received binary data...
+            //                        if(result.MessageType == WebSocketMessageType.Binary)
+            //                        {
+            //                            // We were given a binary message.
+            //                            // We cannot currently process binary data.
+            //                            // So, we will consider this a protocol error.
 
-        //                            return -2;
-        //                        }
-        //                        // Check if we received binary data...
-        //                        if(result.MessageType == WebSocketMessageType.Binary)
-        //                        {
-        //                            // We were given a binary message.
-        //                            // We cannot currently process binary data.
-        //                            // So, we will consider this a protocol error.
+            //                            // Clear the send flag, to prevent outgoing messages...
+            //                            this._allowsend = false;
 
-        //                            // Clear the send flag, to prevent outgoing messages...
-        //                            this._allowsend = false;
+            //                            try
+            //                            {
+            //                                // Reply back with a close message...
+            //                                // See this for which close method to call:
+            //                                // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
+            //                                await _webSocket.CloseOutputAsync(WebSocketCloseStatus.ProtocolError, "", _receive_cts.Token);
+            //                            }
+            //                            catch(WebSocketException wse)
+            //                            {
+            //                                int x = 0;
+            //                            }
+            //                            catch(Exception e)
+            //                            {
+            //                                int x = 0;
+            //                            }
 
-        //                            try
-        //                            {
-        //                                // Reply back with a close message...
-        //                                // See this for which close method to call:
-        //                                // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
-        //                                await _webSocket.CloseOutputAsync(WebSocketCloseStatus.ProtocolError, "", _receive_cts.Token);
-        //                            }
-        //                            catch(WebSocketException wse)
-        //                            {
-        //                                int x = 0;
-        //                            }
-        //                            catch(Exception e)
-        //                            {
-        //                                int x = 0;
-        //                            }
+            //                            return -2;
+            //                        }
 
-        //                            return -2;
-        //                        }
+            //                        // If here, we will accept the received block of data...
+            //                        ms.Write(buffer.Array, buffer.Offset, result.Count);
+            //                    }
+            //                    while (!result.EndOfMessage);
 
-        //                        // If here, we will accept the received block of data...
-        //                        ms.Write(buffer.Array, buffer.Offset, result.Count);
-        //                    }
-        //                    while (!result.EndOfMessage);
+            //                    // See if the message is a close request...
+            //                    // If so, leave...
+            //                    if (result.MessageType == WebSocketMessageType.Close)
+            //                    {
+            //                        // Clear the send flag, to prevent outgoing messages...
+            //                        this._allowsend = false;
 
-        //                    // See if the message is a close request...
-        //                    // If so, leave...
-        //                    if (result.MessageType == WebSocketMessageType.Close)
-        //                    {
-        //                        // Clear the send flag, to prevent outgoing messages...
-        //                        this._allowsend = false;
+            //                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+            //                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+            //                            "We received a close request from the client. Leaving the receive loop...");
 
-        //                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-        //                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-        //                            "We received a close request from the client. Leaving the receive loop...");
+            //                        break;
+            //                    }
 
-        //                        break;
-        //                    }
+            //                    // If not a close, process the message...
+            //                    ms.Seek(0, SeekOrigin.Begin);
+            //                    using (var reader = new StreamReader(ms, Encoding.UTF8))
+            //                    {
+            //                        // Read in the raw message...
+            //                        string rawmsg = await reader.ReadToEndAsync();
 
-        //                    // If not a close, process the message...
-        //                    ms.Seek(0, SeekOrigin.Begin);
-        //                    using (var reader = new StreamReader(ms, Encoding.UTF8))
-        //                    {
-        //                        // Read in the raw message...
-        //                        string rawmsg = await reader.ReadToEndAsync();
+            //                        // Update our received timestamp...
+            //                        LastReceivedTimeUTC = DateTime.UtcNow;
 
-        //                        // Update our received timestamp...
-        //                        LastReceivedTimeUTC = DateTime.UtcNow;
+            //                        // Increment the received message counter...
+            //                        Interlocked.Increment(ref this._receivedmessage_counter);
 
-        //                        // Increment the received message counter...
-        //                        Interlocked.Increment(ref this._receivedmessage_counter);
+            //                        // Send it off for processing....
+            //                        ///  1 = Message was handled.
+            //                        ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
+            //                        /// -1 = Registration failed. The receive loop cannot continue, and the connection must close down.
+            //                        int res = Process_ReceivedMessage_from_Client(rawmsg);
+            //                        if (res == 0)
+            //                        {
+            //                            // Message process and dispatch had a problem, but we can keep going.
 
-        //                        // Send it off for processing....
-        //                        ///  1 = Message was handled.
-        //                        ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
-        //                        /// -1 = Registration failed. The receive loop cannot continue, and the connection must close down.
-        //                        int res = Process_ReceivedMessage_from_Client(rawmsg);
-        //                        if (res == 0)
-        //                        {
-        //                            // Message process and dispatch had a problem, but we can keep going.
+            //                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+            //                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+            //                                "Failed to process and dispatch received message.");
+            //                        }
+            //                        else if (res == -1)
+            //                        {
+            //                            // Message processing failed.
+            //                            // We will consider this fatal to the current connection.
 
-        //                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-        //                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-        //                                "Failed to process and dispatch received message.");
-        //                        }
-        //                        else if (res == -1)
-        //                        {
-        //                            // Message processing failed.
-        //                            // We will consider this fatal to the current connection.
+            //                            // We failed to complete post-connection work.
+            //                            // We must recycle this connection, and try again.
 
-        //                            // We failed to complete post-connection work.
-        //                            // We must recycle this connection, and try again.
+            //                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+            //                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+            //                                "Messaging processing failed in a fatal way, and we need to recycle this connection.");
 
-        //                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-        //                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-        //                                "Messaging processing failed in a fatal way, and we need to recycle this connection.");
+            //                            // Do all the common connection closure things...
+            //                            this.DoCommonClosureThings();
 
-        //                            // Do all the common connection closure things...
-        //                            this.DoCommonClosureThings();
-
-        //                            return 0;
-        //                        }
-        //                        // If here, we processed and dispatched the message.
-        //                        // We can continue on to the next.
-        //                    }
-        //                    // Finished processing the current message.
-        //                    // We will return back to the top of the while to check status and wait for another message.
+            //                            return 0;
+            //                        }
+            //                        // If here, we processed and dispatched the message.
+            //                        // We can continue on to the next.
+            //                    }
+            //                    // Finished processing the current message.
+            //                    // We will return back to the top of the while to check status and wait for another message.
+                            //} // end using (var ms = new MemoryStream())
         //                }
         //            }
         //            catch when (_receive_cts == null)
@@ -2630,8 +2631,6 @@ namespace OGA.TCP.SessionLayer
         //    }
         //    finally
         //    {
-        //        ms?.Dispose();
-
         //        OGA.SharedKernel.Logging_Base.Logger_Ref?.Trace(
         //            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
         //            "Receive loop method is returning.");

@@ -502,7 +502,6 @@ namespace OGA.TCP.SessionLayer
 
             var buffer = new ArraySegment<byte>(new byte[2048]);
             WebSocketReceiveResult result;
-            MemoryStream ms = null;
 
             // Locally save the current connectionId that we've started under...
             // We do this, here in the receive loop, so we can know if we're holding onto an old connection instance.
@@ -550,174 +549,176 @@ namespace OGA.TCP.SessionLayer
                         {
                             // We can receive.
 
-                            ms = new MemoryStream();
-
-                            // Loop until we receive the entire message...
-                            do
+                            // Changed memorystream creation to a using block, to control disposal...
+                            using (var ms = new MemoryStream())
                             {
-                                // Collect the available piece...
-                                result = await cws.ReceiveAsync(buffer, _receive_cts.Token);
-
-                                // Check if we were given a close message...
-                                if(result.MessageType == WebSocketMessageType.Close)
+                                // Loop until we receive the entire message...
+                                do
                                 {
-                                    // We were given a close message.
+                                    // Collect the available piece...
+                                    result = await cws.ReceiveAsync(buffer, _receive_cts.Token);
 
+                                    // Check if we were given a close message...
+                                    if(result.MessageType == WebSocketMessageType.Close)
+                                    {
+                                        // We were given a close message.
+
+                                        // Clear the send flag, to prevent outgoing messages...
+                                        this._allowsend = false;
+
+                                        try
+                                        {
+                                            // Reply back with a close message...
+                                            // See this for which close method to call:
+                                            // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
+                                            await cws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", _receive_cts.Token);
+                                        }
+                                        catch(WebSocketException wse)
+                                        {
+                                            int x = 0;
+                                        }
+                                        catch(Exception e)
+                                        {
+                                            int x = 0;
+                                        }
+
+                                        this.Logger?.Error(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+                                            "Server-side sent us a closure message, so we need to close and recycle this connection.");
+
+                                        // We need to close the connection, so the connection loop will try a reconnect...
+                                        try { cws?.Dispose(); } catch(Exception) { }
+                                        cws = null;
+
+                                        // Signal that the connection was lost...
+                                        DispatchConnectionLost();
+
+                                        return -2;
+                                    }
+                                    // Check if we received binary data...
+                                    if(result.MessageType == WebSocketMessageType.Binary)
+                                    {
+                                        // We were given a binary message.
+                                        // We cannot currently process binary data.
+                                        // So, we will consider this a protocol error.
+
+                                        // Clear the send flag, to prevent outgoing messages...
+                                        this._allowsend = false;
+
+                                        try
+                                        {
+                                            // Reply back with a close message...
+                                            // See this for which close method to call:
+                                            // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
+                                            await cws.CloseOutputAsync(WebSocketCloseStatus.ProtocolError, "", _receive_cts.Token);
+                                        }
+                                        catch(WebSocketException wse)
+                                        {
+                                            int x = 0;
+                                        }
+                                        catch(Exception e)
+                                        {
+                                            int x = 0;
+                                        }
+
+                                        this.Logger?.Error(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+                                            "Server-side sent us a closure message, so we need to close and recycle this connection.");
+
+                                        // We need to close the connection, so the connection loop will try a reconnect...
+                                        try { cws?.Dispose(); } catch(Exception) { }
+                                        cws = null;
+
+                                        // Signal that the connection was lost...
+                                        DispatchConnectionLost();
+
+                                        return -2;
+                                    }
+
+                                    // If here, we will accept the received block of data...
+                                    ms.Write(buffer.Array, buffer.Offset, result.Count);
+                                }
+                                while (!result.EndOfMessage);
+
+                                // See if the message is a close request...
+                                // If so, leave...
+                                if (result.MessageType == WebSocketMessageType.Close)
+                                {
                                     // Clear the send flag, to prevent outgoing messages...
                                     this._allowsend = false;
 
+                                    this.Logger?.Debug(
+                                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+                                        "We received a close request from the server. Leaving the receive loop...");
+
+                                    break;
+                                }
+
+                                // If not a close, process the message...
+                                ms.Seek(0, SeekOrigin.Begin);
+                                using (var reader = new StreamReader(ms, Encoding.UTF8))
+                                {
+                                    // Read in the raw message...
+                                    string rawmsg = await reader.ReadToEndAsync();
+
+                                    // Update our received timestamp...
+                                    this.LastReceivedTime = DateTime.UtcNow;
+
+                                    // Increment the received message counter...
+                                    System.Threading.Interlocked.Increment(ref this._receivedmessage_counter);
+
+                                    // Fire off any message received event...
+                                    // NOTE: This is just notification that something came in, and doesn't do any handling.
+                                    // It is meant for app-based, diagnostic message counting, nothing more.
+                                    // Wrap this override in a try-catch to ensure it doesn't throw and unwind us...
                                     try
                                     {
-                                        // Reply back with a close message...
-                                        // See this for which close method to call:
-                                        // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
-                                        await cws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", _receive_cts.Token);
+                                        this.FireMessageReceivedEvent();
                                     }
-                                    catch(WebSocketException wse)
+                                    catch(Exception) { }
+
+                                    // Send it off for processing...
+                                    ///  1 = Message was handled.
+                                    ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
+                                    int res = Process_ReceivedMessage(rawmsg);
+                                    if(res == 0)
                                     {
-                                        int x = 0;
+                                        // Message process and dispatch had a problem, but we can keep going.
+
+                                        this.Logger?.Error(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+                                            "Failed to process and dispatch received message.");
                                     }
-                                    catch(Exception e)
+                                    else if(res == -1)
                                     {
-                                        int x = 0;
+                                        // Message processing failed.
+                                        // We will consider this fatal to the current connection.
+
+                                        // We failed to complete post-connection work.
+                                        // We must recycle this connection, and try again.
+
+                                        // Clear the send flag, to prevent outgoing messages...
+                                        this._allowsend = false;
+
+                                        this.Logger?.Error(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
+                                            "Messaging processing failed in a fatal way, and we need to recycle this connection.");
+
+                                        // We need to close the connection, so the connection loop will try a reconnect...
+                                        try { cws?.Dispose(); } catch(Exception) { }
+                                        cws = null;
+
+                                        // Signal that the connection was lost...
+                                        DispatchConnectionLost();
+
+                                        return 0;
                                     }
-
-                                    this.Logger?.Error(
-                                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-                                        "Server-side sent us a closure message, so we need to close and recycle this connection.");
-
-                                    // We need to close the connection, so the connection loop will try a reconnect...
-                                    try { cws?.Dispose(); } catch(Exception) { }
-                                    cws = null;
-
-                                    // Signal that the connection was lost...
-                                    DispatchConnectionLost();
-
-                                    return -2;
+                                    // If here, we processed and dispatched the message.
+                                    // We can continue on to the next.
                                 }
-                                // Check if we received binary data...
-                                if(result.MessageType == WebSocketMessageType.Binary)
-                                {
-                                    // We were given a binary message.
-                                    // We cannot currently process binary data.
-                                    // So, we will consider this a protocol error.
-
-                                    // Clear the send flag, to prevent outgoing messages...
-                                    this._allowsend = false;
-
-                                    try
-                                    {
-                                        // Reply back with a close message...
-                                        // See this for which close method to call:
-                                        // https://learn.microsoft.com/en-us/dotnet/api/system.web.websockets.aspnetwebsocket.closeasync?view=netframework-4.8#remarks
-                                        await cws.CloseOutputAsync(WebSocketCloseStatus.ProtocolError, "", _receive_cts.Token);
-                                    }
-                                    catch(WebSocketException wse)
-                                    {
-                                        int x = 0;
-                                    }
-                                    catch(Exception e)
-                                    {
-                                        int x = 0;
-                                    }
-
-                                    this.Logger?.Error(
-                                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-                                        "Server-side sent us a closure message, so we need to close and recycle this connection.");
-
-                                    // We need to close the connection, so the connection loop will try a reconnect...
-                                    try { cws?.Dispose(); } catch(Exception) { }
-                                    cws = null;
-
-                                    // Signal that the connection was lost...
-                                    DispatchConnectionLost();
-
-                                    return -2;
-                                }
-
-                                // If here, we will accept the received block of data...
-                                ms.Write(buffer.Array, buffer.Offset, result.Count);
-                            }
-                            while (!result.EndOfMessage);
-
-                            // See if the message is a close request...
-                            // If so, leave...
-                            if (result.MessageType == WebSocketMessageType.Close)
-                            {
-                                // Clear the send flag, to prevent outgoing messages...
-                                this._allowsend = false;
-
-                                this.Logger?.Debug(
-                                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-                                    "We received a close request from the server. Leaving the receive loop...");
-
-                                break;
-                            }
-
-                            // If not a close, process the message...
-                            ms.Seek(0, SeekOrigin.Begin);
-                            using (var reader = new StreamReader(ms, Encoding.UTF8))
-                            {
-                                // Read in the raw message...
-                                string rawmsg = await reader.ReadToEndAsync();
-
-                                // Update our received timestamp...
-                                this.LastReceivedTime = DateTime.UtcNow;
-
-                                // Increment the received message counter...
-                                System.Threading.Interlocked.Increment(ref this._receivedmessage_counter);
-
-                                // Fire off any message received event...
-                                // NOTE: This is just notification that something came in, and doesn't do any handling.
-                                // It is meant for app-based, diagnostic message counting, nothing more.
-                                // Wrap this override in a try-catch to ensure it doesn't throw and unwind us...
-                                try
-                                {
-                                    this.FireMessageReceivedEvent();
-                                }
-                                catch(Exception) { }
-
-                                // Send it off for processing...
-                                ///  1 = Message was handled.
-                                ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
-                                int res = Process_ReceivedMessage(rawmsg);
-                                if(res == 0)
-                                {
-                                    // Message process and dispatch had a problem, but we can keep going.
-
-                                    this.Logger?.Error(
-                                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-                                        "Failed to process and dispatch received message.");
-                                }
-                                else if(res == -1)
-                                {
-                                    // Message processing failed.
-                                    // We will consider this fatal to the current connection.
-
-                                    // We failed to complete post-connection work.
-                                    // We must recycle this connection, and try again.
-
-                                    // Clear the send flag, to prevent outgoing messages...
-                                    this._allowsend = false;
-
-                                    this.Logger?.Error(
-                                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
-                                        "Messaging processing failed in a fatal way, and we need to recycle this connection.");
-
-                                    // We need to close the connection, so the connection loop will try a reconnect...
-                                    try { cws?.Dispose(); } catch(Exception) { }
-                                    cws = null;
-
-                                    // Signal that the connection was lost...
-                                    DispatchConnectionLost();
-
-                                    return 0;
-                                }
-                                // If here, we processed and dispatched the message.
-                                // We can continue on to the next.
-                            }
-                            // Finished processing the current message.
-                            // We will return back to the top of the while to check status and wait for another message.
+                                // Finished processing the current message.
+                                // We will return back to the top of the while to check status and wait for another message.
+                            } // end using (var ms = new MemoryStream())
                         }
                     }
                     catch when (_receive_cts == null)
@@ -803,8 +804,6 @@ namespace OGA.TCP.SessionLayer
             }
             finally
             {
-                ms?.Dispose();
-
                 this.Logger?.Trace(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop)} - " +
                     "Receive loop method is returning.");
