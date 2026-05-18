@@ -38,15 +38,38 @@ namespace OGA.TCP.Chunking.Helpers
 
         public int MaxChunkSize { get; set; }
 
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public int MessageSize { get; private set; }
         public int SentOffset { get; private set; }
 
         public int ChunkCount { get; private set; }
 
+
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public string MessageId { get; private set; }
+
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public string MessageType { get; private set; }
+
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public string Channel { get; private set; }
+
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public string Scope { get; private set; }
+
+        /// <summary>
+        /// This gets set during the Load() call.
+        /// </summary>
         public string CorelationId { get; private set; }
 
         #endregion

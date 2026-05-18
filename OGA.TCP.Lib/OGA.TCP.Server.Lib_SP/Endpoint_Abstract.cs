@@ -223,6 +223,12 @@ namespace OGA.TCP.Server
         /// </summary>
         public bool Cfg_EnableChannelLayerChunking { get; set; } = true;
 
+        /// <summary>
+        /// This determines if we consider a failed binary frame handler call as fatal or ignore it.
+        /// Defaults to ignore but logged.
+        /// </summary>
+        public bool Cfg_BinaryFrameHandling_IsFatal { get; set; } = false;
+
         #endregion
 
 
@@ -292,6 +298,22 @@ namespace OGA.TCP.Server
             set
             {
                 this._del_Status_Change = value;
+            }
+        }
+
+        public delegate int DelBinaryFrameReceived(Endpoint_Abstract ws, byte[] msg);
+        protected DelBinaryFrameReceived _delOnBinaryFrameReceived;
+        /// <summary>
+        /// Add a callback, here, to capture binary frame messages.
+        /// These can be handled, alongside text based messages (with our without channels).
+        /// NOTE: Any callback assigned, here, runs on the Receive Loop's thread.
+        /// NOTE: Don't block this thread for longer than required to validate the received message as viable (returning an error if not). Then, spawn a thread to dispatch it.
+        /// </summary>
+        public DelBinaryFrameReceived OnBinaryFrameReceived
+        {
+            set
+            {
+                this._delOnBinaryFrameReceived = value;
             }
         }
 
@@ -467,6 +489,7 @@ namespace OGA.TCP.Server
                 this._ChannelMessageHandlers.Clear();
                 this._delOnMessageReceived = null;
                 this._delOnRawMessageReceived = null;
+                this._delOnBinaryFrameReceived = null;
 
                 // Wrap this in a try-catch to ensure overridden method doesn't unwind us with an exception...
                 try
@@ -1962,6 +1985,75 @@ namespace OGA.TCP.Server
                     "Exception occurred while processing received message.");
 
                 return 0;
+            }
+        }
+
+        /// <summary>
+        /// Top-handler of any received binary frame.
+        /// Will attempt to forward it to a registered delegate.
+        /// Returns 1 if good.
+        /// Returns 0 if a recoverable failure that is not fatal to the connection.
+        /// Returns -1 if an error occurred that is fatal to the connection.
+        /// </summary>
+        /// <param name="binaryframe"></param>
+        /// <returns></returns>
+        protected int Process_ReceivedBinaryFrame_from_Client(byte[] binaryframe)
+        {
+            // Check if a delegate is registered...
+            if (this._delOnBinaryFrameReceived == null)
+            {
+                // Received a binary frame, but no handler is assigned.
+
+                // Log it...
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryFrame_from_Client)} - " +
+                    "Binary frame received without an assigned handler.");
+
+                // Check if this is fatal to the connection...
+                if(Cfg_BinaryFrameHandling_IsFatal)
+                    return -1;
+                else
+                    return 0;
+            }
+            // We have a binary frame delegate.
+
+            // Wrap the delegate callback in a try-catch in case it throws...
+            try
+            {
+                ///  1 = Message was handled.
+                ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
+                int res = this._delOnBinaryFrameReceived(this, binaryframe);
+                if(res >= 1)
+                {
+                    // All good.
+                    return 1;
+                }
+                // Unsuccessful handling.
+
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryFrame_from_Client)} - " +
+                    "Dispatch failed to handled binary frame.");
+
+                // Check if this is fatal to the connection...
+                if(Cfg_BinaryFrameHandling_IsFatal)
+                    return -1;
+                else
+                    return 0;
+            }
+            catch (Exception e)
+            {
+                // The binary frame callback threw.
+                // We will log it, but continue.
+
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryFrame_from_Client)} - " +
+                    "Exception caught during delegate handling of binary frame.");
+
+                // Check if this is fatal to the connection...
+                if(Cfg_BinaryFrameHandling_IsFatal)
+                    return -1;
+                else
+                    return 0;
             }
         }
 
