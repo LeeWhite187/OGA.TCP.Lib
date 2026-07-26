@@ -39,6 +39,13 @@ namespace OGA.TCP.SessionLayer
 
         protected int _keepAliveStatus;
 
+        /// <summary>
+        /// UTC timestamp of the most recently sent keepalive ping.
+        /// Used to floor the pong reply deadline, so the far end always has a couple of connection-loop ticks to answer the latest ping,
+        ///     regardless of how the keepalive delays are configured.
+        /// </summary>
+        protected DateTime _lastPingSentTimeUtc;
+
         static protected int _last_messageid = 0;
 
         protected CancellationTokenSource _cts;
@@ -128,6 +135,11 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Duration, in seconds, after the most recent message that a keep alive is performed.
         /// This controls the period between ping-pong checks.
+        /// Any received message defers the next ping, since received traffic already proves the remote end is present.
+        /// NOTE: Coordinate this value with Cfg_KeepAlive_ReplyMaxDuration and Cfg_Connected_InnerLoop_Delay:
+        ///     keep this value below Cfg_KeepAlive_ReplyMaxDuration by at least a couple of connection-loop ticks,
+        ///     so an in-flight ping has a meaningful reply window before the connection is declared dead.
+        ///     Regardless of settings, a pong is always given at least two connection-loop ticks to arrive after a ping is sent.
         /// </summary>
         public int Cfg_KeepAliveInterval
         {
@@ -163,6 +175,11 @@ namespace OGA.TCP.SessionLayer
         /// If a ping-pong is inflight, this duration becomes the connection timeout.
         /// Specifically, the connection will recycle if the last received message is older than this duration, while a ping-pong is inflight.
         /// If no ping is inflight, the normal Cfg_KeepAliveInterval duration applies.
+        /// NOTE: Coordinate this value with Cfg_KeepAliveInterval and Cfg_Connected_InnerLoop_Delay:
+        ///     this value should exceed Cfg_KeepAliveInterval by at least a couple of connection-loop ticks,
+        ///     so an in-flight ping has a meaningful reply window before the connection is declared dead.
+        ///     Regardless of settings, the connection will not be declared dead sooner than
+        ///     two connection-loop ticks after the most recent ping was sent.
         /// </summary>
         public int Cfg_KeepAlive_ReplyMaxDuration = 20;
 
@@ -208,6 +225,8 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Number of milliseconds between checkups of the connection loop's connected state.
         /// This value gets lowered if the keepalive interval goes below 5 seconds.
+        /// This delay paces how often the keepalive logic is evaluated, so it bounds the reaction time of ping sends and pong timeouts.
+        /// It also sets the minimum pong reply window: a pong is always given at least two of these ticks to arrive after a ping is sent.
         /// </summary>
         public int Cfg_Connected_InnerLoop_Delay { get; set; } = 5000;
 
@@ -429,8 +448,10 @@ namespace OGA.TCP.SessionLayer
 
 #if (NET452 || NET48)
             this.LastReceivedTime = DateTime.MinValue;
+            this._lastPingSentTimeUtc = DateTime.MinValue;
 #else
             this.LastReceivedTime = DateTime.UnixEpoch;
+            this._lastPingSentTimeUtc = DateTime.UnixEpoch;
 #endif
 
             _ChannelMessageHandlers = new Dictionary<string, IChannelAdapter>();
@@ -1752,9 +1773,22 @@ namespace OGA.TCP.SessionLayer
                 // A ping has been sent.
                 // We are waiting on a reply for it.
 
+                // Determine the reply deadline...
+                // We base the deadline on the last received message time (not the ping sent time), so that any received traffic
+                //  counts as proof the remote end is still present, and defers dead-connection declaration.
+                DateTime deadline = LastReceivedTime.AddSeconds(this.Cfg_KeepAlive_ReplyMaxDuration);
+
+                // Floor the deadline at a couple of connection-loop ticks after the ping was sent.
+                // This guarantees the far end always has time to answer the latest ping, even if the configured keepalive interval
+                //  meets or exceeds the reply max duration, or nothing has been received yet on a new connection.
+                DateTime mindeadline = this._lastPingSentTimeUtc.AddMilliseconds(2 * this.Cfg_Connected_InnerLoop_Delay);
+                if (deadline.CompareTo(mindeadline) < 0)
+                    deadline = mindeadline;
+
                 // Check if it's been too long...
-                if (ctime.CompareTo(LastReceivedTime.AddSeconds(this.Cfg_KeepAlive_ReplyMaxDuration)) < 0)
+                if (ctime.CompareTo(deadline) > 0)
                 {
+                    // The reply deadline has passed, without a pong or any other received traffic.
                     // We have not received an expected pong reply from the server.
                     // We will assume it is dead.
 
@@ -1813,6 +1847,8 @@ namespace OGA.TCP.SessionLayer
 
             // Set the ping status, so we can wait for a reply, instead of resending a ping...
             this._keepAliveStatus = 1;
+            // Record when the ping went out, so the reply deadline can be floored to give the far end time to answer it...
+            this._lastPingSentTimeUtc = DateTime.UtcNow;
 
             return 1;
         }
