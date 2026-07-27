@@ -26,12 +26,12 @@
     <PackageReference Include="OGA.Testing.Lib" Version="1.13.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\OGA.TCP.Lib_NET8\OGA.TCP.Lib_NET8.csproj" />
+  </ItemGroup>
+
   <Import Project="..\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems" Label="Shared" />
 
   <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
-
-  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
-
-  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
 
 </Project>

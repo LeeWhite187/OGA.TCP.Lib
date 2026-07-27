@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.5.11723.231 stable
+VisualStudioVersion = 18.5.11723.231
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OGA.TCP.Lib_NET452", "OGA.TCP.Lib_NET452\OGA.TCP.Lib_NET452.csproj", "{472FAE9E-6BDC-4A43-8E1D-256B4F339779}"
 EndProject
@@ -208,8 +208,6 @@ Global
 		OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems*{122e820b-d2ce-436c-bd8c-b7f8c6cd8f3e}*SharedItemsImports = 13
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{137140bd-bc74-4713-ba01-d062fe4674b2}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{137140bd-bc74-4713-ba01-d062fe4674b2}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{2b55ec03-c734-4d09-a8a0-336308161dc8}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_SP\OGA.TCP.Server.Lib_SP.projitems*{33a5c286-e689-4a85-b4ea-e7c0e6d8601d}*SharedItemsImports = 13
@@ -217,12 +215,8 @@ Global
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{3dcfc488-7cff-4069-b7ee-5695dc08df83}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{472fae9e-6bdc-4a43-8e1d-256b4f339779}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{472fae9e-6bdc-4a43-8e1d-256b4f339779}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{5fbebb0f-f384-4f29-b9ef-46b0c60f061a}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{68f938b8-bf2c-4e67-98b0-6965e4350c2f}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{6b9ad33f-e2ff-48ef-be15-4d2b4ff064ee}*SharedItemsImports = 5
@@ -235,15 +229,11 @@ Global
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{7ccf15d3-2289-d94b-afb4-03468664e2d3}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{7d9a8ac3-77c2-4bf0-a1c7-6e3f252fb08e}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_SP\OGA.TCP.Server.Lib_SP.projitems*{7d9a8ac3-77c2-4bf0-a1c7-6e3f252fb08e}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{7fff1334-e354-4803-a1d1-89f3be93798f}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{88e02b2c-98e0-fb2e-275e-60e549c8adf2}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems*{88e02b2c-98e0-fb2e-275e-60e549c8adf2}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{88e02b2c-98e0-fb2e-275e-60e549c8adf2}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{8c5516c3-05af-4658-a0fe-98e10a60c67b}*SharedItemsImports = 4
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{8c5516c3-05af-4658-a0fe-98e10a60c67b}*SharedItemsImports = 4
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{8c5516c3-05af-4658-a0fe-98e10a60c67b}*SharedItemsImports = 4
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{8c5516c3-05af-4658-a0fe-98e10a60c67b}*SharedItemsImports = 4
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{8e8017c4-fa47-4bf8-96a1-b98b73300804}*SharedItemsImports = 5
@@ -252,8 +242,6 @@ Global
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{9b3af5ce-a6b8-47e0-bad3-e5b76d753ec0}*SharedItemsImports = 5
 		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{a90c1619-ee30-8ebe-2d17-9c34a2f7784a}*SharedItemsImports = 5
 		OGA.TCP.Server.Lib_SP\OGA.TCP.Server.Lib_SP.projitems*{a90c1619-ee30-8ebe-2d17-9c34a2f7784a}*SharedItemsImports = 5
-		OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems*{c50f1742-351b-be5d-fdb7-139bbce6ad46}*SharedItemsImports = 5
-		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{c50f1742-351b-be5d-fdb7-139bbce6ad46}*SharedItemsImports = 5
 		OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems*{c50f1742-351b-be5d-fdb7-139bbce6ad46}*SharedItemsImports = 5
 		Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems*{c50f1742-351b-be5d-fdb7-139bbce6ad46}*SharedItemsImports = 5
 		OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems*{ca0dfe7e-9c80-4d4d-8043-580cd3d4face}*SharedItemsImports = 5

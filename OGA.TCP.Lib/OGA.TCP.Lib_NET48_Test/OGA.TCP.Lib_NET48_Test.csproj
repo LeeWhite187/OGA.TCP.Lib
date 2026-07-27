@@ -75,8 +75,6 @@
   </ItemGroup>
   <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
   <Import Project="..\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems" Label="Shared" />
-  <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
-  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
   <Import Project="$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets" Condition="Exists('$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets')" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
