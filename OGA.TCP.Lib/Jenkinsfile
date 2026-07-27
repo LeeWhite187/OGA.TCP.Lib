@@ -99,10 +99,16 @@ pipeline
 				//sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET47/${projectName}_NET47.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET452/${projectName}_NET452.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET48/${projectName}_NET48.csproj'"
+				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NETStd21/${projectName}_NETStd21.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET5/${projectName}_NET5.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET6/${projectName}_NET6.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET7/${projectName}_NET7.csproj'"
 				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' '${projectFolder}_NET8/${projectName}_NET8.csproj'"
+
+				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET5/OGA.TCP.Server.Lib_NET5.csproj'"
+				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET6/OGA.TCP.Server.Lib_NET6.csproj'"
+				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET7/OGA.TCP.Server.Lib_NET7.csproj'"
+				sh "dotnet /projects/tools/csprojeditor/CSProjEditor.dll set 'v${version4}' 'OGA.TCP.Lib/OGA.TCP.Server.Lib_NET8/OGA.TCP.Server.Lib_NET8.csproj'"
 			}
 		}
 //        stage('Set Version in Programcs')

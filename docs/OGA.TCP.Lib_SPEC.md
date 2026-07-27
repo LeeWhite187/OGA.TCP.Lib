@@ -316,6 +316,14 @@ Not applicable as deployment topology: this is a NuGet-distributed library; depl
 
 **Consequences.** Build pipeline stages and nuspec file entries intentionally reference Debug output paths; this is not a defect. Any future change to Release packaging would need to re-validate logging metadata quality first.
 
+### KD-02 — Tests run outside the build/publish pipeline
+
+**Decision.** The build/publish Jenkins job does not run unit or integration tests. Tests are executed in a separate Jenkins job, and during development.
+
+**Rationale.** The publish pipeline stays focused on versioning, build, packaging, and feed publication; test execution has its own job with its own cadence, and the test suites are also exercised during development.
+
+**Consequences.** Publication is not gated by the test suites; regressions must be caught by the dev-time runs and the separate test job. The absence of a `dotnet test` stage in the Jenkinsfile is intentional, not a defect.
+
 ---
 
 ## 13. Open Items
@@ -349,11 +357,13 @@ Status: items 1, 2, 3, and 5 are implemented in commit 8b8df28, which has been p
 
 ### OI-04 — async void chunk processing
 
-`ProcessChunkingMessage` is `async void` on both client and server sides. Exceptions thrown in it are unobservable by callers and can crash the process depending on runtime; completion cannot be awaited. Candidate fix: `async Task` with an explicitly discarded/logged continuation, or restructure the call site. To be assessed during the review pass.
+`ProcessChunkingMessage` is `async void` on both client and server sides. Exceptions thrown in it are unobservable by callers and can crash the process; completion cannot be awaited. The review pass identified concrete reachable paths: a duplicate `ChunkStart` (or the un-removed receiver of OI-19) makes `Dictionary.Add` throw at `Client_v1_Abstract.cs:2973`, and the client dispatches the reassembled message inline at `:3082`, so a consumer handler's exception escapes into the async-void machinery. Both are remotely triggerable. Correctness also currently depends on the `AcceptChunk*` calls completing synchronously — introducing a real `await` in them would let frame N+1 be processed before frame N, which the receiver's strict in-order offset check would then reject. Candidate fix: `async Task` with an explicitly observed continuation, or restructure the call site.
 
 ### OI-05 — Test coverage gaps
 
-Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `LargeMsgReceiver`) in isolation, chunk-cancel/timeout/prune paths, `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, and `cCustom_Serializer` (one test for ~1,580 lines). The binary-frame members added in a9f960d are also untested. This item tracks the test gap-filling phase; it will be broken into concrete work once the review pass completes.
+Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `LargeMsgReceiver`) in isolation, chunk-cancel/timeout/prune paths, `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, and `cCustom_Serializer` (one test for ~1,580 lines). The binary-frame members added in a9f960d are also untested.
+
+The review pass sharpened the priority: **an end-to-end large-message test over a real TCP connection, in both directions, would have caught OI-18** (client-to-server chunked transfers never complete; chunk frames exceed the frame cap). That test is the first one to write, before the OI-18 fix, so it anchors the regression the same way the keepalive test anchors OI-02. Other high-value additions suggested by the findings: a message containing non-BMP characters large enough to chunk (OI-19 surrogate splitting), a payload that is quote-dense enough to expose the char-vs-byte escaping margin (OI-18b), registration props containing colons and quotes (OI-29), runtime channel-adapter registration while traffic flows (OI-25), and a dispose-during-active-receive race (OI-20). Note the existing client suite binds a hardcoded LAN address, so new tests should use loopback to stay portable (see OI-38).
 
 ### OI-06 — TESTINGSRVR_* forked server copies drift hazard
 
@@ -363,13 +373,11 @@ Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `Lar
 
 `OGA.TCP.Lib_NETStd21_Test.csproj` both imports the library shared-project sources and carries a `ProjectReference` to `OGA.TCP.Lib_NETStd21.csproj`, unlike the other test projects (import-only). Potential duplicate-type situation; verify intent and align with the other test projects.
 
-### OI-08 — Build pipeline issues
-
-Known issues in the Jenkinsfile/nuspec flow: (a) no `dotnet test` stage exists, so tests never gate publication; (b) the version-stamping stage skips the NETStd21 client csproj and the server csprojs; (c) the client nuspec `releaseNotes` is boilerplate. Each sub-item needs an owner decision on whether it is intentional before changes are made. (Debug-configuration packaging was initially listed here and is confirmed deliberate — see KD-01.)
+### OI-08 — (Closed by KD-02)
 
 ### OI-09 — scratchdev project does not reference the library
 
-`scratchdev/scratchdev.csproj` imports no shared project and has no project reference, while its `Program.cs` calls into library types — it almost certainly does not compile. Decide: fix its references, or remove it from the solution.
+`scratchdev/scratchdev.csproj` imports no shared project and has no project reference, while its `Program.cs` calls into library types — it almost certainly does not compile. Owner decision: the project stays in place; intentionally not addressed at this stage. Excluded from review, test, and documentation scope.
 
 ### OI-10 — Dead documentation links
 
@@ -377,7 +385,7 @@ Known issues in the Jenkinsfile/nuspec flow: (a) no `dotnet test` stage exists, 
 
 ### OI-11 — cCustom_Serializer breadth vs. actual usage
 
-`cCustom_Serializer` (~1,580 lines) implements a hand-rolled binary codec for many primitive types, but in practice only the Int32 length-prefix serialize/deserialize appears to be exercised on the wire path. Assess how deeply it is actually used (the owner is also unsure), then decide: document it as the standard wire-primitive codec (and cover it with tests, per OI-05), trim it, or leave as-is with its role documented. Relevant to the binary-transmission design (OI-13), which may want exactly such a codec.
+Usage is now established: repository-wide, the only production callers of `cCustom_Serializer` are `Serialize_Integer32` (frame-length writers in `TCPClient_v1_Abstract` and `TCPEndpoint`) and `Deserialize_Integer32` (the frame-length reader in `cReceiveLoop`), plus the `size_of_Int32` constant. Every other type — bool, short, long, float, double, DateTime, Guid, Version, string, string[] — is referenced only from within the class and its own test file. So roughly 95% of the codec is unused by the wire protocol, and several of its unused paths are defective (OI-32). Decide its disposition: keep and repair it as the designated primitive codec for the binary work (OI-13), trim it to the Int32 methods actually in use, or leave as-is with its status documented. Relevant to OI-13 and OI-05.
 
 ### OI-12 — (Closed)
 
@@ -391,15 +399,138 @@ Author the pending sections of this spec from the code: §2 Functional Requireme
 
 ### OI-15 — Unused chunking DTOs
 
-`ChunkAckDTO`, `ChunkRequestDTO`, and `ChunkCancelDTO` are marked as currently-unused chunk message types (Cancel is handled server-side only). Decide during review whether they represent planned protocol surface (document as reserved) or dead code (candidate for removal in a deliberate change).
+Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empty classes with no senders or handlers. `ChunkCancelDTO` is different — it **is** sent (by `LargeMsgSender` on cancellation or mid-sequence send failure) but is not intercepted on either receive side, so it reaches consumer dispatch as a bogus application message and its handler branches are dead (see OI-19). Decide whether the two empty DTOs are reserved protocol surface or removable, once OI-19's cancel handling is settled.
 
 ### OI-16 — Author the consumer implementation guide
 
-Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) — and chunking/keepalive behavior a consumer should understand. Blocked behind OI-14 far enough that the protocol facts it cites are settled.
+Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) — and chunking/keepalive behavior a consumer should understand. As part of this work, the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description). Blocked behind OI-14 far enough that the protocol facts it cites are settled.
 
-### OI-17 — Systematic code-review pass
+### OI-17 — (Closed by §13)
 
-The findings recorded so far (OI-02, OI-03, OI-04, OI-06, OI-07, OI-09) came from an initial structural survey, not a systematic review. Perform the full review pass over the shared projects (excluding the OI-01 WebSocket files), recording each accepted finding as a new OI (or folding trivial ones into a batch item), covering at minimum: the six largest files, thread-safety of send/receive/dispose paths, registration prop parsing, timer/loop lifecycle, and exception handling patterns.
+### OI-18 — Chunking is non-functional over TCP ⚠ NEEDS YOUR REVIEW
+
+Two independent defects mean the large-message chunking feature cannot work over the TCP transport as shipped. Both were verified directly in code.
+
+**(a) The server keys receivers by the wrong identifier.** `Endpoint_Abstract.cs:1968` passes the *envelope* id (`me.MsgId`) into `ProcessChunkingMessage`, and the receiver is stored under it (`:2131`) and looked up by it (`:2163`, `:2220`, `:2288`). But every frame gets a fresh envelope id — `Client_v1_Abstract.cs:2242` assigns `me.MsgId = GetNextMessageId()` inside the per-frame send — so the id under which the receiver was stored never matches any subsequent chunk frame. The client side keys by the logical transfer id `dto.MsgId` (`Client_v1_Abstract.cs:2973`, `:3005`, `:3062`), which is correct. Net effect: **client-to-server chunked transfers never complete**; every chunk logs "Received message chunk without a chunk start message", the message is lost silently, and an orphaned receiver accumulates per attempt until the 120-second prune. Server-to-client transfers work.
+
+**(b) Chunk frames exceed the frame cap.** The chunking threshold and chunk size are character-based (`Client_v1_Abstract.cs:2105`, `:2118` — `MaxMessageSize - 1024` = 1,047,552 chars), but each chunk's `Data` slice is JSON-escaped twice before hitting the wire — once serializing `ChunkDTO`, again as the envelope's `Data` string — and only 1024 bytes of headroom exist. Because the chunked payload is itself JSON, it is quote-dense, and each `"` expands to `\\\"`. A measured worst case produced a 1,591,749-byte frame against the 1,048,576-byte cap. `cReceiveLoop.cs:1097` treats an oversized frame as fatal, so the feature tears down the connection it exists to protect. Note the send-side size guard is deliberately skipped when chunking is enabled (`:2220-2237`), so nothing else catches it. The same char-vs-byte confusion also lets a *non-chunked* message just under the threshold exceed the cap after single-level escaping.
+
+Fixing (a) is a one-line key change on the server; (b) requires making the threshold and chunk sizing byte-based with escaping headroom (or restructuring so chunk payloads are not double-escaped). Both change wire behavior for large messages and need owner review. Until fixed, consumers should be told the practical message ceiling is a single frame.
+
+### OI-19 — Chunking data-integrity and lifecycle defects ⚠ NEEDS YOUR REVIEW
+
+Beyond OI-18, the chunking subsystem carries defects that produce silent corruption or leaks once the transfer path works:
+
+- **Surrogate-pair splitting.** `LargeMsgSender.cs:353` slices with `Substring` on UTF-16 code units, so a chunk boundary can split a surrogate pair. The lone surrogate survives JSON serialization and is replaced with U+FFFD at UTF-8 encoding, so a non-BMP character (e.g. an emoji in user content) silently becomes two replacement characters. Character counts are preserved, so offsets still line up and nothing reports an error.
+- **Client never removes a completed receiver** (`Client_v1_Abstract.cs:3062-3084`; the server does, at `Endpoint_Abstract.cs:2238`). The reassembled message stays pinned for up to `Cfg_ReceiverTimeout`; a duplicate `ChunkEnd` re-dispatches the entire message a second time; and a reused MsgId makes `Dictionary.Add` throw inside an `async void` (see OI-04) — remotely triggerable.
+- **No completeness validation.** `LargeMsgReceiver.cs:155-191` never compares accumulated bytes to `MessageSize` or chunk count to `ChunkCount`, so if any chunk was rejected, the End message dispatches a truncated payload as if complete.
+- **ChunkCancel is sent but never handled.** The intercept lists comment out `ChunkCancelDTO` (`Client_v1_Abstract.cs:2793`, `Endpoint_Abstract.cs:1960`), so a cancel frame falls through to the *application* dispatch as a bogus message type, and the cancel-handling branches on both sides are unreachable. Sender-side aborts therefore never tear down the peer's receiver.
+- **Sender ignores the send result of the Start and End frames** (`LargeMsgSender.cs:245`, `:279`), so a failed End frame reports overall success while the message silently evaporates at the receiver.
+- **Unbounded receiver growth.** Declared `MessageSize`/`ChunkCount` are never enforced, and each chunk refreshes the idle timer, so a peer can stream indefinitely under one MsgId.
+- **`Determine_Chunk_Count` divides by the wrong constant** (`LargeMsgSender.cs:372`, `:384` use `CONST_MAX_MessageSize` instead of `MaxChunkSize`), understating `ChunkCount` — latent today, but it would poison the completeness check that fixes the third item above.
+
+### OI-20 — Receive-loop teardown can crash the process ⚠ NEEDS YOUR REVIEW
+
+In `cReceiveLoop.cs`, the try/catch around the read callback ends at line 874; all frame-processing code after it (through `Process_Received_MessageBuffer`) runs unprotected on an IO-completion thread. `CloseDown()` concurrently disposes and nulls the buffer (`:388-396`) with no synchronization against an in-flight callback. A read completing while the owner disposes the loop — or while the frame-read timeout fires and calls `CloseDown` — dereferences the nulled buffer at `:979` or `:1424`, throwing a `NullReferenceException` on a threadpool thread with no handler, which terminates the process. Candidate fix: a close/callback gate (lock or interlocked state) plus wrapping the post-`EndRead` processing.
+
+### OI-21 — Receive loop caps throughput at a few messages per second ⚠ NEEDS YOUR REVIEW
+
+`cReceiveLoop.cs` blocks a threadpool thread with `Thread.Sleep(100)` on every read-callback entry (`:687`), before every body-read queue (`:519`), and in `CloseDown` (`:383`). A single message therefore costs roughly 300 ms of blocked thread time (length callback + body queue + body callback), limiting a connection to roughly 3–10 messages per second and holding a blocked thread per active connection. The sleeps appear to exist to let a cancellation token settle before disposal; a proper CTS lifecycle would remove the need. This is a scalability ceiling on a live service and worth measuring before and after.
+
+### OI-22 — Frame validation gaps
+
+`cReceiveLoop.cs:1097` sanity-checks the frame length only against `MaxMessageSize`; a negative length passes and dies later via an incidental `ArgumentOutOfRangeException` from `BeginRead` rather than the check. Separately, `FrameReadTimeout` bounds only a single `BeginRead` and is re-armed on every partial read, and the length-read phase has no timeout at all — so a peer dripping one byte every few seconds holds a connection and its buffer indefinitely (slowloris). Candidate fixes: add `tempint < 0` to the sanity check, and add a whole-frame deadline distinct from the per-read one.
+
+### OI-23 — Frame-read timeout races
+
+`cReceiveLoop.Arm_FrameReadTimeout` (`:619-666`) awaits `Task.Delay` on a token, then re-reads `this._readcts` — which may by then be a *new* CTS belonging to a later frame — and declares the connection `Lost` on a healthy connection. The same block swallows an `ObjectDisposedException` from a concurrently disposed CTS, silently leaving that frame with no read timeout. Candidate fix: capture the CTS (or a generation counter) in the local scope the timeout task closes over.
+
+### OI-24 — Client shutdown ordering and dispose do not wait ⚠ NEEDS YOUR REVIEW
+
+Two related defects in the client lifecycle:
+
+- `Client_v1_Abstract.cs:479` calls `Stop_Async().GetAwaiter()` without `GetResult()`, so `Dispose` returns immediately while teardown continues on another thread — and `Logger` is nulled underneath it. The same fire-and-forget pattern appears at `TCPClient_v1_Abstract.cs:733`, `:798`, `:849` (benign only because the TCP override completes synchronously) and in the server at `Endpoint_Abstract.cs:371`, `:1040`.
+- `Stop_Async` closes the transport *first* and cancels `_cts` last, after ~200 ms of delays (`:574-656`). In that window the connection loop can observe `!IsConnected`, treat it as connection loss, and start a full reconnect — including re-registration with the server — after the consumer called Stop. Candidate fix: cancel `_cts` before closing the transport.
+
+### OI-25 — Non-thread-safe dictionaries on hot paths ⚠ NEEDS YOUR REVIEW
+
+Three plain `Dictionary` instances are mutated and enumerated from different threads with no synchronization:
+
+- `_ChannelMessageHandlers` (client): written by `Add_ChannelAdapter`/`Remove_ChannelHandler`/`Close_ChannelAdapters` (`Client_v1_Abstract.cs:685`, `:735`, `:745`), read by dispatch on the receive thread (`:3430`). Registering a channel adapter at runtime while traffic flows can throw or corrupt the table — and runtime channel registration is an advertised feature (UR-02).
+- `_largemsgreceivers` on both sides: mutated on the receive thread, enumerated by the prune on the connection-loop thread (`Client_v1_Abstract.cs:2973`/`:3142`; `Endpoint_Abstract.cs:2131`/`:2304`). A chunk arriving during a prune throws inside the loop, killing the prune pass (client) or tearing down the connection (server).
+
+Candidate fix: `ConcurrentDictionary` or a shared lock across all call sites per collection.
+
+### OI-26 — Server can leak connection slots indefinitely ⚠ NEEDS YOUR REVIEW
+
+Three findings compound into a resource leak on the server:
+
+- A client can send registration prop `"keepalive":"off"`, which sets `Cfg_Disable_KeepAlive` on the endpoint (`Endpoint_Abstract.cs:2610-2644`) and thereby skips the silence check (`:734`). There is no server-side way to refuse the request.
+- `ConnectionMgr_Abstract`'s reapers (`Purge_OldUnregisteredConnections`, `Purge_LostConnections`) are invoked **only** from `CloseDown()` (`:128-143`) — no timer or background loop calls them anywhere in the library.
+- An endpoint disposed directly (rather than through a manager purge) never fires `DispatchConnectionClosed` — `Stop_Async` clears the delegate instead (`:476-567`) — so its entry stays in the manager's dictionary.
+
+Together: a silent client that opted out of keepalive holds its slot, its endpoint task, and its dictionary entry for the life of the process. Deciding whether the reapers should be scheduled (and whether clients may disable keepalive at all) is an owner call.
+
+### OI-27 — Listener fragility ⚠ NEEDS YOUR REVIEW
+
+`cListener.Accept_Callback` responds to a `SocketException` by calling `CloseDown_Listener()` without re-arming (`:677-704`). `EndAcceptTcpClient` throws `SocketException` for a single aborted inbound connection — a client sending RST between connect and accept, which is routine — so one bad handshake permanently stops the server from accepting connections. Compounding it: the listener is single-use (`Start_Listener` requires `Initialized` state and `CloseDown_Listener` nulls the delegates), and `TCPConnMgr_wListener.cs:212` discards `Start_Listener`'s return value, so a failed bind (port in use) is reported to the host as a successful startup. Also: the backlog is hardcoded to 10, and port-in-use is detected by matching an English exception-message prefix (`:780`) rather than `SocketError.AddressAlreadyInUse`.
+
+### OI-28 — Endpoint can run orphaned from its connection manager
+
+`TCPConnMgr_wListener.cs:269-295` wraps `AddConnection` in a swallow-all catch and then starts the endpoint regardless. If `AddConnection` throws (or is overridden to throw), the endpoint runs, registers, and serves traffic while absent from `_connections` — invisible to queries and counts, never closed by `CloseDown()`, with its delegates unwired.
+
+### OI-29 — Registration prop parsing is fragile
+
+Server-side prop parsing (`Endpoint_Abstract.cs:2561-2676`) splits each prop on **every** `:` and reads `parts[1]`, so any value containing a colon is silently truncated — a `runtimeid` of `node:4222` is stored as `node`. Keys are matched with `ToLower().Contains(...)`, so a prop whose key merely contains a known substring is hijacked (`"rapid"` matches `pid`; `"languagepack"` overwrites Language), and correctness depends on the order the branches are checked (`appid` contains `pid` and only works because it is tested first). On the client side, props are built as hand-concatenated JSON fragments with no escaping (`Client_v1_Abstract.cs:2011-2044`), so a quote or backslash in `RuntimeId` produces a malformed prop. Additionally, re-registration re-initializes the parsed locals and writes them unconditionally (`:2525-2536`, `:2783-2787`), so a later registration that omits `runtimeid`/`language`/libver silently wipes or downgrades the recorded values. Fixing the parse without breaking live clients means keeping the existing wire format but splitting on the first colon only and matching keys exactly.
+
+### OI-30 — Registration completion is fire-and-forget
+
+`Endpoint_Abstract.cs:2811-2835` sends the registration reply and fires `DispatchConnectionRegistered` on a `Task.Run` after `Process_InternalMessage` has already returned success. If the reply send fails, the connection stays up but the manager is never told the connection registered, so no routing layer knows about a connection the endpoint considers live. A second registration arriving before the task runs is compared against the not-yet-updated `ClientInfo.ConnectionId` and can be rejected as a fatal mismatch.
+
+### OI-31 — A raw-message tap disables the session layer
+
+On both sides, setting the raw-message delegate causes `Process_ReceivedMessage` to return before `Process_InternalMessage` runs (`Client_v1_Abstract.cs:2727-2733`; mirrored server-side). Consequences on the client: pings are never answered, pongs never clear the keepalive flag, and registration replies are never processed — so with the default `Cfg_ConnectionWaitsforRegistrationReply`, the client recycles its connection every `Cfg_RegistrationReplyTimeout` forever. The XML docs do not warn about this. Decide whether internal messages should be processed before the tap, or whether the behavior should simply be documented as "raw tap replaces the session layer."
+
+### OI-32 — cCustom_Serializer correctness defects
+
+Independent of how widely it is used (OI-11), the codec has real defects: the embedded-length string methods store `string.Length` (char count) as the prefix while writing UTF-8 bytes, so any non-ASCII string round-trips truncated and misaligns the rest of the stream (`:144-171`, and the string-array metadata at `:1570`); `Deserialize_Version` passes recovered values positionally into a constructor with different parameter order, swapping Build and Revision, and throws on 2- or 3-part versions (`:559-562` vs `:1239-1245`); `size_of_short` is 4 rather than 2 (`:11`), so short round-trips misreport consumed bytes; the big-endian path reverses bytes **in place** (mutating the caller's buffer) and even reverses UTF-8 text, which has no endianness; and `cMultiString_MetaData.Deserialize` allocates an array from an unvalidated wire-supplied count before its bounds check (`:1466-1499`). Since production traffic only uses the Int32 codec, none of this is live-service urgent — but it bears directly on OI-11's disposition and on OI-13, which may want a working primitive codec.
+
+### OI-33 — Metrics and telemetry defects
+
+`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence (`Endpoint_Abstract.cs:1323`, `:1835`, `:2862`), so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
+
+### OI-34 — Unbounded task spawning on ping and loopback paths
+
+Each received ping spawns a `Task.Run` to send the pong (`Endpoint_Abstract.cs:2376-2384`), and each message spawns one per loopback echo (`:1887`, `:1937`), all queueing on the write semaphore. A client sending faster than the server's synchronous write drains accumulates unbounded queued tasks and buffered payloads, with no cap, coalescing, or drop policy. A pending-pong flag would bound the keepalive case.
+
+### OI-35 — Client connection loop blocks threadpool threads
+
+The connection loop uses `ExpBackoff_wJitter.Delay` (a `Thread.Sleep` loop) at eight call sites despite an available `DelayAsync`, and `WaitforCondition` uses `SpinWait.SpinUntil` for up to the full registration-reply timeout (`Client_v1_Abstract.cs:1646`). One client instance can therefore tie up a threadpool thread for the whole backoff or registration window; many client instances in one process can starve the pool. `WaitforCondition`'s `scaninterval` parameter is computed and then ignored.
+
+### OI-36 — Binary-frame plumbing is inert on the TCP transport
+
+`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. This is the starting point for OI-13 rather than a defect to fix in isolation — the binary design decides what this plumbing should connect to.
+
+### OI-37 — Dead code and minor defects (batch)
+
+Collected low-severity items, each small and independent:
+
+- `cEndpoint_Ping_Tracking` is confirmed dead — zero references repository-wide outside the shared-project include. It is public API, so removal is a minor breaking change; decide keep-or-remove. (If revived it needs fixes: a 20 ms coercion of its delay setters, a copy/paste log message in `Disable()`, an unknown-state branch that returns `None` instead of `CloseConnection`, and local-time timestamps.)
+- The `res == -1` fatal-recycle path in `TCPClient_v1_Abstract.cs:829-859` is unreachable: `Process_ReceivedMessage` maps every negative internal-message result to `0` (`Client_v1_Abstract.cs:2752-2763`), so a garbled registration reply is only logged.
+- `Close_ChannelAdapters` (`Client_v1_Abstract.cs:745-757`) removes the adapter *after* calling its `Close()`; a consumer adapter that throws from `Close()` leaves the collection unchanged and the loop refetches the same element forever — an infinite loop inside `Dispose`.
+- `Start_Async` has no already-started guard (`:541-552`); a second call orphans the first `CancellationTokenSource` and runs two connection loops against one client.
+- `Stop_Async` nulls all consumer delegates and closes all channel adapters (`:586-590`, `:647-649`), so a Stop-then-Start cycle silently loses every handler the consumer registered.
+- A failed ping *send* returns success (`:1832-1841`), so only pong timeout recycles the connection.
+- `ExpBackoff_wJitter` clamps `JitterHeight` above 1.0 to **0** rather than 1.0 (`:31-37`), silently disabling jitter for a caller asking for maximum; its `maxRetries` constructor argument is stored but never enforced; and `Delay()` returns success even when cancelled.
+- `_instance_counter++` in `cReceiveLoop.cs:161` is not atomic despite the field being `volatile`, so concurrent accepts can share an InstanceId in logs.
+- Log-string precedence bugs of the same shape as OI-03 exist in `ClientInfo.ToLogString` and the chunking DTOs' `ToLogString`.
+- `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
+- Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
+- Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
+
+### OI-38 — Client test suite is bound to one environment
+
+`TCPClient_v1_Tests` and its sibling client test classes bind the hardcoded LAN address `192.168.70.103`, so the suite only runs on the owner's test machine. The `KeepAlive_Tests` class added with OI-02 uses loopback instead and runs anywhere. Consider moving the existing suites to loopback (or a configurable host) so tests are runnable on any dev machine and in any future automated environment. Low risk — test-only change — but it touches a large number of test methods, so it is worth doing deliberately rather than alongside a functional fix.
 
 ---
 

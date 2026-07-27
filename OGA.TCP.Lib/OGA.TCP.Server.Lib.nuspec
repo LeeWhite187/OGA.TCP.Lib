@@ -8,7 +8,7 @@
     <owners>Lee White</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>OGA TCP Server Socket Library</description>
-    <releaseNotes>(Please write the package release notes in "OGA.TCP.Server.Lib-RELEASE_NOTES.txt".)</releaseNotes>
+    <releaseNotes>High-level information and changes are maintained in the package README, and in the repository README at: https://github.com/LeeWhite187/OGA.TCP.Lib</releaseNotes>
     <copyright>$copyright$</copyright>
 	  <repository type="git" url="https://github.com/LeeWhite187/OGA.TCP.Lib" />
     <license type="expression">MIT</license>
