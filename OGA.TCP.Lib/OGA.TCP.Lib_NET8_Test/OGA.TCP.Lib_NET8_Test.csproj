@@ -1,17 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
 
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NET6</DefineConstants>
+    <DefineConstants>$(DefineConstants);NET8</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NET6</DefineConstants>
+    <DefineConstants>$(DefineConstants);NET8</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

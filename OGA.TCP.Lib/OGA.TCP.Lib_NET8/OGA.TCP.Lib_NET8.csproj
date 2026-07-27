@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <PackageId>OGA.TCP.Lib</PackageId>
     <Product>OGA TCP Socket Library</Product>
     <Description>OGA TCP Socket Library</Description>
@@ -23,15 +23,15 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('Win'))">
-    <DefineConstants>$(DefineConstants);Windows;NET7</DefineConstants>
+    <DefineConstants>$(DefineConstants);Windows;NET8</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('Linux'))">
-    <DefineConstants>$(DefineConstants);Linux;NET7</DefineConstants>
+    <DefineConstants>$(DefineConstants);Linux;NET8</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('OSX'))">
-    <DefineConstants>$(DefineConstants);OSX;NET7</DefineConstants>
+    <DefineConstants>$(DefineConstants);OSX;NET8</DefineConstants>
   </PropertyGroup>
 
   <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />

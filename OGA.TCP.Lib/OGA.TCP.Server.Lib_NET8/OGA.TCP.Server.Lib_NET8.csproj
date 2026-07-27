@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <PackageId>OGA.TCP.Server.Lib</PackageId>
     <Product>OGA TCP Socket Server Library</Product>
     <Description>OGA TCP Socket Server Library</Description>
@@ -12,6 +12,7 @@
     <FileVersion>1.0.1.1</FileVersion>
     <Authors>Lee White</Authors>
     <Company>Lee White</Company>
+    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -22,15 +23,15 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('Win'))">
-    <DefineConstants>$(DefineConstants);Windows;NET5</DefineConstants>
+    <DefineConstants>$(DefineConstants);Windows;NET8</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('Linux'))">
-    <DefineConstants>$(DefineConstants);Linux;NET5</DefineConstants>
+    <DefineConstants>$(DefineConstants);Linux;NET8</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Configuration.EndsWith('OSX'))">
-    <DefineConstants>$(DefineConstants);OSX;NET5</DefineConstants>
+    <DefineConstants>$(DefineConstants);OSX;NET8</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

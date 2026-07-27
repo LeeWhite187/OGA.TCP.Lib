@@ -585,14 +585,6 @@ namespace OGA.TCP.Server
 
                 return -1;
             }
-            finally
-            {
-                ms?.Dispose();
-
-                OGA.SharedKernel.Logging_Base.Logger_Ref?.Trace(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ReceiveLoop_from_Client)} - " +
-                    "Receive loop method is returning.");
-            }
         }
 
         #endregion

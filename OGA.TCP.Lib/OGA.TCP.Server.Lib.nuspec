@@ -19,24 +19,32 @@
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.10.1" exclude="Build,Analyzers" />
-        <dependency id="OGA.SharedKernel" version="3.6.0" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.10.3" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.7.1" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
       <group targetFramework="net6.0">
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.10.1" exclude="Build,Analyzers" />
-        <dependency id="OGA.SharedKernel" version="3.6.0" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.10.3" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.7.1" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
       <group targetFramework="net7.0">
         <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
         <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
         <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
-        <dependency id="OGA.Common.Lib.NetCore" version="3.10.1" exclude="Build,Analyzers" />
-        <dependency id="OGA.SharedKernel" version="3.6.0" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.10.3" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.7.1" exclude="Build,Analyzers" />
+        <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="Newtonsoft.Json" version="13.0.3" exclude="Build,Analyzers" />
+        <dependency id="NLog" version="5.2.8" exclude="Build,Analyzers" />
+        <dependency id="NUlid" version="1.7.2" exclude="Build,Analyzers" />
+        <dependency id="OGA.Common.Lib.NetCore" version="3.10.3" exclude="Build,Analyzers" />
+        <dependency id="OGA.SharedKernel" version="3.7.1" exclude="Build,Analyzers" />
         <dependency id="OpenTelemetry" version="1.5.1" exclude="Build,Analyzers" />
       </group>
     </dependencies>
@@ -64,5 +72,12 @@
     <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugWin\net7.0\win\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net7.0" />
     <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\linux\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net7.0" />
     <file src=".\OGA.TCP.Server.Lib_NET7\bin\DebugLinux\net7.0\linux\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net7.0" />
+
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugWin\net8.0\win\OGA.TCP.Server.Lib.dll" target="ref\net8.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugWin\net8.0\win\OGA.TCP.Server.Lib.xml" target="ref\net8.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugWin\net8.0\win\OGA.TCP.Server.Lib.dll" target="runtimes\win\lib\net8.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugWin\net8.0\win\OGA.TCP.Server.Lib.pdb" target="runtimes\win\lib\net8.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugLinux\net8.0\linux\OGA.TCP.Server.Lib.dll" target="runtimes\linux\lib\net8.0" />
+    <file src=".\OGA.TCP.Server.Lib_NET8\bin\DebugLinux\net8.0\linux\OGA.TCP.Server.Lib.pdb" target="runtimes\linux\lib\net8.0" />
   </files>
 </package>

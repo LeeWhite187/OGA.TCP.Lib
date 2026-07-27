@@ -1,17 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
 
     <IsPackable>false</IsPackable>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NET6</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>$(DefineConstants);NET6</DefineConstants>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,11 +21,21 @@
     <PackageReference Include="OGA.Testing.Lib" Version="1.13.1" />
   </ItemGroup>
 
-  <Import Project="..\OGA.TCP_Test_SP\OGA.TCP_Test_SP.projitems" Label="Shared" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>$(DefineConstants);NET8</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>$(DefineConstants);NET8</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OGA.TCP.Server.Lib_NET8\OGA.TCP.Server.Lib_NET8.csproj" />
+  </ItemGroup>
 
   <Import Project="..\Testing_CommonHelpers_SP\Testing_CommonHelpers_SP.projitems" Label="Shared" />
 
-  <Import Project="..\OGA.TCP.ClientServerShared_SP\OGA.TCP.ClientServerShared_SP.projitems" Label="Shared" />
+  <Import Project="..\OGA.TCP.Server.Lib_Tests_SP\OGA.TCP.Server.Lib_Tests_SP.projitems" Label="Shared" />
 
   <Import Project="..\OGA.TCP.Lib_SP\OGA.TCP.Lib_SP.projitems" Label="Shared" />
 

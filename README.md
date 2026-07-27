@@ -10,11 +10,13 @@ The client library nuget package covers the following:<br>
 * NET 5
 * NET 6
 * NET 7
+* NET 8
 
 The server library nuget package covers the following:<br>
 * NET 5
 * NET 6
 * NET 7
+* NET 8
 
 
 NOTE:
