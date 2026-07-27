@@ -369,15 +369,17 @@ The review pass sharpened the priority: **an end-to-end large-message test over 
 
 `Testing_CommonHelpers_SP` contains forked copies of the server classes (`TESTINGSRVR_Endpoint_Abstract` at ~2,960 lines, plus listener/endpoint/model copies) declared into the real `OGA.TCP.Server` namespaces, because client test targets include frameworks the server library doesn't support. Client/server compatibility is therefore tested against a snapshot that can silently drift from the real server code. Options to assess: scripted diff check between fork and source, consolidation, or accepting and documenting the drift risk with a periodic re-sync step.
 
-### OI-07 — NETStd21_Test project double-references the library
+### OI-07 — NETStd21_Test project double-references the library ⚠ NEEDS YOUR REVIEW
 
-`OGA.TCP.Lib_NETStd21_Test.csproj` both imports the library shared-project sources and carries a `ProjectReference` to `OGA.TCP.Lib_NETStd21.csproj`, unlike the other test projects (import-only). Potential duplicate-type situation; verify intent and align with the other test projects.
+`OGA.TCP.Lib_NETStd21_Test.csproj` both imports library shared-project sources and carries a `ProjectReference` to `OGA.TCP.Lib_NETStd21.csproj`, unlike the other client test projects, which are import-only. Every type therefore exists twice — once compiled from source into the test assembly, once in the referenced library assembly. The build succeeds because the C# compiler prefers the source definition over the referenced one, but it emits a CS0436 conflict warning per occurrence.
+
+Removing the `OGA.TCP.ClientServerShared_SP` import addressed that shared project's share of the duplication, but the remaining `OGA.TCP.Lib_SP` import still collides with the same types in the referenced assembly: a clean rebuild currently emits **262 CS0436 warnings** (verified by full rebuild; 0 errors). Note the removed import is what previously supplied the `OGA.TCP.ClientServerShared_SP` types to the test assembly — they now come from the referenced library, which is why the project still compiles.
+
+Two consistent end states: (a) restore the `OGA.TCP.ClientServerShared_SP` import and drop the `ProjectReference`, making this project import-only like its NET5/NET6/NET7/NET48 siblings; or (b) drop all library source imports and test purely against the referenced assembly, which would diverge from the other test projects and may fail where tests reach non-public members. Recommendation is (a) for consistency. Owner decision needed since it reverses part of a deliberate change.
 
 ### OI-08 — (Closed by KD-02)
 
-### OI-09 — scratchdev project does not reference the library
-
-`scratchdev/scratchdev.csproj` imports no shared project and has no project reference, while its `Program.cs` calls into library types — it almost certainly does not compile. Owner decision: the project stays in place; intentionally not addressed at this stage. Excluded from review, test, and documentation scope.
+### OI-09 — (Cancelled)
 
 ### OI-10 — Dead documentation links
 
