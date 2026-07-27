@@ -32,7 +32,7 @@
 
 ### 1.1 Background
 
-OGA.TCP.Lib is an in-service library used for message-based TCP connectivity between processes. It is published as two NuGet packages — OGA.TCP.Lib (client) and OGA.TCP.Server.Lib (server) — built from a common set of Visual Studio Shared Projects and compiled into multiple .NET target frameworks (client: NET Framework 4.5.2 through NET 7; server: NET 5 through NET 7). Packages are versioned and published by a Jenkins pipeline to a private BaGet feed.
+OGA.TCP.Lib is an in-service library used for message-based TCP connectivity between processes. It is published as two NuGet packages — OGA.TCP.Lib (client) and OGA.TCP.Server.Lib (server) — built from a common set of Visual Studio Shared Projects and compiled into multiple .NET target frameworks (client: NET Framework 4.5.2 through NET 8; server: NET 5 through NET 8). Packages are versioned and published by a Jenkins pipeline to a private BaGet feed.
 
 The library predates, and is a sibling of, a separate WebSocket library maintained by the same author. During an earlier harmonization effort, some WebSocket source files were pasted into this repository; they are not used by this library and are slated for removal (see OI-01). The two libraries deliberately share a common session-layer design: a message envelope, registration handshake, channels, chunking, and keepalive semantics.
 
@@ -81,7 +81,7 @@ Messages larger than the frame limit are transparently chunked into a sequence o
 
 **UR-07 — Configurable failure-mode timing.** A consumer SHALL be able to configure the delays and timeouts governing connect attempts, registration replies, keepalive intervals, dead-peer declaration, and chunk-receiver staleness.
 
-**UR-08 — Multi-framework availability.** The client library SHALL be consumable from NET Framework 4.5.2, NET Framework 4.8, NET Standard 2.1, and NET 5/6/7 applications; the server library from NET 5/6/7 applications. (A NET 8 target is planned; see OI-12.)
+**UR-08 — Multi-framework availability.** The client library SHALL be consumable from NET Framework 4.5.2, NET Framework 4.8, NET Standard 2.1, and NET 5/6/7/8 applications; the server library from NET 5/6/7/8 applications.
 
 ### 1.7 Non-Goals
 
@@ -149,7 +149,7 @@ Not applicable: the library carries application payloads opaquely and imposes no
 
 ### 4.1 Tech Stack
 
-C# on .NET, multi-targeted (client: net452, net48, netstandard2.1, net5.0, net6.0, net7.0; server: net5.0, net6.0, net7.0) from Visual Studio Shared Projects. JSON serialization via Newtonsoft.Json. Logging via NLog through OGA logging conventions. Build/publish via Jenkins to a private BaGet feed; versioning via GitVersion with `+semver:` commit-message bumps. Full inventory and rationale to be completed during the reverse-engineering pass (OI-14).
+C# on .NET, multi-targeted (client: net452, net48, netstandard2.1, net5.0, net6.0, net7.0, net8.0; server: net5.0, net6.0, net7.0, net8.0) from Visual Studio Shared Projects. JSON serialization via Newtonsoft.Json. Logging via NLog through OGA logging conventions. Build/publish via Jenkins to a private BaGet feed; versioning via GitVersion with `+semver:` commit-message bumps. Full inventory and rationale to be completed during the reverse-engineering pass (OI-14).
 
 ### 4.2 Library Dependencies
 
@@ -178,8 +178,8 @@ OGA.TCP.Lib gh/
     OGA.TCP_Test_SP/                    shared project: client-side tests
     OGA.TCP.Server.Lib_Tests_SP/        shared project: server-side tests
     Testing_CommonHelpers_SP/           shared project: test helpers (incl. forked TESTINGSRVR_* server copies)
-    OGA.TCP.Lib_NET452 ... _NET7/       client target csprojs importing the shared projects
-    OGA.TCP.Server.Lib_NET5 ... _NET7/  server target csprojs
+    OGA.TCP.Lib_NET452 ... _NET8/       client target csprojs importing the shared projects
+    OGA.TCP.Server.Lib_NET5 ... _NET8/  server target csprojs
     *_Test / *_Tests projects           per-TFM test csprojs
     OGA.TCP.Lib.nuspec                  client package definition
     OGA.TCP.Server.Lib.nuspec           server package definition
@@ -341,7 +341,7 @@ Not applicable as deployment topology: this is a NuGet-distributed library; depl
 4. Corresponding delay-coordination guidance in the consumer implementation guide (OI-16).
 5. A unit test for the client-side pong-timeout path. Existing keepalive tests in `TCPClient_v1_Tests.cs` cover the server-side dead-client timeout and keepalive-disable request only; no test exercises the client's pong-timeout branch. The new test rigs an endpoint to swallow pings and asserts the client declares the connection lost within the configured window (this test fails against current code, anchoring the regression).
 
-Status: items 1, 2, 3, and 5 are implemented in commit 8b8df28. The regression test fails against the prior logic and passes with the fix. Item 4 is carried by OI-16. Remaining before closure: run the full test suites in the owner's test environment (the client suite binds an environment-specific address and cannot run elsewhere), then push to trigger the Jenkins release.
+Status: items 1, 2, 3, and 5 are implemented in commit 8b8df28, which has been pushed and is in the automated build. The regression test fails against the prior logic and passes with the fix. Item 4 is carried by OI-16. Remaining before closure: owner confirmation that the release build published successfully and the full test suites pass in the owner's test environment (the client suite binds an environment-specific address and cannot run elsewhere).
 
 ### OI-03 — MessageEnvelope.ToLogString defects ⚠ NEEDS YOUR REVIEW
 
@@ -365,7 +365,7 @@ Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `Lar
 
 ### OI-08 — Build pipeline issues
 
-Known issues in the Jenkinsfile/nuspec flow: (a) no `dotnet test` stage exists, so tests never gate publication; (b) the version-stamping stage skips the NETStd21 client csproj and all three server csprojs; (c) the client nuspec `releaseNotes` is boilerplate. Each sub-item needs an owner decision on whether it is intentional before changes are made. (Debug-configuration packaging was initially listed here and is confirmed deliberate — see KD-01.)
+Known issues in the Jenkinsfile/nuspec flow: (a) no `dotnet test` stage exists, so tests never gate publication; (b) the version-stamping stage skips the NETStd21 client csproj and the server csprojs; (c) the client nuspec `releaseNotes` is boilerplate. Each sub-item needs an owner decision on whether it is intentional before changes are made. (Debug-configuration packaging was initially listed here and is confirmed deliberate — see KD-01.)
 
 ### OI-09 — scratchdev project does not reference the library
 
@@ -379,9 +379,7 @@ Known issues in the Jenkinsfile/nuspec flow: (a) no `dotnet test` stage exists, 
 
 `cCustom_Serializer` (~1,580 lines) implements a hand-rolled binary codec for many primitive types, but in practice only the Int32 length-prefix serialize/deserialize appears to be exercised on the wire path. Assess how deeply it is actually used (the owner is also unsure), then decide: document it as the standard wire-primitive codec (and cover it with tests, per OI-05), trim it, or leave as-is with its role documented. Relevant to the binary-transmission design (OI-13), which may want exactly such a codec.
 
-### OI-12 — Add NET 8 compile targets
-
-Add `OGA.TCP.Lib_NET8` and `OGA.TCP.Server.Lib_NET8` csprojs mirroring the NET7 ones (TFM `net8.0`, `NET8` define), plus corresponding test projects; add to `OGA.TCP.Lib.sln`; add net8.0 dependency groups and file entries to both nuspecs; add restore/build/version-stamp lines to the Jenkinsfile (coordinate with OI-08(c) so the new project is not skipped by the stamping stage).
+### OI-12 — (Closed)
 
 ### OI-13 — Binary data transmission capability ⚠ NEEDS YOUR INPUT
 
