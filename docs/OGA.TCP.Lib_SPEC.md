@@ -365,9 +365,15 @@ Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `Lar
 
 The review pass sharpened the priority: **an end-to-end large-message test over a real TCP connection, in both directions, would have caught OI-18** (client-to-server chunked transfers never complete; chunk frames exceed the frame cap). That test is the first one to write, before the OI-18 fix, so it anchors the regression the same way the keepalive test anchors OI-02. Other high-value additions suggested by the findings: a message containing non-BMP characters large enough to chunk (OI-19 surrogate splitting), a payload that is quote-dense enough to expose the char-vs-byte escaping margin (OI-18b), registration props containing colons and quotes (OI-29), runtime channel-adapter registration while traffic flows (OI-25), and a dispose-during-active-receive race (OI-20). Note the existing client suite binds a hardcoded LAN address, so new tests should use loopback to stay portable (see OI-38).
 
-### OI-06 — TESTINGSRVR_* forked server copies drift hazard
+### OI-06 — TESTINGSRVR_* forked server copies have drifted ⚠ NEEDS YOUR REVIEW
 
-`Testing_CommonHelpers_SP` contains forked copies of the server classes (`TESTINGSRVR_Endpoint_Abstract` at ~2,960 lines, plus listener/endpoint/model copies) declared into the real `OGA.TCP.Server` namespaces, because client test targets include frameworks the server library doesn't support. Client/server compatibility is therefore tested against a snapshot that can silently drift from the real server code. Options to assess: scripted diff check between fork and source, consolidation, or accepting and documenting the drift risk with a periodic re-sync step.
+`Testing_CommonHelpers_SP` contains forked copies of the server classes (`TESTINGSRVR_Endpoint_Abstract`, plus listener/endpoint/model copies) declared into the real `OGA.TCP.Server` namespaces, because client test targets include frameworks the server library does not support. Client/server compatibility is therefore validated against a snapshot rather than against the shipping server code.
+
+This is a test-fidelity concern only — there is no packaging exposure. `Testing_CommonHelpers_SP` is imported exclusively by test projects (all client and server test csprojs, plus the isolated NET452 test solution); no library target project imports it, so the forked copies never reach either published package.
+
+The drift is no longer hypothetical. The binary-frame receive capability added to the real `Endpoint_Abstract` in commit a9f960d was never mirrored into the fork: `Process_ReceivedBinaryFrame_from_Client`, `Cfg_BinaryFrameHandling_IsFatal`, and `OnBinaryFrameReceived` appear 4, 4, and 6 times respectively in the real class and **zero** times in the fork (fork 2,489 lines vs. real 2,572). Chunking, keepalive/silence detection, chunk-cancel handling, and connection-entry population are still present in both. Practical consequence: client-side binary-frame behavior cannot be exercised against the fork at all, which matters directly for OI-13 and OI-36.
+
+Options to assess: re-sync the fork and add a scripted diff check to catch future divergence; consolidate so the tests build the real server sources for the frameworks that support them; or accept the drift, document the fork as a frozen v1/v2-protocol reference server, and test newer capabilities only in the server test projects.
 
 ### OI-07 — (Closed)
 
