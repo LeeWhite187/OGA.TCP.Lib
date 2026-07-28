@@ -194,7 +194,7 @@ OGA.TCP.Lib gh/
 
 - **No rewrite.** The library is in live service; improvements are incremental and preserve the public API surface and wire compatibility unless a change is explicitly decided in a KD.
 - **No serializer migration.** No move from Newtonsoft.Json to System.Text.Json in this effort; the wire format stays Newtonsoft-shaped.
-- **No new transports.** Beyond the planned binary-transmission capability (OI-13), no additional transports are in scope.
+- **No new transports.** Beyond the planned binary-transmission capability (OI-13, OI-39), no additional transports are in scope.
 
 ---
 
@@ -391,9 +391,36 @@ Usage is now established: repository-wide, the only production callers of `cCust
 
 ### OI-12 — (Closed)
 
-### OI-13 — Binary data transmission capability ⚠ NEEDS YOUR INPUT
+### OI-13 — Binary data transmission capability: consumer-facing scope ⚠ NEEDS YOUR INPUT
 
-Today all traffic is JSON text inside the envelope; a recent commit (a9f960d) added receive-only binary-frame delegate plumbing to the base classes. Design a first-class binary transmission capability for the TCP transport: whether binary rides inside the existing envelope (e.g., base64 or a new frame discriminator), or as a distinct frame type alongside the length-prefixed JSON frames; send-side API shape; interaction with chunking; and LibVersion implications for wire compatibility with live peers. Scope decision needed from the owner before design: minimum viable (opaque byte[] send/receive per channel) vs. typed binary payloads. Design outcome will be recorded as KDs and §9 protocol content.
+The consumer-facing half of the binary work, paired with the wire-level design in OI-39. Decisions needed before implementation:
+
+- **Payload model.** Minimum viable is an opaque `byte[]` sent and received per channel, with the consumer owning any framing or typing inside it. The richer option is typed binary payloads — a declared message type name accompanying the bytes, so binary messages dispatch through the same type-routing consumers already use for JSON.
+- **API shape.** Whether binary send is a distinct method (`SendBinary_to_Endpoint(byte[], channel, ...)`) or an overload of the existing send entry point, and whether receive arrives on the existing `OnBinaryFrameReceived` delegate, on the channel adapters (a new `AcceptIncomingBinary` member on `IChannelAdapter`), or both.
+- **Channel semantics.** Whether a channel may carry both JSON and binary messages, or a channel is declared one or the other at registration.
+- **Size and chunking.** Whether binary messages participate in the chunking layer (see OI-18/OI-19 — chunking must be repaired and made byte-based before it can carry binary), or whether binary is initially capped at one frame.
+
+Outcome recorded as KDs plus §8 (API surface) and §9 (protocol) content.
+
+### OI-39 — Wire-level coexistence of JSON and binary messaging on the TCP transport ⚠ NEEDS YOUR INPUT
+
+The TCP transport currently has no binary capability at all, and the only working binary implementation in the repository is in the WebSocket classes being removed under OI-01. This item covers the framing design that lets one TCP connection carry both the existing JSON-envelope messaging and binary messaging.
+
+**Established constraints.**
+
+- The TCP frame is a 4-byte little-endian length prefix followed by exactly that many bytes of UTF-8 JSON `MessageEnvelope`. There is **no type discriminator** anywhere in the frame — the receiver's only interpretation is "decode these bytes as a UTF-8 JSON envelope" (`cReceiveLoop.Process_Received_MessageBuffer`). Adding binary means introducing a way to distinguish frame kinds where none exists.
+- WebSocket got this for free: its protocol carries a per-frame Text/Binary opcode, which is exactly what `WSEndpoint`/`WSClient_v1_Abstract` branch on. That mechanism does not exist in the TCP framing and must be invented.
+- The base-class binary plumbing survives the OI-01 removal: `Client_v1_Abstract` and `Endpoint_Abstract` each carry 15 references to `Process_ReceivedBinaryFrame*`, `OnBinaryFrameReceived`, `DelBinaryFrameReceived`, and `Cfg_BinaryFrameHandling_IsFatal`, while the two WebSocket files hold only the single call site each. So deleting the WebSocket files leaves an intact, unreachable receive-side contract that a TCP implementation can connect to rather than re-invent (see OI-36).
+- `cReceiveLoop` hands out a decoded `string` only (`OnMessage_Received(loop, rawmsg)`); a binary path requires a second delegate or a changed contract on the shared receive loop, which the server endpoint and client transport both consume.
+- Live-service constraint: existing deployed peers must keep working. Any framing change has to be either invisible to them or negotiated — which is what the LibVersion mechanism exists for (currently "1" and "2"; the shipped TCP client stack registers as v1).
+
+**Candidate approaches, to be weighed.**
+
+1. **Discriminated frame header.** Reserve a frame-type marker alongside the length prefix — for example, a sentinel/negative length value, or a fifth byte. Cleanest separation and no payload bloat, but it changes the frame layout, so old peers must never receive a binary frame. Requires LibVersion negotiation and a decision on what a v1 peer does when one arrives.
+2. **Binary inside the existing envelope.** Carry the bytes base64-encoded in `MessageEnvelope.Data` with a reserved `MessageType`. Zero framing change and fully backward compatible, at the cost of ~33% expansion plus JSON escaping — which, given the frame-cap arithmetic in OI-18, materially reduces the usable binary payload size.
+3. **Sideband length-prefixed binary body.** Keep the JSON envelope as the header for routing (channel, scope, type, correlation) and follow it with a second length-prefixed raw byte body in the same logical message. Preserves routing metadata and avoids base64 expansion, but makes the receive state machine meaningfully more complex.
+
+**Decision points for the owner:** which approach; whether binary frames must interoperate with the existing WebSocket library's binary handling (shared session-layer design suggests yes); and whether this ships as LibVersion 3 or as an opt-in capability prop within v2. Outcome recorded as KDs and §9 protocol content, with the consumer-facing surface in OI-13.
 
 ### OI-14 — Complete the reverse-engineered spec sections
 
@@ -511,7 +538,7 @@ The connection loop uses `ExpBackoff_wJitter.Delay` (a `Thread.Sleep` loop) at e
 
 ### OI-36 — Binary-frame plumbing is inert on the TCP transport
 
-`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. This is the starting point for OI-13 rather than a defect to fix in isolation — the binary design decides what this plumbing should connect to.
+`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. This is the starting point for OI-39 rather than a defect to fix in isolation — the framing design decides what this plumbing should connect to.
 
 ### OI-37 — Dead code and minor defects (batch)
 
