@@ -324,6 +324,26 @@ Not applicable as deployment topology: this is a NuGet-distributed library; depl
 
 **Consequences.** Publication is not gated by the test suites; regressions must be caught by the dev-time runs and the separate test job. The absence of a `dotnet test` stage in the Jenkinsfile is intentional, not a defect.
 
+### KD-03 — TCP frames carry a five-byte preamble: length plus frame type
+
+**Decision.** The TCP frame becomes a five-byte preamble — the existing 4-byte little-endian body length followed by a 1-byte frame type — then the body. The length counts body bytes only (the preamble is excluded). Consecutive frames on one connection may carry different types. Frame type values are enumerated in a static registry class in the shared project (`OGA.TCP.ClientServerShared_SP`), each value documented narratively; values are only ever added, never repurposed. Value 0 is reserved as invalid (a zeroed buffer must not read as a valid frame), 1 identifies a JSON `MessageEnvelope` body, 2 identifies a binary message body (KD-04).
+
+**Rationale.** The current frame has no type discriminator — the receiver's only interpretation is "UTF-8 JSON envelope" — so binary has nowhere to live. A type byte supplies the discrimination WebSocket gets natively from its Text/Binary opcode, while leaving a JSON frame's body byte-for-byte identical to today's traffic, so the entire session layer above the framing is unchanged. One byte yields 256 frame kinds, making the registry itself the future extension mechanism (compact headers, control frames) without another wire migration.
+
+**Alternatives considered.** A sentinel/negative length as the discriminator (rejected: overloads the length semantics and reads poorly in diagnostics); folding the type byte into the length count (rejected: explicit preamble is easier to reason about and log); base64 binary inside the existing envelope (rejected by the owner: ~33% bandwidth cost, worsened by JSON escaping).
+
+**Consequences.** This is a wire-format break with current peers. Per the owner, no mixed old/new client–server pair will exist — both ends of a conversation are upgraded together — so no on-wire negotiation or fallback is designed; the LibVersion registration mechanism remains available if a guard is later wanted (OI-39). The receive state machine in `cReceiveLoop` must be reworked (the natural moment to resolve OI-20 through OI-23), and the `RawTransportSend` seam on `Client_v1_Abstract` changes shape, which touches the WebSocket library through the shared base.
+
+### KD-04 — Routing metadata stays at the message layer; binary bodies carry an envelope-like header
+
+**Decision.** The frame preamble carries no routing information. JSON frame bodies remain today's `MessageEnvelope`, unchanged. A binary frame body is `[Int32 header length][UTF-8 JSON header][raw payload bytes]`, where the header carries the same routing fields the envelope carries — channel, scope, message type, message id, correlation props — and the payload follows as raw bytes outside the JSON.
+
+**Rationale.** Routing is a session-layer concern consumed by dispatch, not by the read pump; keeping it in the message preserves the byte-identical JSON path and feeds one dispatch code path from either body type. Placing the payload outside the JSON removes any base64/escaping tax. Because the layout above the transport framing is self-contained, the WebSocket library can reuse the identical binary body layout inside its native binary frames (which need no preamble), keeping the message model shared between the two libraries even though the TCP preamble is TCP-only.
+
+**Alternatives considered.** A shared routing header at the frame level (rejected: restructures every live JSON message, and the WebSocket transport has no frame preamble to put it in); a binary-encoded compact header via `cCustom_Serializer` (rejected for the initial version: header overhead is noise against typical binary payload sizes, JSON keeps messages debuggable, and the codec currently carries defects per OI-32 — the frame-type registry leaves room for a compact-header frame type later if profiling justifies it).
+
+**Consequences.** The binary header needs its own DTO (envelope-minus-Data shape). Dispatch, channel adapters, and correlation handling extend to accept a byte-payload variant fed by the same routing fields (OI-13). Whether a channel carries JSON or binary is the consumer's convention; the library routes both without enforcement.
+
 ---
 
 ## 13. Open Items
@@ -402,25 +422,18 @@ The consumer-facing half of the binary work, paired with the wire-level design i
 
 Outcome recorded as KDs plus §8 (API surface) and §9 (protocol) content.
 
-### OI-39 — Wire-level coexistence of JSON and binary messaging on the TCP transport ⚠ NEEDS YOUR INPUT
+### OI-39 — Dual JSON/binary messaging: remaining design questions ⚠ NEEDS YOUR INPUT
 
-The TCP transport currently has no binary capability at all, and the only working binary implementation in the repository is in the WebSocket classes being removed under OI-01. This item covers the framing design that lets one TCP connection carry both the existing JSON-envelope messaging and binary messaging.
+The framing and routing-placement decisions are made (KD-03, KD-04). Established context that informs the remainder: the base-class binary receive plumbing (`OnBinaryFrameReceived` et al.) survives the OI-01 WebSocket-file removal and is the contract the TCP implementation should connect to (OI-36); `cReceiveLoop` currently hands out a decoded `string` only, so the reworked receive loop needs a byte-payload delegate alongside it; and the owner has confirmed no mixed old/new peer pairs will exist, so no on-wire negotiation or fallback is designed.
 
-**Established constraints.**
+Remaining questions to settle before implementation:
 
-- The TCP frame is a 4-byte little-endian length prefix followed by exactly that many bytes of UTF-8 JSON `MessageEnvelope`. There is **no type discriminator** anywhere in the frame — the receiver's only interpretation is "decode these bytes as a UTF-8 JSON envelope" (`cReceiveLoop.Process_Received_MessageBuffer`). Adding binary means introducing a way to distinguish frame kinds where none exists.
-- WebSocket got this for free: its protocol carries a per-frame Text/Binary opcode, which is exactly what `WSEndpoint`/`WSClient_v1_Abstract` branch on. That mechanism does not exist in the TCP framing and must be invented.
-- The base-class binary plumbing survives the OI-01 removal: `Client_v1_Abstract` and `Endpoint_Abstract` each carry 15 references to `Process_ReceivedBinaryFrame*`, `OnBinaryFrameReceived`, `DelBinaryFrameReceived`, and `Cfg_BinaryFrameHandling_IsFatal`, while the two WebSocket files hold only the single call site each. So deleting the WebSocket files leaves an intact, unreachable receive-side contract that a TCP implementation can connect to rather than re-invent (see OI-36).
-- `cReceiveLoop` hands out a decoded `string` only (`OnMessage_Received(loop, rawmsg)`); a binary path requires a second delegate or a changed contract on the shared receive loop, which the server endpoint and client transport both consume.
-- Live-service constraint: existing deployed peers must keep working. Any framing change has to be either invisible to them or negotiated — which is what the LibVersion mechanism exists for (currently "1" and "2"; the shipped TCP client stack registers as v1).
+1. **Chunking participation.** Whether binary messages participate in the chunking layer or are initially capped at one frame. Interacts with OI-18/OI-19: chunking must be repaired and made byte-based regardless, and byte-based chunking of binary payloads is structurally simpler than the current string slicing (no surrogate-pair hazard). Decides whether `MsgId` in the binary header is load-bearing or informational.
+2. **Frame size caps.** Whether binary frames share the 1 MiB `MaxMessageSize` or get a separate (likely larger) configurable cap per frame type.
+3. **Version guard.** Whether the new framing ships as LibVersion 3, as a capability prop in the registration exchange (the reply's unused `Props` could announce server capability), or ungated given the no-mixed-pairs posture — and what the receive loop does with an unknown frame-type byte (fatal vs. skip), which is the corruption-detection question as much as a compatibility one.
+4. **Implementation scoping.** Whether the framing change is bundled with the `cReceiveLoop` rework that resolves OI-20 through OI-23 (recommended: the read state machine is being rewritten either way), and how the `RawTransportSend` seam change is coordinated with the WebSocket library's shared base.
 
-**Candidate approaches, to be weighed.**
-
-1. **Discriminated frame header.** Reserve a frame-type marker alongside the length prefix — for example, a sentinel/negative length value, or a fifth byte. Cleanest separation and no payload bloat, but it changes the frame layout, so old peers must never receive a binary frame. Requires LibVersion negotiation and a decision on what a v1 peer does when one arrives.
-2. **Binary inside the existing envelope.** Carry the bytes base64-encoded in `MessageEnvelope.Data` with a reserved `MessageType`. Zero framing change and fully backward compatible, at the cost of ~33% expansion plus JSON escaping — which, given the frame-cap arithmetic in OI-18, materially reduces the usable binary payload size.
-3. **Sideband length-prefixed binary body.** Keep the JSON envelope as the header for routing (channel, scope, type, correlation) and follow it with a second length-prefixed raw byte body in the same logical message. Preserves routing metadata and avoids base64 expansion, but makes the receive state machine meaningfully more complex.
-
-**Decision points for the owner:** which approach; whether binary frames must interoperate with the existing WebSocket library's binary handling (shared session-layer design suggests yes); and whether this ships as LibVersion 3 or as an opt-in capability prop within v2. Outcome recorded as KDs and §9 protocol content, with the consumer-facing surface in OI-13.
+The consumer-facing API surface (send methods, adapter contract, channel semantics) is OI-13. Outcomes recorded as KDs and §9 protocol content.
 
 ### OI-14 — Complete the reverse-engineered spec sections
 
