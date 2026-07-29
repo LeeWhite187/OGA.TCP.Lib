@@ -449,6 +449,21 @@ Usage is now established: repository-wide, the only production callers of `cCust
 
 ### OI-12 — (Closed)
 
+### KD-08 — The channel subsystem becomes one shared, kind-aware substrate
+
+**Decision.** The channel subsystem is unified into a shared substrate living in `OGA.TCP.ClientServerShared_SP`:
+
+- The adapter abstractions relocate out of the client-only project into the shared project, under a transport-neutral namespace, and `IChannelAdapter` is evolved directly (it has no downstream implementors yet): it gains a channel kind (`Json` | `Binary`) declared at construction, and an `AcceptIncomingMessage` overload accepting `byte[]` alongside the existing string form. The kind is the enforcement point for the one-kind-per-channel rule: delivery checks frame type against kind and rejects mismatches.
+- The adapter contract decouples from `Client_v1_Abstract` via a minimal common host interface (working name `IMessagingHost`: send capability, instance identity, logging access), implemented by `Client_v1_Abstract` and `Endpoint_Abstract` — and adoptable by the WebSocket library's client, whose dispatch logic the owner has verified is close enough to migrate.
+- A single **`ChannelDispatcher`** class owns the whole subsystem: the one thread-safe registry, registration/removal/close-all, routing, the kind guard, delivery of both payload shapes with correlation id, functioning per-channel counters, and the no-channel fallback hooks (`OnMessageReceived` for JSON; the existing `OnBinaryFrameReceived` plumbing for binary). Both endpoint classes compose a dispatcher instance; the server migrates off its `Dictionary<string, DelMessageReceived>`. Per-side behavioral differences (such as task-wrapped delivery) become explicit constructor policy rather than accidental divergence.
+- Each side's existing delegate-registration signatures are preserved as facades: `Add_ChannelHandler` wraps the side's own delegate type in a closure-capturing `ChannelAdapter_DelegateType`, so dependent projects recompile unchanged. The canonical adapter delivery signature includes the correlation id (the server's richer form).
+
+**Rationale.** Hand-mirrored dispatch is the demonstrated primary defect generator in this codebase — the keepalive inversion cloned into the WebSocket library, the chunking implementations whose only differences were the bugs, and the five accidental divergences between the two current `DispatchReceivedMessage` methods (registry type, correlation id, task wrapping, logging source, exception mapping). A single implementation makes cross-side fixes land by construction, is independently unit-testable without a live connection, and extends the same benefit to the WebSocket library through the common-elements package (OI-40).
+
+**Alternatives considered.** Patching the two existing implementations in place (rejected: preserves the drift mechanism the fix exists to remove). Separate channel stacks for JSON and binary (rejected: doubles registration, storage, and routing, and makes the one-kind-per-channel rule an unenforceable convention across two dictionaries).
+
+**Consequences.** OI-25's thread-safety defect and OI-37's close-loop defect are resolved once, in the dispatcher. The declared-but-dead adapter counters become real; `ExpectedMessageType` is dropped from the contract (unused and consulted by nothing) unless the owner objects. The dispatcher, host interface, and adapter family join the OI-40 export set. The WebSocket library migrates at its own phase, per OI-40/OI-42.
+
 ### OI-13 — Binary data transmission capability: consumer-facing scope ⚠ NEEDS YOUR INPUT
 
 The consumer-facing half of the binary work, paired with the wire-level design in OI-39. Decisions needed before implementation:
@@ -541,7 +556,7 @@ Three plain `Dictionary` instances are mutated and enumerated from different thr
 - `_ChannelMessageHandlers` (client): written by `Add_ChannelAdapter`/`Remove_ChannelHandler`/`Close_ChannelAdapters` (`Client_v1_Abstract.cs:685`, `:735`, `:745`), read by dispatch on the receive thread (`:3430`). Registering a channel adapter at runtime while traffic flows can throw or corrupt the table — and runtime channel registration is an advertised feature (UR-02).
 - `_largemsgreceivers` on both sides: mutated on the receive thread, enumerated by the prune on the connection-loop thread (`Client_v1_Abstract.cs:2973`/`:3142`; `Endpoint_Abstract.cs:2131`/`:2304`). A chunk arriving during a prune throws inside the loop, killing the prune pass (client) or tearing down the connection (server).
 
-Candidate fix: `ConcurrentDictionary` or a shared lock across all call sites per collection.
+Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. This item stays open as the defect record until those ship.
 
 ### OI-26 — Server can leak connection slots indefinitely ⚠ NEEDS YOUR REVIEW
 
