@@ -344,6 +344,20 @@ Not applicable as deployment topology: this is a NuGet-distributed library; depl
 
 **Consequences.** The binary header needs its own DTO (envelope-minus-Data shape). Dispatch, channel adapters, and correlation handling extend to accept a byte-payload variant fed by the same routing fields (OI-13). Whether a channel carries JSON or binary is the consumer's convention; the library routes both without enforcement.
 
+### KD-05 — Chunking is rebuilt as a byte-based, frame-type-agnostic splitter
+
+**Decision.** The chunking layer is rebuilt to operate on the encoded frame body as opaque bytes, below any interpretation of those bytes. When a message's encoded body (of either frame type) exceeds the size cap, the sender splits the bytes; the receiver reassembles them and re-injects `(innerFrameType, reassembledBytes)` into the top of the normal receive-processing path, making a chunked message indistinguishable from one that arrived in a single frame.
+
+Chunk **control** messages — `ChunkStartDTO`, `ChunkEndDTO`, `ChunkCancelDTO` — are JSON envelopes (internal messages), reshaped to carry an explicit `TransferId`, byte-true sizes (`TotalSize`, chunk size, chunk count), and the **inner frame type** of the original message, so the receiver interprets the reassembled bytes correctly. Chunk **data** rides binary messages: the routing header identifies the chunk-data message type and carries the `TransferId` and offset; the payload is the raw byte slice. `ChunkDTO` (the JSON string-slice carrier) retires. The protocol has no ack or retransmission: TCP and WebSocket are reliable ordered transports, and backpressure exists because the sender awaits each frame through the write semaphore.
+
+Reassembly lives in the session layer at the existing chunking intercept step, keyed by `TransferId`. Completeness is enforced at ChunkEnd by byte count and chunk count. Cancel is wired into the intercept (it is dead code today). Concurrent transfers on one connection interleave, keyed by `TransferId`; traffic from other channels interleaves between chunk frames (the share-the-pipe property); chunks within a transfer are strictly in-order, with the offset check serving as a corruption guard rather than a reordering mechanism. A reassembled body that itself parses to chunk messages is rejected as a protocol error.
+
+**Rationale.** Byte-based splitting makes the worst existing chunking defects unexpressible rather than fixed: the char-vs-byte cap overrun, the surrogate-pair corruption, and the double-escaping expansion (OI-18, OI-19) all stem from slicing strings. Carrying data slices as binary messages avoids any base64 tax. Keeping the mechanism entirely at the message layer means one implementation serves both transports — over WebSocket, the identical chunk messages ride native Binary frames — and the TCP receive loop stays chunking-unaware. There is no wire legacy to honor: no live WebSocket deployment chunks, and TCP chunking is encapsulated inside the endpoint/client abstraction with both ends of each use case updated together.
+
+**Alternatives considered.** A dedicated chunk-data frame type in the registry (rejected: WebSocket has no frame registry, so it would need a message-layer discriminator anyway — the same question answered at different layers per transport, recreating the hand-mirrored-drift pattern; and registry values are permanent, the wrong place for session-protocol concepts that may evolve). All-binary-native control messages (rejected: control is tiny and per-transfer so there is nothing to save, and under KD-04 a metadata-only binary message degenerates into an envelope-equivalent while abandoning the existing internal-message machinery). Base64 chunk data inside JSON envelopes (rejected: the encoding tax chunking exists to avoid). An ack/request handshake (rejected: adds no correctness on reliable ordered transports).
+
+**Consequences.** `LargeMsgSender`/`LargeMsgReceiver` are rebuilt byte-based; the Start/End/Cancel DTOs are reshaped; `ChunkDTO` retires; `ChunkAckDTO`/`ChunkRequestDTO` remain outside the protocol (their reserved-vs-deleted disposition stays with OI-15). The OI-18 and OI-19 defects are resolved by replacement rather than patching. The chunk-size arithmetic measures the real encoded chunk-message size rather than assuming fixed headroom. The rebuilt classes are part of the common-elements candidate set (OI-40).
+
 ---
 
 ## 13. Open Items
@@ -428,7 +442,7 @@ The framing and routing-placement decisions are made (KD-03, KD-04). Established
 
 Remaining questions to settle before implementation:
 
-1. **Chunking participation.** Whether binary messages participate in the chunking layer or are initially capped at one frame. Interacts with OI-18/OI-19: chunking must be repaired and made byte-based regardless, and byte-based chunking of binary payloads is structurally simpler than the current string slicing (no surrogate-pair hazard). Decides whether `MsgId` in the binary header is load-bearing or informational.
+1. **Chunking participation.** Settled by KD-05: both frame types chunk, via the byte-based splitter.
 2. **Frame size caps.** Whether binary frames share the 1 MiB `MaxMessageSize` or get a separate (likely larger) configurable cap per frame type.
 3. **Version guard.** Whether the new framing ships as LibVersion 3, as a capability prop in the registration exchange (the reply's unused `Props` could announce server capability), or ungated given the no-mixed-pairs posture — and what the receive loop does with an unknown frame-type byte (fatal vs. skip), which is the corruption-detection question as much as a compatibility one.
 4. **Implementation scoping.** Whether the framing change is bundled with the `cReceiveLoop` rework that resolves OI-20 through OI-23 (recommended: the read state machine is being rewritten either way), and how the `RawTransportSend` seam change is coordinated with the WebSocket library's shared base.
@@ -441,7 +455,7 @@ Author the pending sections of this spec from the code: §2 Functional Requireme
 
 ### OI-15 — Unused chunking DTOs
 
-Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empty classes with no senders or handlers. `ChunkCancelDTO` is different — it **is** sent (by `LargeMsgSender` on cancellation or mid-sequence send failure) but is not intercepted on either receive side, so it reaches consumer dispatch as a bogus application message and its handler branches are dead (see OI-19). Decide whether the two empty DTOs are reserved protocol surface or removable, once OI-19's cancel handling is settled.
+Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empty classes with no senders or handlers. `ChunkCancelDTO` is different — it **is** sent (by `LargeMsgSender` on cancellation or mid-sequence send failure) but is not intercepted on either receive side, so it reaches consumer dispatch as a bogus application message and its handler branches are dead (see OI-19). KD-05 wires Cancel into the rebuilt protocol and keeps Ack/Request out of it (reliable ordered transports need neither). Remaining decision: whether the two excluded DTOs stay as reserved surface or are deleted.
 
 ### OI-16 — Author the consumer implementation guide
 
@@ -457,7 +471,7 @@ Two independent defects mean the large-message chunking feature cannot work over
 
 **(b) Chunk frames exceed the frame cap.** The chunking threshold and chunk size are character-based (`Client_v1_Abstract.cs:2105`, `:2118` — `MaxMessageSize - 1024` = 1,047,552 chars), but each chunk's `Data` slice is JSON-escaped twice before hitting the wire — once serializing `ChunkDTO`, again as the envelope's `Data` string — and only 1024 bytes of headroom exist. Because the chunked payload is itself JSON, it is quote-dense, and each `"` expands to `\\\"`. A measured worst case produced a 1,591,749-byte frame against the 1,048,576-byte cap. `cReceiveLoop.cs:1097` treats an oversized frame as fatal, so the feature tears down the connection it exists to protect. Note the send-side size guard is deliberately skipped when chunking is enabled (`:2220-2237`), so nothing else catches it. The same char-vs-byte confusion also lets a *non-chunked* message just under the threshold exceed the cap after single-level escaping.
 
-Fixing (a) is a one-line key change on the server; (b) requires making the threshold and chunk sizing byte-based with escaping headroom (or restructuring so chunk payloads are not double-escaped). Both change wire behavior for large messages and need owner review. Until fixed, consumers should be told the practical message ceiling is a single frame.
+Resolution path decided: these defects are resolved by replacement rather than patching — the KD-05 chunking rebuild removes both failure classes by construction. This item stays open as the defect record until the rebuild ships. Until then, consumers should be told the practical message ceiling is a single frame.
 
 ### OI-19 — Chunking data-integrity and lifecycle defects ⚠ NEEDS YOUR REVIEW
 
@@ -470,6 +484,8 @@ Beyond OI-18, the chunking subsystem carries defects that produce silent corrupt
 - **Sender ignores the send result of the Start and End frames** (`LargeMsgSender.cs:245`, `:279`), so a failed End frame reports overall success while the message silently evaporates at the receiver.
 - **Unbounded receiver growth.** Declared `MessageSize`/`ChunkCount` are never enforced, and each chunk refreshes the idle timer, so a peer can stream indefinitely under one MsgId.
 - **`Determine_Chunk_Count` divides by the wrong constant** (`LargeMsgSender.cs:372`, `:384` use `CONST_MAX_MessageSize` instead of `MaxChunkSize`), understating `ChunkCount` — latent today, but it would poison the completeness check that fixes the third item above.
+
+Resolution path decided: resolved by the KD-05 rebuild rather than patched individually. This item stays open as the defect record until the rebuild ships.
 
 ### OI-20 — Receive-loop teardown can crash the process ⚠ NEEDS YOUR REVIEW
 
