@@ -358,6 +358,20 @@ Reassembly lives in the session layer at the existing chunking intercept step, k
 
 **Consequences.** `LargeMsgSender`/`LargeMsgReceiver` are rebuilt byte-based; the Start/End/Cancel DTOs are reshaped; `ChunkDTO` retires; `ChunkAckDTO`/`ChunkRequestDTO` remain outside the protocol (their reserved-vs-deleted disposition stays with OI-15). The OI-18 and OI-19 defects are resolved by replacement rather than patching. The chunk-size arithmetic measures the real encoded chunk-message size rather than assuming fixed headroom. The rebuilt classes are part of the common-elements candidate set (OI-40).
 
+### KD-06 — Three size limits govern messaging: frame, chunk payload, and transfer
+
+**Decision.** The single `MaxMessageSize` is replaced by three per-instance limits:
+
+- **`MaxFrameSize`** (default 1 MiB) — the most bytes one frame body may carry, applying to both frame types. Enforced byte-true on the send path (refuse, or chunk, anything whose encoded body exceeds it) and on the receive path (a declared length above it is fatal, as today). Post-chunking, this is the interleave quantum: the longest one frame can hold the pipe before another channel's frame gets a turn. The mutable static `CONST_MAX_MessageSize` retires to a compiled default; the effective value is per-instance configuration.
+- **`MaxChunkPayloadSize`** (default: derived, fit-to-frame) — the most payload bytes one chunk-data message may carry. Defaults to what fits under `MaxFrameSize` after the measured chunk-message overhead; configurable lower so bulk transfers use smaller frames than ordinary messages, giving latency-sensitive channels more frequent interleave slots. The library clamps it so a chunk frame can never exceed `MaxFrameSize`.
+- **`MaxTransferSize`** (default 64 MiB) — the most total bytes a chunked message may reassemble to; the actual message-size ceiling in the chunked world, and the receiver's memory defense. Enforced at ChunkStart (an over-declared `TotalSize` rejects the transfer with a Cancel) and re-checked during accumulation (receipt exceeding the declaration is a protocol error), so an under-declaring sender cannot bypass the gate.
+
+Relationships are enforced, not merely documented: `MaxChunkPayloadSize` is clamped to fit `MaxFrameSize`; `MaxTransferSize` must be at least `MaxFrameSize`. All three carry expressive XML documentation stating what each limit protects and how to coordinate the values, and the same content appears in this spec's §9 (when authored) and in the consumer implementation guide (OI-16).
+
+**Rationale.** Once chunking works, the frame cap stops being the message-size limit and becomes a fairness knob; the transfer cap takes over as the true ceiling and closes the unbounded-reassembly hole (OI-19); the chunk-payload knob exists specifically for the owner's share-the-pipe goal — tuning bulk-transfer granularity independently of the ordinary-message cap.
+
+**Consequences.** Limits are local policy in this version: each side enforces its own receive limits, and mismatches surface as transfer-time Cancels rather than at send time — stated plainly in the implementation guide. Negotiating the more-constrained set at registration is deferred to OI-41. Defaults are initial policy values the owner may tune.
+
 ---
 
 ## 13. Open Items
@@ -443,7 +457,7 @@ The framing and routing-placement decisions are made (KD-03, KD-04). Established
 Remaining questions to settle before implementation:
 
 1. **Chunking participation.** Settled by KD-05: both frame types chunk, via the byte-based splitter.
-2. **Frame size caps.** Whether binary frames share the 1 MiB `MaxMessageSize` or get a separate (likely larger) configurable cap per frame type.
+2. **Frame size caps.** Settled by KD-06: one frame cap for both types, plus chunk-payload and transfer limits.
 3. **Version guard.** Whether the new framing ships as LibVersion 3, as a capability prop in the registration exchange (the reply's unused `Props` could announce server capability), or ungated given the no-mixed-pairs posture — and what the receive loop does with an unknown frame-type byte (fatal vs. skip), which is the corruption-detection question as much as a compatibility one.
 4. **Implementation scoping.** Whether the framing change is bundled with the `cReceiveLoop` rework that resolves OI-20 through OI-23 (recommended: the read state machine is being rewritten either way), and how the `RawTransportSend` seam change is coordinated with the WebSocket library's shared base.
 
@@ -459,7 +473,7 @@ Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empt
 
 ### OI-16 — Author the consumer implementation guide
 
-Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) — and chunking/keepalive behavior a consumer should understand. As part of this work, the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description). Blocked behind OI-14 far enough that the protocol facts it cites are settled.
+Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) and the size limits (frame, chunk payload, transfer; see KD-06, including the local-policy posture that limit mismatches surface as transfer-time cancels) — and chunking/keepalive behavior a consumer should understand. As part of this work, the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description). Blocked behind OI-14 far enough that the protocol facts it cites are settled.
 
 ### OI-17 — (Closed by §13)
 
@@ -585,6 +599,10 @@ Collected low-severity items, each small and independent:
 - `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
+
+### OI-41 — Negotiated size limits and capability exchange at registration
+
+Under KD-06, the size limits are local policy: each side enforces its own receive limits, and a sender exceeding the receiver's `MaxTransferSize` discovers it via the transfer-time Cancel rather than up front. The owner's suggestion, deferred to a later phase: exchange limits at registration so the two ends operate on the more constrained set — the client announcing its receive limits in its registration props, the server announcing its own in the reply's currently-empty `Props`, and each sender honoring the peer's receive limits so oversize sends fail fast at the call site instead of mid-transfer. This dovetails with the version-guard/capability-announcement question (OI-39): the registration reply's `Props` is the natural single mechanism for the server to declare limits, supported frame types, and other capabilities. Held until the dual-frame work is functioning; when taken up, decide what is announced, what is enforced versus advisory, and how config asymmetry (send vs. receive limits) is expressed.
 
 ### OI-40 — Publishable common-elements library for cross-library reuse
 
