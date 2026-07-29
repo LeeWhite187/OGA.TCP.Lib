@@ -372,6 +372,16 @@ Relationships are enforced, not merely documented: `MaxChunkPayloadSize` is clam
 
 **Consequences.** Limits are local policy in this version: each side enforces its own receive limits, and mismatches surface as transfer-time Cancels rather than at send time — stated plainly in the implementation guide. Negotiating the more-constrained set at registration is deferred to OI-41. Defaults are initial policy values the owner may tune.
 
+### KD-07 — The dual-frame protocol is LibVersion 3; the frame-type byte is the mismatch detector
+
+**Decision.** The dual-frame framing (KD-03 through KD-06) ships as **LibVersion 3**. `LibVersions.cs` gains a documented v3 entry describing its capabilities (five-byte frame preamble, dual JSON/binary messaging, rebuilt chunking, the KD-06 limits); clients announce it via the existing `tcplibver` registration prop, and the server-side validation range extends to accept it. The receive loop treats an unrecognized frame-type byte as **fatal**: the connection is torn down with a specific error identifying the byte, since on the no-mixed-pairs posture an unknown type can only mean stream corruption or a mismatched deployment, and both should die loudly at the first detectable byte.
+
+Additionally, the `FrameTypes` registry permanently reserves value **123 (0x7B, the `{` character) as invalid-with-meaning**: a legacy pre-preamble peer's first frame body always begins with `{`, so a v3 receive loop that reads 0x7B in the type position reports "legacy JSON framing detected" rather than a generic corruption error — deterministic, human-readable diagnosis of the one mismatch most likely to occur in the wild.
+
+**Rationale.** The LibVersion mechanism exists for exactly this and costs one registry entry. But version negotiation rides *inside* frames, so it cannot guard across a framing break: a v2 peer and a v3 peer misparse each other from the first frame, before any registration message is ever interpreted. The frame-type byte is therefore the real wild-mismatch detector — a v2 client against a v3 server dies immediately and diagnosably on the reserved 0x7B; a v3 client against a v2 server fails registration (its preamble byte corrupts the JSON parse) and cycles on the registration-reply timeout, which is the owner's accepted early-fail behavior for a scenario that is not supposed to occur. The version entry's primary roles are documentation, same-framing capability gating, and rejection of a v3 client by an older server that validates the announced range.
+
+**Consequences.** `LibVersions.cs` (TCP) gets the v3 entry; the corresponding `WSLibVersions.cs` in the WebSocket library gets its own v3 entry when that library adopts the shared elements (OI-42). Server registration validation accepts [1..3]. The dead external doc links in `LibVersions.cs` (OI-10) are superseded by documenting version semantics in the file itself and in §9. Server-side capability announcement in the registration reply remains with OI-41.
+
 ---
 
 ## 13. Open Items
@@ -458,7 +468,7 @@ Remaining questions to settle before implementation:
 
 1. **Chunking participation.** Settled by KD-05: both frame types chunk, via the byte-based splitter.
 2. **Frame size caps.** Settled by KD-06: one frame cap for both types, plus chunk-payload and transfer limits.
-3. **Version guard.** Whether the new framing ships as LibVersion 3, as a capability prop in the registration exchange (the reply's unused `Props` could announce server capability), or ungated given the no-mixed-pairs posture — and what the receive loop does with an unknown frame-type byte (fatal vs. skip), which is the corruption-detection question as much as a compatibility one.
+3. **Version guard.** Settled by KD-07: LibVersion 3, fatal unknown frame types, 0x7B reserved as the legacy-framing detector.
 4. **Implementation scoping.** Whether the framing change is bundled with the `cReceiveLoop` rework that resolves OI-20 through OI-23 (recommended: the read state machine is being rewritten either way), and how the `RawTransportSend` seam change is coordinated with the WebSocket library's shared base.
 
 The consumer-facing API surface (send methods, adapter contract, channel semantics) is OI-13. Outcomes recorded as KDs and §9 protocol content.
@@ -599,6 +609,10 @@ Collected low-severity items, each small and independent:
 - `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
+
+### OI-42 — Propagate LibVersion 3 into the WebSocket library's version registry
+
+The WebSocket library (OGA.WSClient_Base) maintains its own `WSLibVersions.cs` documenting versions and capabilities for the WebSocket transport; both libraries currently stand at version 2. When the WebSocket library adopts the shared dual-frame elements (OI-40), its `WSLibVersions.cs` SHALL gain the corresponding version-3 entry documenting the adopted capabilities (binary message body layout, rebuilt chunking, limits), mirroring the TCP library's `LibVersions.cs` v3 entry from KD-07. Recorded so the propagation is not forgotten; owner executes it in the WebSocket library's own repository at that phase.
 
 ### OI-41 — Negotiated size limits and capability exchange at registration
 
