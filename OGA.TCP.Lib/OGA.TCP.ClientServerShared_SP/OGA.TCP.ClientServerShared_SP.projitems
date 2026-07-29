@@ -26,6 +26,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Encoding\cCustom_Serializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enumerations.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ExpBackoff_wJitter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FrameTypes.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Messages\MessageEnvelope.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Model\Enumerations.cs" />
   </ItemGroup>
