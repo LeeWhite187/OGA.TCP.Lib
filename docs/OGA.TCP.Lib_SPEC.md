@@ -464,29 +464,23 @@ Usage is now established: repository-wide, the only production callers of `cCust
 
 **Consequences.** OI-25's thread-safety defect and OI-37's close-loop defect are resolved once, in the dispatcher. The declared-but-dead adapter counters become real; `ExpectedMessageType` is dropped from the contract (unused and consulted by nothing) unless the owner objects. The dispatcher, host interface, and adapter family join the OI-40 export set. The WebSocket library migrates at its own phase, per OI-40/OI-42.
 
-### OI-13 — Binary data transmission capability: consumer-facing scope ⚠ NEEDS YOUR INPUT
+### KD-09 — The dual-frame work ships as two releases: substrate, then wire break
 
-The consumer-facing half of the binary work, paired with the wire-level design in OI-39. Decisions needed before implementation:
+**Decision.** Implementation is scoped as two releases:
 
-- **Payload model.** Minimum viable is an opaque `byte[]` sent and received per channel, with the consumer owning any framing or typing inside it. The richer option is typed binary payloads — a declared message type name accompanying the bytes, so binary messages dispatch through the same type-routing consumers already use for JSON.
-- **API shape.** Whether binary send is a distinct method (`SendBinary_to_Endpoint(byte[], channel, ...)`) or an overload of the existing send entry point, and whether receive arrives on the existing `OnBinaryFrameReceived` delegate, on the channel adapters (a new `AcceptIncomingBinary` member on `IChannelAdapter`), or both.
-- **Channel semantics.** Whether a channel may carry both JSON and binary messages, or a channel is declared one or the other at registration.
-- **Size and chunking.** Whether binary messages participate in the chunking layer (see OI-18/OI-19 — chunking must be repaired and made byte-based before it can carry binary), or whether binary is initially capped at one frame.
+**Release 1 — substrate (no wire change).** The KD-08 channel work in full: adapter relocation, common host interface, `ChannelDispatcher`, server migration off its delegate dictionary, kind flag and binary delivery overload (dormant until binary traffic exists). Bundled with the independent defect fixes that touch the same files and need no protocol change: the dispose/shutdown-ordering fixes (OI-24), the metrics fixes (OI-33), and the adapter close-loop and Start-guard items from OI-37. Fully testable against the current wire format; the `ChannelDispatcher` gains unit tests, which no dispatch code currently has.
 
-Outcome recorded as KDs plus §8 (API surface) and §9 (protocol) content.
+**Release 2 — the LibVersion 3 wire break.** One coherent release containing everything the v3 entry declares: the `cReceiveLoop` rework (a rebuilt async read pump resolving OI-20 through OI-23), the five-byte preamble consuming `FrameTypes`, the binary message body, live binary delivery through the dispatcher, the KD-05 chunking rebuild, and the KD-06 limits. Not split further: v3's documented capabilities ship together so the version entry never misstates what a v3 peer supports.
 
-### OI-39 — Dual JSON/binary messaging: remaining design questions ⚠ NEEDS YOUR INPUT
+**Binary send surface (Release 2).** Binary send is a distinct method, not an overload of the object-accepting send — `byte[]` is an `object`, and an overload would silently JSON-serialize byte arrays today; the distinct name removes the ambiguity. Client: `SendBinaryMessage_to_Endpoint(byte[] payload, string channel = "", string scope = "", string corelationid = "", string messagetype = "")`; server: the `SendBinary_toClient` equivalent; binary-kind channel adapters expose `SendMessage(byte[])`; and an `Add_ChannelHandler(name, DelBinaryMessageReceived)` facade mirrors the JSON delegate registration.
 
-The framing and routing-placement decisions are made (KD-03, KD-04). Established context that informs the remainder: the base-class binary receive plumbing (`OnBinaryFrameReceived` et al.) survives the OI-01 WebSocket-file removal and is the contract the TCP implementation should connect to (OI-36); `cReceiveLoop` currently hands out a decoded `string` only, so the reworked receive loop needs a byte-payload delegate alongside it; and the owner has confirmed no mixed old/new peer pairs will exist, so no on-wire negotiation or fallback is designed.
+**Sequencing rules.** Tests lead: the end-to-end large-message tests (both directions, loopback-based) are written against the Release 2 design before the chunking rebuild lands, anchoring the regression the way the keepalive test anchored OI-02. The remaining review defects (OI-26, OI-27, OI-29, OI-30, OI-31, OI-34, OI-35, OI-38) stay off this train as independently shippable patches. The WebSocket library adopts the substrate and v3 elements at its own phase; the OI-40 package extraction happens after Release 2 has proven the shapes — extract known-good code, not designs in motion.
 
-Remaining questions to settle before implementation:
+**Rationale.** The substrate refactor and the wire break are the two risky changes; landing them separately means neither's failure investigation is confounded by the other. Release 1 delivers standalone value (thread safety, working counters, correct dispose) even if the v3 work paused. Bundling the receive-loop rework into the wire break avoids rebuilding the read state machine twice.
 
-1. **Chunking participation.** Settled by KD-05: both frame types chunk, via the byte-based splitter.
-2. **Frame size caps.** Settled by KD-06: one frame cap for both types, plus chunk-payload and transfer limits.
-3. **Version guard.** Settled by KD-07: LibVersion 3, fatal unknown frame types, 0x7B reserved as the legacy-framing detector.
-4. **Implementation scoping.** Whether the framing change is bundled with the `cReceiveLoop` rework that resolves OI-20 through OI-23 (recommended: the read state machine is being rewritten either way), and how the `RawTransportSend` seam change is coordinated with the WebSocket library's shared base.
+### OI-13 — (Closed by KD-09)
 
-The consumer-facing API surface (send methods, adapter contract, channel semantics) is OI-13. Outcomes recorded as KDs and §9 protocol content.
+### OI-39 — (Closed by KD-09)
 
 ### OI-14 — Complete the reverse-engineered spec sections
 
@@ -606,7 +600,7 @@ The connection loop uses `ExpBackoff_wJitter.Delay` (a `Thread.Sleep` loop) at e
 
 ### OI-36 — Binary-frame plumbing is inert on the TCP transport
 
-`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. This is the starting point for OI-39 rather than a defect to fix in isolation — the framing design decides what this plumbing should connect to.
+`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. Resolution path decided: the Release 2 wire break (KD-09) connects this plumbing — the surviving delegate becomes the no-channel binary fallback of the KD-08 dispatcher. This item stays open as the record until that ships.
 
 ### OI-37 — Dead code and minor defects (batch)
 
