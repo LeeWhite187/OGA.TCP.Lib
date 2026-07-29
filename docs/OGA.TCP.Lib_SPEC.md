@@ -570,6 +570,12 @@ Collected low-severity items, each small and independent:
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
 
+### OI-40 — Publishable common-elements library for cross-library reuse
+
+The dual-frame design work is producing elements that are deliberately transport- and library-neutral: the common messaging-host interface that decouples the channel-adapter substrate from `Client_v1_Abstract` (so client, server, TCP, and WebSocket endpoints can all host the same adapters), the relocated adapter family, the binary message body layout, and the rebuilt chunking classes. The separate OGA.WSClient_Base library is intended to consume these same elements; today, sharing between the two libraries happens by manually harmonized code copies, which is the drift mechanism already seen in OI-06 and in the keepalive fix backport.
+
+Plan for a published library (nuget package) of the common elements that both this library and the WebSocket library reference, replacing copy-based sharing for the shared substrate. Deliberately deferred: the elements are being designed and proven inside this repository first, and the extraction/packaging boundary gets decided once something is functioning here. When taken up, decisions needed: package naming and namespace (transport-neutral), which of the existing `ClientServerShared_SP` contents belong in it versus staying TCP-specific (e.g., the frame-type registry and `cReceiveLoop` are TCP-only), and the release-coordination model between three packages on one Jenkins/GitVersion pipeline pattern.
+
 ### OI-38 — Client test suite is bound to one environment
 
 `TCPClient_v1_Tests` and its sibling client test classes bind the hardcoded LAN address `192.168.70.103`, so the suite only runs on the owner's test machine. The `KeepAlive_Tests` class added with OI-02 uses loopback instead and runs anywhere. Consider moving the existing suites to loopback (or a configurable host) so tests are runnable on any dev machine and in any future automated environment. Low risk — test-only change — but it touches a large number of test methods, so it is worth doing deliberately rather than alongside a functional fix.
