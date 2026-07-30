@@ -2,8 +2,8 @@
 
 **Project:** OGA.TCP.Lib
 **Short description:** A message-based TCP connectivity library for .NET, providing framed JSON message exchange, channels, large-message chunking, keepalive, and client registration between processes.
-**Status:** Pre-Implementation
-**Revision:** 2
+**Status:** In Implementation — Release 1 shipped; Release 2 (LibVersion 3 wire break) built and under verification
+**Revision:** 3
 **Template Revision:** 3
 **Created:** 2026-07-26T00:00:00Z
 **Related Documents:** references/SPEC_TEMPLATE_R3.md, references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md, ../README.md
@@ -680,11 +680,15 @@ Status: items 1, 2, 3, and 5 are implemented in commit 8b8df28, which has been p
 
 `ProcessChunkingMessage` is `async void` on both client and server sides. Exceptions thrown in it are unobservable by callers and can crash the process; completion cannot be awaited. The review pass identified concrete reachable paths: a duplicate `ChunkStart` (or the un-removed receiver of OI-19) makes `Dictionary.Add` throw at `Client_v1_Abstract.cs:2973`, and the client dispatches the reassembled message inline at `:3082`, so a consumer handler's exception escapes into the async-void machinery. Both are remotely triggerable. Correctness also currently depends on the `AcceptChunk*` calls completing synchronously — introducing a real `await` in them would let frame N+1 be processed before frame N, which the receiver's strict in-order offset check would then reject. Candidate fix: `async Task` with an explicitly observed continuation, or restructure the call site.
 
+Status: resolved by replacement in Release 2. Chunk control processing is synchronous by design in the rebuild (`ProcessChunkingControl` performs no awaits), so failures are observable by the caller and ordering cannot slip; there is no `async void` anywhere in the chunking path. Closes on release.
+
 ### OI-05 — Test coverage gaps
 
 Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `LargeMsgReceiver`) in isolation, chunk-cancel/timeout/prune paths, `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, and `cCustom_Serializer` (one test for ~1,580 lines). The binary-frame members added in a9f960d are also untested.
 
 The review pass sharpened the priority: **an end-to-end large-message test over a real TCP connection, in both directions, would have caught OI-18** (client-to-server chunked transfers never complete; chunk frames exceed the frame cap). That test is the first one to write, before the OI-18 fix, so it anchors the regression the same way the keepalive test anchors OI-02. Other high-value additions suggested by the findings: a message containing non-BMP characters large enough to chunk (OI-19 surrogate splitting), a payload that is quote-dense enough to expose the char-vs-byte escaping margin (OI-18b), registration props containing colons and quotes (OI-29), runtime channel-adapter registration while traffic flows (OI-25), and a dispose-during-active-receive race (OI-20). Note the existing client suite binds a hardcoded LAN address, so new tests should use loopback to stay portable (see OI-38).
+
+Status: substantially addressed across the two releases. Now covered: the chunking path end-to-end in both directions with json and binary inner types, non-BMP payloads, transfer-limit rejection, and the framing-mismatch detectors (`V3Framing_Tests`); keepalive regression (`KeepAlive_Tests`); dispatcher concurrency and kind enforcement (`ChannelDispatcher_Tests`); the single-use lifecycle (`ClientLifecycle_Tests`); and the rewritten receive loop's contract (`ReceiveLoop_Test`, reworked for v3). Remaining gaps, narrowed: `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, `cCustom_Serializer` breadth (tied to OI-11's disposition), and registration-prop parsing edge cases (OI-29).
 
 ### OI-06 — TESTINGSRVR_* forked server copies have drifted ⚠ NEEDS YOUR REVIEW
 
@@ -695,6 +699,8 @@ This is a test-fidelity concern only — there is no packaging exposure. `Testin
 The drift is no longer hypothetical. The binary-frame receive capability added to the real `Endpoint_Abstract` in commit a9f960d was never mirrored into the fork: `Process_ReceivedBinaryFrame_from_Client`, `Cfg_BinaryFrameHandling_IsFatal`, and `OnBinaryFrameReceived` appear 4, 4, and 6 times respectively in the real class and **zero** times in the fork (fork 2,489 lines vs. real 2,572). Chunking, keepalive/silence detection, chunk-cancel handling, and connection-entry population are still present in both. Practical consequence: client-side binary-frame behavior cannot be exercised against the fork at all, which matters directly for OI-13 and OI-36.
 
 Options to assess: re-sync the fork and add a scripted diff check to catch future divergence; consolidate so the tests build the real server sources for the frameworks that support them; or accept the drift, document the fork as a frozen v1/v2-protocol reference server, and test newer capabilities only in the server test projects.
+
+Status: the fork was re-synced to the v3 protocol as part of Release 2 (typed framing, frame-send choke, binary receive path, rebuilt chunking, v3 registration range) — it now exercises the full v3 wire against the real client, including the new binary and chunked-transfer tests. One deliberate divergence: the fork has no channel-adapter machinery, so received binary messages land on a fork-specific `OnBinaryMessageReceived` delegate. The longer-term structural decision (scripted diff check vs. consolidation) remains open for the owner.
 
 ### OI-07 — (Closed)
 
@@ -775,6 +781,8 @@ Two independent defects mean the large-message chunking feature cannot work over
 
 Resolution path decided: these defects are resolved by replacement rather than patching — the KD-05 chunking rebuild removes both failure classes by construction. This item stays open as the defect record until the rebuild ships. Until then, consumers should be told the practical message ceiling is a single frame.
 
+Status: resolved by replacement in Release 2. The KD-05 rebuild keys receivers by the explicit TransferId (defect a cannot recur) and slices encoded bytes with per-segment byte-true measurement (defect b cannot recur). The end-to-end large-message tests OI-05 called for — both directions, json and binary inner types — are in the client suite (`V3Framing_Tests`) and pass over loopback. Closes on release.
+
 ### OI-19 — Chunking data-integrity and lifecycle defects ⚠ NEEDS YOUR REVIEW
 
 Beyond OI-18, the chunking subsystem carries defects that produce silent corruption or leaks once the transfer path works:
@@ -789,21 +797,31 @@ Beyond OI-18, the chunking subsystem carries defects that produce silent corrupt
 
 Resolution path decided: resolved by the KD-05 rebuild rather than patched individually. This item stays open as the defect record until the rebuild ships.
 
+Status: resolved by replacement in Release 2. Byte-based slicing removes surrogate splitting (verified by a non-BMP payload test); receivers are removed on End/Cancel/rejection under a lock; completeness is validated byte-true before dispatch; ChunkCancel is intercepted and handled on both sides; the sender checks every control and segment send result and issues a best-effort cancel on failure; MaxTransferSize is enforced at start declaration and during accumulation (over-limit test in `V3Framing_Tests`). Closes on release.
+
 ### OI-20 — Receive-loop teardown can crash the process ⚠ NEEDS YOUR REVIEW
 
 In `cReceiveLoop.cs`, the try/catch around the read callback ends at line 874; all frame-processing code after it (through `Process_Received_MessageBuffer`) runs unprotected on an IO-completion thread. `CloseDown()` concurrently disposes and nulls the buffer (`:388-396`) with no synchronization against an in-flight callback. A read completing while the owner disposes the loop — or while the frame-read timeout fires and calls `CloseDown` — dereferences the nulled buffer at `:979` or `:1424`, throwing a `NullReferenceException` on a threadpool thread with no handler, which terminates the process. Candidate fix: a close/callback gate (lock or interlocked state) plus wrapping the post-`EndRead` processing.
+
+Status: resolved by replacement in Release 2. The rewritten `cReceiveLoop` is a single async read pump with no shared mutable buffers between a callback and teardown; the entire pump body is exception-guarded, lifecycle transitions are serialized under one lock, and reads abandoned at closedown have their eventual faults observed. Closes on release.
 
 ### OI-21 — Receive loop caps throughput at a few messages per second ⚠ NEEDS YOUR REVIEW
 
 `cReceiveLoop.cs` blocks a threadpool thread with `Thread.Sleep(100)` on every read-callback entry (`:687`), before every body-read queue (`:519`), and in `CloseDown` (`:383`). A single message therefore costs roughly 300 ms of blocked thread time (length callback + body queue + body callback), limiting a connection to roughly 3–10 messages per second and holding a blocked thread per active connection. The sleeps appear to exist to let a cancellation token settle before disposal; a proper CTS lifecycle would remove the need. This is a scalability ceiling on a live service and worth measuring before and after.
 
+Status: resolved by replacement in Release 2. The rewritten pump contains no `Thread.Sleep` and blocks no threadpool thread between frames. Informal measurement from the suite's 10 MB chunked-transfer test: ~35 MB/s over loopback (thousands of frames per second), versus the old ceiling of roughly 3–10 messages per second. Closes on release.
+
 ### OI-22 — Frame validation gaps
 
 `cReceiveLoop.cs:1097` sanity-checks the frame length only against `MaxMessageSize`; a negative length passes and dies later via an incidental `ArgumentOutOfRangeException` from `BeginRead` rather than the check. Separately, `FrameReadTimeout` bounds only a single `BeginRead` and is re-armed on every partial read, and the length-read phase has no timeout at all — so a peer dripping one byte every few seconds holds a connection and its buffer indefinitely (slowloris). Candidate fixes: add `tempint < 0` to the sanity check, and add a whole-frame deadline distinct from the per-read one.
 
+Status: resolved by replacement in Release 2. The v3 preamble validation rejects negative and over-cap lengths explicitly, and `FrameReadTimeout` is now a whole-frame deadline armed at a frame's first byte — a dripping peer is classified Lost at the deadline regardless of how the bytes arrive. Covered by the receive-loop suite's partial-frame tests. Closes on release.
+
 ### OI-23 — Frame-read timeout races
 
 `cReceiveLoop.Arm_FrameReadTimeout` (`:619-666`) awaits `Task.Delay` on a token, then re-reads `this._readcts` — which may by then be a *new* CTS belonging to a later frame — and declares the connection `Lost` on a healthy connection. The same block swallows an `ObjectDisposedException` from a concurrently disposed CTS, silently leaving that frame with no read timeout. Candidate fix: capture the CTS (or a generation counter) in the local scope the timeout task closes over.
+
+Status: resolved by replacement in Release 2. The rewritten pump has no per-frame CTS churn: the deadline is a local value raced against each read, so there is no stale-token window to misclassify a healthy connection. Closes on release.
 
 ### OI-24 — Client shutdown ordering and dispose do not wait ⚠ NEEDS YOUR REVIEW
 
@@ -821,7 +839,7 @@ Three plain `Dictionary` instances are mutated and enumerated from different thr
 - `_ChannelMessageHandlers` (client): written by `Add_ChannelAdapter`/`Remove_ChannelHandler`/`Close_ChannelAdapters` (`Client_v1_Abstract.cs:685`, `:735`, `:745`), read by dispatch on the receive thread (`:3430`). Registering a channel adapter at runtime while traffic flows can throw or corrupt the table — and runtime channel registration is an advertised feature (UR-02).
 - `_largemsgreceivers` on both sides: mutated on the receive thread, enumerated by the prune on the connection-loop thread (`Client_v1_Abstract.cs:2973`/`:3142`; `Endpoint_Abstract.cs:2131`/`:2304`). A chunk arriving during a prune throws inside the loop, killing the prune pass (client) or tearing down the connection (server).
 
-Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. Status: the channel-handler half is implemented in Release 1 (commit 15519fa), with a concurrency test in the dispatcher suite; the receiver-dictionary half lands with the Release 2 chunking rebuild.
+Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. Status: the channel-handler half is implemented in Release 1 (commit 15519fa), with a concurrency test in the dispatcher suite; the receiver-dictionary half is implemented in Release 2 — every access to the receiver registry (register, lookup, remove, prune, clear) is serialized under one lock on both sides. Closes on release.
 
 ### OI-26 — Server can leak connection slots indefinitely ⚠ NEEDS YOUR REVIEW
 
@@ -853,6 +871,8 @@ Server-side prop parsing (`Endpoint_Abstract.cs:2561-2676`) splits each prop on 
 
 On both sides, setting the raw-message delegate causes `Process_ReceivedMessage` to return before `Process_InternalMessage` runs (`Client_v1_Abstract.cs:2727-2733`; mirrored server-side). Consequences on the client: pings are never answered, pongs never clear the keepalive flag, and registration replies are never processed — so with the default `Cfg_ConnectionWaitsforRegistrationReply`, the client recycles its connection every `Cfg_RegistrationReplyTimeout` forever. The XML docs do not warn about this. Decide whether internal messages should be processed before the tap, or whether the behavior should simply be documented as "raw tap replaces the session layer."
 
+Status: implemented in Release 2 per the owner's decision — the tap is a deliberate dumb-pipe testing mode that owns ALL processing. The behavior is now stated in the tap's XML documentation on both sides, and the delegate signature carries the v3 typed frame (`frametype`, `byte[]`) rather than a decoded string. Closes on release.
+
 ### OI-32 — cCustom_Serializer correctness defects
 
 Independent of how widely it is used (OI-11), the codec has real defects: the embedded-length string methods store `string.Length` (char count) as the prefix while writing UTF-8 bytes, so any non-ASCII string round-trips truncated and misaligns the rest of the stream (`:144-171`, and the string-array metadata at `:1570`); `Deserialize_Version` passes recovered values positionally into a constructor with different parameter order, swapping Build and Revision, and throws on 2- or 3-part versions (`:559-562` vs `:1239-1245`); `size_of_short` is 4 rather than 2 (`:11`), so short round-trips misreport consumed bytes; the big-endian path reverses bytes **in place** (mutating the caller's buffer) and even reverses UTF-8 text, which has no endianness; and `cMultiString_MetaData.Deserialize` allocates an array from an unvalidated wire-supplied count before its bounds check (`:1466-1499`). Since production traffic only uses the Int32 codec, none of this is live-service urgent — but it bears directly on OI-11's disposition and on OI-13, which may want a working primitive codec.
@@ -874,6 +894,8 @@ The connection loop uses `ExpBackoff_wJitter.Delay` (a `Thread.Sleep` loop) at e
 ### OI-36 — Binary-frame plumbing is inert on the TCP transport
 
 `Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. Resolution path decided: the Release 2 wire break (KD-09) connects this plumbing — the surviving delegate becomes the no-channel binary fallback of the KD-08 dispatcher. This item stays open as the record until that ships.
+
+Status: implemented in Release 2. Binary frames are first-class on the TCP transport (KD-03/KD-04), and `OnBinaryFrameReceived` is the no-channel binary fallback wired through the dispatcher on both sides. Binary roundtrips in both directions, including chunked ones, are covered in `V3Framing_Tests`. Closes on release.
 
 ### OI-37 — Dead code and minor defects (batch)
 
@@ -904,9 +926,13 @@ Extend the design documentation so a future reader can understand the machinery 
 
 The test projects contain helper classes that proxy library functionality — the `TESTINGSRVR_*` forked server classes, `Simple_TCPListener` harnesses, `cClientServer_Test_Helper`/`cClient_Helper`, `CommonChannel`, and the test-only client subclasses — simulating "the other end" of conversations or acting as harnesses. The Release 1 and Release 2 changes (channel substrate, framing, receive-loop contract, chunking) will invalidate some of them. Most will surface through unit-test failures during the release work; this item tracks the ones that need explicit, deliberate update — in particular the `TESTINGSRVR_*` fork (whose re-sync/consolidation decision is OI-06) and any helper that hand-builds legacy frames. Resolved incrementally alongside the KD-09 releases.
 
+Status: completed with Release 2. The `TESTINGSRVR_*` fork is re-synced (see OI-06); the test-side frame-send helpers in `ReceiveLoop_Test` and `TCPEndpoint_Tests` now write the v3 preamble (with a typed overload for non-json frames); hand-built legacy frames inside tests were converted to v3 framing except where a legacy frame is the point of the test (the KD-07 detector test). Closes on release.
+
 ### OI-43 — Repoint wiki links to the Bookstack instance after page migration
 
 File headers and version documentation — notably `LibVersions.cs` — reference the owner's former Confluence wiki. Those links are temporarily dead: the Confluence site is taken down and its pages are being migrated to the owner's Bookstack instance. Once the pages are migrated, update the in-code URL references to their new Bookstack locations; the owner prioritizes the migration itself. Independent of the links, §9.1.3 remains this spec's self-sufficient record of LibVersion semantics, and the v3 `LibVersions.cs` entry (KD-07, written at Release 2) should carry the new wiki URL from the start.
+
+Status note: the v3 entry was written at Release 2 while the Bookstack migration was still pending, so no new URL existed to carry; it references this spec (KD-03/04/05/07) instead. When the wiki pages land, add the Bookstack URL to the v3 entry along with repointing the v1/v2 links.
 
 ### OI-42 — Propagate LibVersion 3 into the WebSocket library's version registry
 
