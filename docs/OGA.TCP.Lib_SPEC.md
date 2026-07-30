@@ -922,13 +922,7 @@ The dual-frame design work is producing elements that are deliberately transport
 
 Plan for a published library (nuget package) of the common elements that both this library and the WebSocket library reference, replacing copy-based sharing for the shared substrate. Deliberately deferred: the elements are being designed and proven inside this repository first, and the extraction/packaging boundary gets decided once something is functioning here. When taken up, decisions needed: package naming and namespace (transport-neutral), which of the existing `ClientServerShared_SP` contents belong in it versus staying TCP-specific (e.g., the frame-type registry and `cReceiveLoop` are TCP-only), and the release-coordination model between three packages on one Jenkins/GitVersion pipeline pattern.
 
-### OI-38 — Test suites bound to one environment ⚠ NEEDS YOUR REVIEW
-
-The suites hardcoded the owner's historical dev-PC address (`192.168.70.103`) because naive host-IP lookups randomly returned a VPN client's tunnel address, failing tests. Tooling note: the two old-style test csprojs (NET48, NET452) build only under full MSBuild/Visual Studio — the dotnet CLI does not resolve `PackageReference` assets for non-SDK projects.
-
-Status: implemented, and upstreamed. `cTestHost_Helper.GetPrimaryIPv4()` resolves the testing host's principal IPv4 at runtime — a NIC scan requiring an IPv4 default gateway (which excludes VPN tunnel adapters, the original problem), falling back to an OS routing-table lookup, then loopback. The owner adopted the helper into the OGA.Testing.Lib package (namespace `OGA.Testing.Helpers`, from version 1.14.1), making it available to the whole library family; this repository's local copy is removed and the three formerly-hardcoded sites (`TCPEndpoint_Tests`, `TCPClient_v1_Tests`, `ChannelAdapter_UsageTests`) call the packaged class. Verified off-environment: the full server suite (71 passed, 1 skipped, 0 failed) and full client suite (78 passed, 0 failed) run green on a host the hardcoded address could never work from. Two client tests were also updated to the KD-10 contract during this work (consumer-initiated Stop no longer raises the connection-lost delegate; they previously asserted the old behavior).
-
-Remaining before closure: owner verification that the resolver picks the intended NIC on the original dev PC — including with the VPN client connected, which is the scenario that motivated the hardcoding.
+### OI-38 — (Closed)
 
 ---
 
