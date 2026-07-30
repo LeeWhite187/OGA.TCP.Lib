@@ -152,21 +152,25 @@ namespace OGA.TCP.Server
         #region Send Methods
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
+        /// Websocket-specific frame send: maps the frame type onto the websocket's native Text/Binary message
+        ///     types, since websocket framing carries the discriminator itself (no preamble is prepended).
         /// No need for any try-catch, as the call to this method is safely wrapped.
         /// </summary>
-        /// <param name="data"></param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="data">The frame's body bytes.</param>
         /// <returns></returns>
-        override protected async Task<int> RawTransportSend(byte[] data)
+        override protected async Task<int> RawTransportSend(byte frametype, byte[] data)
         {
             if (data == null || data.Length == 0)
                 return 1;
 
-            //await _webSocket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
-            //return 1;
+            // Map the frame type onto the websocket's native message typing...
+            var wsmsgtype = frametype == OGA.TCP.FrameTypes.Binary
+                                ? System.Net.WebSockets.WebSocketMessageType.Binary
+                                : System.Net.WebSockets.WebSocketMessageType.Text;
 
             // Send the message...
-            await this._webSocket.SendAsync(data, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None).ContinueWith(task =>
+            await this._webSocket.SendAsync(data, wsmsgtype, true, CancellationToken.None).ContinueWith(task =>
             {
                 // If here, the send method finished.
 
@@ -467,10 +471,11 @@ namespace OGA.TCP.Server
                                         string rawmsg = await reader.ReadToEndAsync();
 
                                         // Send it off for processing....
+                                        // The websocket's native Text typing maps to the json processing path.
                                         ///  1 = Message was handled.
                                         ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
                                         /// -1 = Registration failed. The receive loop cannot continue, and the connection must close down.
-                                        res = Process_ReceivedMessage_from_Client(rawmsg);
+                                        res = Process_ReceivedJsonMessage_from_Client(rawmsg);
                                     }
                                 }
 

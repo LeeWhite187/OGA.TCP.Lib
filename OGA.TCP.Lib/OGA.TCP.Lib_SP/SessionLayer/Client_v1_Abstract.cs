@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
+using OGA.TCP.Chunking;
 using OGA.TCP.Chunking.DTO;
 using OGA.TCP.Chunking.Helpers;
 using OGA.TCP.Channels;
@@ -159,7 +160,38 @@ namespace OGA.TCP.SessionLayer
         /// -> simply increase max packet size if you want to send around bigger files!
         /// -> 1MB per message should be more than enough.
         /// </summary>
-        public int MaxMessageSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
+        public int MaxFrameSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
+
+        /// <summary>
+        /// The most payload bytes one chunk-data message may carry, when a large message is split for transfer.
+        /// Zero (the default) means fit-to-frame: each chunk carries as much as fits under MaxFrameSize after
+        ///     the measured chunk-message overhead.
+        /// Tune this BELOW the frame limit to make bulk transfers use smaller frames than ordinary messages,
+        ///     giving latency-sensitive channels more frequent interleave slots while a large transfer streams.
+        /// The library clamps the effective value so a chunk frame can never exceed MaxFrameSize.
+        /// </summary>
+        public int MaxChunkPayloadSize { get; set; } = 0;
+
+        /// <summary>
+        /// The most total bytes a chunked (multi-frame) message may reassemble to; the true message-size ceiling,
+        ///     and the receiver's memory defense.
+        /// Enforced when a transfer is announced (an over-declared transfer is rejected) and again during
+        ///     accumulation (receipt beyond the declaration is a protocol error).
+        /// Limits are local policy: each side enforces its own receive limits, and a sender exceeding this
+        ///     peer's limit discovers it via a transfer-time cancel, not at the call site.
+        /// Must be at least MaxFrameSize; a transfer smaller than one frame would not chunk at all.
+        /// </summary>
+        public long MaxTransferSize { get; set; } = OGA.TCP.Constants.CONST_MAX_TransferSize;
+
+        /// <summary>
+        /// Superseded name for MaxFrameSize, retained so existing call sites compile; forwards to MaxFrameSize.
+        /// </summary>
+        [Obsolete("Use MaxFrameSize. This alias forwards to it.")]
+        public int MaxMessageSize
+        {
+            get => this.MaxFrameSize;
+            set => this.MaxFrameSize = value;
+        }
 
         /// <summary>
         /// Set this to the lowercase name of the transport: tcp, ws, etc...
@@ -436,17 +468,18 @@ namespace OGA.TCP.SessionLayer
         ///     and all internal processing (keepalive replies, registration handling, dispatch) is bypassed.
         /// Intended for testing and protocol tooling, not normal applications.
         /// </summary>
-        /// <param name="mep">The client instance that received the message.</param>
-        /// <param name="rawstring">The raw received message string.</param>
+        /// <param name="mep">The client instance that received the frame.</param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="raw">The frame's raw body bytes. Decode as UTF-8 for json frames, if a string is needed.</param>
         /// <returns></returns>
-        public delegate int DelRawMessageReceived(Client_v1_Abstract mep, string rawstring);
+        public delegate int DelRawMessageReceived(Client_v1_Abstract mep, byte frametype, byte[] raw);
         /// <summary>
         /// Consumer's raw-message tap. Assigned via OnRawMessageReceived; nulled on stop.
         /// </summary>
         protected DelRawMessageReceived _delOnRawMessageReceived;
         /// <summary>
         /// Normally, this is not used as messages are exchanged as typed classes.
-        /// However, attaching a handler to this will allow raw message strings to be processed.
+        /// However, attaching a handler to this will allow raw frames to be processed by the consumer exclusively.
         /// </summary>
         public DelRawMessageReceived OnRawMessageReceived
         {
@@ -540,8 +573,9 @@ namespace OGA.TCP.SessionLayer
 
             _classname = nameof(Client_v1_Abstract);
 
-            // Preset the WSLib Version to the first version...
-            LibVersion = LibVersions.CONST_LibVersion_1;
+            // Preset the TCP/WSLib Version to the library default (the latest version)...
+            // For compatibility testing of older client behavior, a derived class can overwrite this in its constructor.
+            LibVersion = LibVersions.DEFAULT_CONST_WSLIBVERSION;
 
             this.Logger = logger;
 
@@ -561,9 +595,10 @@ namespace OGA.TCP.SessionLayer
             this._lastPingSentTimeUtc = DateTime.UnixEpoch;
 #endif
 
-            // Stand up the channel dispatcher, and wire our no-channel fallback into it...
+            // Stand up the channel dispatcher, and wire our no-channel fallbacks into it...
             this._dispatcher = new ChannelDispatcher(this.InstanceId, this.Logger);
             this._dispatcher.NoChannelJsonHandler = this.Handle_NoChannelMessage;
+            this._dispatcher.NoChannelBinaryHandler = this.Handle_NoChannelBinary;
 
             this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
 
@@ -731,7 +766,7 @@ namespace OGA.TCP.SessionLayer
             catch (Exception) { }
 
             // Clear out any large message receivers...
-            this._largemsgreceivers.Clear();
+            lock (this._receiverslock) { this._largemsgreceivers.Clear(); }
 
             // Disconnect any message handlers...
             this._dispatcher.CloseAll();
@@ -1486,7 +1521,7 @@ namespace OGA.TCP.SessionLayer
             this.CreateNewConnectionID();
 
             // Clear out any large message receivers...
-            this._largemsgreceivers.Clear();
+            lock (this._receiverslock) { this._largemsgreceivers.Clear(); }
 
             // This is a call point, for the transport specific implementation, to create its socket, websocket, etc...
             // Wrap it in a try-catch to ensure it doesn't throw and unwind us...
@@ -2072,24 +2107,28 @@ namespace OGA.TCP.SessionLayer
         /// This method sends the client's connection registration data, once connected to the WSHost.
         /// This method is also be called from outside the client, to send updated registrations, for events like user log out, language change, or changes to transport properties like keepalive and echo.
         /// NOTE:   This method is virtual, so it can be overridden for new registration behavior.
-        ///         Specifically, this call, performs a connection registration as a WSLibVersion = 1 client, and will error out if executed on a non version=1 instance.
+        ///         Specifically, this call, performs a connection registration for TCP/WSLibVersion = 1 and 3 clients.
+        ///         Version 1 clients send no libver property (the server infers version 1 from its absence).
+        ///         Version 3 clients announce their version via the libver property (see PropName_ClientLibVer).
+        ///         Version 2 registration adds mandatory client application properties (appid, appver) that this base class has no knowledge of,
+        ///         so a version 2 instance will error out here: the deriving class must override this method to supply them.
         /// </summary>
         /// <returns></returns>
         public virtual async Task<int> Send_RegistrationMessage()
         {
             try
             {
-                // Confirm we are set as a TCP/WSLibVersion=1 client...
-                if (this.LibVersion != LibVersions.CONST_LibVersion_1)
+                // Confirm this base method knows how to register our TCP/WSLibVersion...
+                if (this.LibVersion != LibVersions.CONST_LibVersion_1 && this.LibVersion != LibVersions.CONST_LibVersion_3)
                 {
-                    // We are not defined as a version 1 client.
-                    // Which means the deriving class did not include an override of this method as a non version 1 client.
+                    // We are not defined as a version this base method can register (v2 needs app-identity props we don't have).
+                    // Which means the deriving class did not include an override of this method for its version.
                     // So, we must error the client connection.
 
 
                     this.Logger?.Error(
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
-                        $"Cannot send {(this.PropName_ClientLibVer ?? "")}=1 registration data, for a non version 1 client. " +
+                        $"Cannot send {(this.PropName_ClientLibVer ?? "")}={(this.LibVersion ?? "")} registration data from the base class. " +
                         $"This method must be overridden for proper registration behavior.");
 
                     return -3;
@@ -2114,6 +2153,14 @@ namespace OGA.TCP.SessionLayer
                 rmsg.DeviceId = this.DeviceId;
 
                 List<string> props = new List<string>();
+
+                // Announce our TCP/WSLibVersion if we are past version 1...
+                // (Version 1 clients predate the libver property; the server infers version 1 when the property is absent.)
+                if (this.LibVersion != LibVersions.CONST_LibVersion_1)
+                {
+                    // Set a property announcing our library version...
+                    props.Add("\"" + this.PropName_ClientLibVer + "\":\"" + this.LibVersion + "\"");
+                }
 
                 // Set the loopback echo flag is needed...
                 if (this.Register_with_Loopback_AllMessages)
@@ -2199,88 +2246,12 @@ namespace OGA.TCP.SessionLayer
             string messagetype = payload.GetType().Name;
             string jsonmsg = JsonConvert.SerializeObject(payload);
 
-            // See if chunking is enabled for this connection...
-            if (!this.Cfg_EnableChannelLayerChunking)
-            {
-                // Chunking is off.
-                // We will attempt to send all messages in a single frame.
-                // This will be done, below.
-            }
-            else
-            {
-                // Chunking is enabled.
-                // We will check if the message needs to be split up for sending.
-
-                // Ensure the serialized buffer is not too large for the receiver...
-                // We derate the max size enough to fit the message envelope and header (length value).
-                if (jsonmsg.Length > (this.MaxMessageSize - 1024))
-                {
-                    // Message is too large to fit in a single message frame.
-                    // Message needs to be split up.
-
-                    // Given message frame is too large to send in one frame.
-                    // We will chunk it up, sending pieces, and the other end will reassemble them for processing.
-
-                    // The given message has an assigned channel.
-                    // We will attempt to honor that channel assignment, and send chunks over it.
-
-                    // Setup our large message sender...
-                    var lms = new LargeMsgSender();
-                    lms.MaxChunkSize = (this.MaxMessageSize - 1024);
-                    // Load the raw message to be chunked out...
-                    // Give the chunker the messageid of the composed message...
-                    var resload = lms.Load(GetNextMessageId(), messagetype, jsonmsg, channel, scope, corelationid);
-                    if (resload != 1)
-                    {
-                        // Failed to load the message for chunking.
-
-                        this.Logger?.Debug(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
-                            $"Failed to load outgoing message for chunking.");
-
-                        return -1;
-                    }
-
-                    // Tell it to do a blocking send, to our send call...
-                    // This will block the thread, until all chunks are sent, the connection drops, or we are cancelled.
-                    // Give it a send delegate, a delegate for creating messageIds, and our cancellation token.
-                    var ressend = await lms.SendChunksAsync(this.Send_SerializedObject_toEndpoint_Async, this._cts.Token);
-                    if (ressend == 0)
-                    {
-                        // The send was cancelled.
-
-                        this.Logger?.Debug(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
-                            $"Send was cancelled while conveying chunked message to the remote endpoint.");
-
-                        return 0;
-                    }
-                    else if (ressend < 0)
-                    {
-                        // The send failed.
-
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
-                            $"Send failed while conveying chunked message to the remote endpoint.");
-
-                        return -1;
-                    }
-                    // If here, we were able to send all chunks of the message.
-
-                    return 1;
-                }
-                else
-                {
-                    // Message can be sent in a single frame.
-                    // We will pass it along like normal.
-                    // This will be done, below.
-                }
-            }
-
             this.Logger?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_to_Endpoint)} - " +
                 $"Attempting to send object to {(this.TransportShortName?.ToUpper() ?? "")}Endpoint...");
 
+            // Oversize handling (chunking) happens below, at the serialized-send layer, where the
+            //  encoded body size is known byte-true.
             return await Send_SerializedObject_toEndpoint_Async(messagetype, jsonmsg, channel, scope, corelationid);
         }
 
@@ -2328,26 +2299,6 @@ namespace OGA.TCP.SessionLayer
             if (jsonobject == null)
                 jsonobject = "";
 
-            if (!this.Cfg_EnableChannelLayerChunking)
-            {
-                // No large message support.
-
-                // Ensure the serialized buffer is not too large for the receiver...
-                // We derate the max size enough to fit the message envelope and header (length value).
-                if (jsonobject.Length > (this.MaxMessageSize - 1024))
-                {
-                    // Message is too large to fit in a single message frame.
-                    // We will tell the caller, so they can send the message, piece-wise.
-
-                    this.Logger?.Debug(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toEndpoint_Async)} - " +
-                        $"Message is too large ({(jsonobject?.Length.ToString() ?? "unknown size")}) to send to the remote endpoint.");
-
-                    return -10;
-                }
-            }
-            // The raw message will fit into a single message frame.
-
             // Create and stuff an envelope...
             MessageEnvelope me = new MessageEnvelope();
             me.MsgId = GetNextMessageId();
@@ -2359,15 +2310,171 @@ namespace OGA.TCP.SessionLayer
             me.MessageType = objecttype;
             me.Props = new string[] { "corelationid=" + corelationid ?? "" };
 
-            return await Send_MessageEnvelope_toEndpoint_Async(me);
+            // Encode the envelope, so the size decision is byte-true...
+            var jsonmsg = JsonConvert.SerializeObject(me);
+            byte[] body = Encoding.UTF8.GetBytes(jsonmsg);
+
+            // An encoded body that fits in one frame ships directly...
+            if (body.Length <= this.MaxFrameSize)
+                return await this.Send_Frame_toEndpoint_Async(FrameTypes.Json, body);
+
+            // Oversized: the chunking layer splits the encoded bytes, when enabled...
+            if (!this.Cfg_EnableChannelLayerChunking)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toEndpoint_Async)} - " +
+                    $"Message is too large ({body.Length.ToString()} bytes) to send in one frame, and chunking is disabled.");
+
+                return -10;
+            }
+
+            return await this.Send_ChunkedBody_toEndpoint_Async(FrameTypes.Json, body, channel, scope, corelationid);
         }
 
         /// <summary>
-        /// Accepts a prepared message envelope, and sends it to the tcp/websocket service.
+        /// Transfers an oversized encoded body via the chunking layer: a start declaration, binary segments of
+        ///     raw byte slices, and an end declaration — interleaving with other channels' traffic between frames.
+        /// Used by both the json and binary send paths; the frame type tells the receiver how to re-inject
+        ///     the reassembled bytes.
+        /// Returns 1 on success, 0 when cancelled, negatives on failure (a best-effort cancel is sent so the
+        ///     receiver tears down its transfer state).
+        /// </summary>
+        /// <param name="frametype">Frame type of the original message body.</param>
+        /// <param name="body">The encoded body bytes to transfer.</param>
+        /// <param name="channel">Channel of the original message.</param>
+        /// <param name="scope">Scope of the original message.</param>
+        /// <param name="corelationid">Correlation id of the original message, or empty.</param>
+        /// <returns></returns>
+        protected async Task<int> Send_ChunkedBody_toEndpoint_Async(byte frametype, byte[] body, string channel, string scope, string corelationid)
+        {
+            // Setup our large message sender...
+            var lms = new LargeMsgSender(this.Logger);
+            lms.MaxFrameSize = this.MaxFrameSize;
+            lms.MaxChunkPayloadSize = this.MaxChunkPayloadSize;
+
+            // Load the encoded bytes to be chunked out, keyed by a fresh transfer id...
+            var resload = lms.Load(GetNextMessageId(), frametype, body, channel, scope, corelationid);
+            if (resload != 1)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toEndpoint_Async)} - " +
+                    $"Failed to load outgoing message for chunking.");
+
+                return -1;
+            }
+
+            // Send the transfer: control messages ride the json path, segments ride binary frames.
+            // Each frame send awaits the write semaphore, so other traffic interleaves between segments.
+            var ressend = await lms.SendChunksAsync(
+                this.Send_SerializedObject_toEndpoint_Async,
+                this.Send_Frame_toEndpoint_Async,
+                this._cts != null ? this._cts.Token : CancellationToken.None);
+
+            if (ressend == 0)
+            {
+                this.Logger?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toEndpoint_Async)} - " +
+                    $"Send was cancelled while conveying chunked message to the remote endpoint.");
+
+                return 0;
+            }
+            else if (ressend < 0)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toEndpoint_Async)} - " +
+                    $"Send failed while conveying chunked message to the remote endpoint.");
+
+                return -1;
+            }
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Sends a raw binary payload to the connected endpoint, routed by the same channel, scope, and
+        ///     correlation metadata json messages carry.
+        /// The payload rides the wire uncoded (no base64 or escaping cost); oversized payloads are transparently
+        ///     chunked when chunking is enabled.
+        /// A distinct method rather than an overload of the object send, so a byte array can never be silently
+        ///     json-serialized as an object payload.
+        /// Returns 1 on success, 0 if the session is not ready to send, negatives on error.
+        /// </summary>
+        /// <param name="payload">The raw payload bytes to send.</param>
+        /// <param name="channel">Optional channel name; binary-kind channels deliver to their adapters, and
+        ///     channel-less payloads land on the peer's no-channel binary handler.</param>
+        /// <param name="scope">Optional scope value.</param>
+        /// <param name="corelationid">Optional correlation id, carried for tracing.</param>
+        /// <param name="messagetype">Optional message type name, for consumer routing. Empty is legal for
+        ///     opaque payloads whose meaning the channel implies.</param>
+        /// <returns></returns>
+        public async Task<int> SendBinaryMessage_to_Endpoint(byte[] payload, string channel = "", string scope = "", string corelationid = "", string messagetype = "")
+        {
+            if (payload == null)
+                return -1;
+
+            // Do we allow sending...
+            if (!this._allowsend)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendBinaryMessage_to_Endpoint)} - " +
+                    $"{(this.TransportLongName ?? "Socket")} is not currently open for sending messages.");
+
+                return 0;
+            }
+
+            // Compose the binary message body: routing header, then the raw payload...
+            var header = new BinaryMessageHeader();
+            header.MsgId = GetNextMessageId();
+            header.SentTimeUTC = DateTime.UtcNow;
+            header.MessageType = messagetype ?? "";
+            header.Channel = channel ?? "";
+            header.Scope = scope ?? "";
+            header.Props = new string[] { "corelationid=" + (corelationid ?? "") };
+
+            var body = header.ComposeBody(payload);
+
+            // A body that fits in one frame ships directly...
+            if (body.Length <= this.MaxFrameSize)
+                return await this.Send_Frame_toEndpoint_Async(FrameTypes.Binary, body);
+
+            // Oversized: the chunking layer splits the encoded bytes, when enabled...
+            if (!this.Cfg_EnableChannelLayerChunking)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendBinaryMessage_to_Endpoint)} - " +
+                    $"Binary message is too large ({body.Length.ToString()} bytes) to send in one frame, and chunking is disabled.");
+
+                return -10;
+            }
+
+            return await this.Send_ChunkedBody_toEndpoint_Async(FrameTypes.Binary, body, channel ?? "", scope ?? "", corelationid ?? "");
+        }
+
+        /// <summary>
+        /// Accepts a prepared message envelope, and sends it to the tcp/websocket service as a json frame.
         /// </summary>
         /// <param name="me"></param>
         /// <returns></returns>
         protected async Task<int> Send_MessageEnvelope_toEndpoint_Async(MessageEnvelope me)
+        {
+            // Serialize the envelope and convert it to bytes...
+            var jsonmsg = JsonConvert.SerializeObject(me);
+            // Convert the string to bytes for transport...
+            byte[] d = Encoding.UTF8.GetBytes(jsonmsg);
+
+            return await this.Send_Frame_toEndpoint_Async(FrameTypes.Json, d);
+        }
+
+        /// <summary>
+        /// The single frame-send choke point: every outgoing frame of either type funnels through here.
+        /// Verifies the session can send, serializes the write through the send semaphore (so frames never
+        ///     interleave mid-frame on the wire), and maps transport failures to result codes.
+        /// Returns 1 on success, 0 when not connected or the transport refuses, negatives on error.
+        /// </summary>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's encoded body bytes.</param>
+        /// <returns></returns>
+        protected async Task<int> Send_Frame_toEndpoint_Async(byte frametype, byte[] body)
         {
             try
             {
@@ -2375,7 +2482,7 @@ namespace OGA.TCP.SessionLayer
                 if (this.disposedValue)
                 {
                     this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                         $"{(this.TransportLongName ?? "Socket")} is already disposed.");
 
                     return -1;
@@ -2383,21 +2490,26 @@ namespace OGA.TCP.SessionLayer
                 if (!this.IsConnected)
                 {
                     this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                         $"{(this.TransportLongName ?? "Socket")} is not connected.");
 
                     return 0;
                 }
 
+                // Enforce the frame cap byte-true, at the last common point before the wire...
+                if ((body?.Length ?? 0) > this.MaxFrameSize)
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
+                        $"Frame body ({body.Length.ToString()} bytes) exceeds MaxFrameSize ({this.MaxFrameSize.ToString()}). " +
+                        "Oversized messages must go through the chunking layer.");
+
+                    return -10;
+                }
+
                 this.Logger?.Debug(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     "Attempting to send message to remote endpoint...");
-
-                // Serialize the envelope and convert it to bytes...
-                var jsonmsg = JsonConvert.SerializeObject(me);
-                // Convert the string to bytes for transport...
-                byte[] d = Encoding.UTF8.GetBytes(jsonmsg);
-
 
                 //************************************************************************************************************
                 // Start Send Thread Lock
@@ -2407,7 +2519,7 @@ namespace OGA.TCP.SessionLayer
                 try
                 {
                     // Send the message...
-                    var res = await this.RawTransportSend(d);
+                    var res = await this.RawTransportSend(frametype, body);
                     if (res >= 1)
                     {
                         // Send was successful.
@@ -2429,7 +2541,7 @@ namespace OGA.TCP.SessionLayer
                 //************************************************************************************************************
 
                 this.Logger?.Debug(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     "Message sent to remote endpoint.");
 
                 return 1;
@@ -2440,7 +2552,7 @@ namespace OGA.TCP.SessionLayer
                 // Meaning, the websocket has been closed by the other end.
 
                 this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} was closed by the other end, and cannot send messages.");
 
                 return -1;
@@ -2451,7 +2563,7 @@ namespace OGA.TCP.SessionLayer
                 // Meaning, the tcpsocket has been closed by the other end.
 
                 this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} was closed by the other end, and cannot send messages.");
 
                 return -1;
@@ -2461,7 +2573,7 @@ namespace OGA.TCP.SessionLayer
                 // Socket is disposed.
 
                 this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} is disposed, and cannot send messages.");
 
                 return -1;
@@ -2471,7 +2583,7 @@ namespace OGA.TCP.SessionLayer
                 // Socket is not open.
 
                 this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} is not open, and cannot send messages.");
 
                 return 0;
@@ -2483,7 +2595,7 @@ namespace OGA.TCP.SessionLayer
                 var f = e.GetType();
 
                 this.Logger?.Error(e,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toEndpoint_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toEndpoint_Async)} - " +
                     $"Unknown exception type occurred ({f}) while attempting to send message over {(this.TransportLongName?.ToLower() ?? "socket")}.");
 
                 return -1;
@@ -2491,16 +2603,15 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
+        /// Override this method with the transport-specific means to send one frame.
+        /// The TCP transport prepends the five-byte preamble; the websocket transport maps the frame type onto
+        ///     its native Text/Binary message types, since websocket framing carries the discriminator itself.
         /// No need for any try-catch, as the call to this method is safely wrapped.
         /// </summary>
-        /// <param name="data"></param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes. May be empty, never null.</param>
         /// <returns></returns>
-        abstract protected Task<int> RawTransportSend(byte[] data);
-        //{
-        //    await _webSocket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
-        //    return 1;
-        //}
+        abstract protected Task<int> RawTransportSend(byte frametype, byte[] body);
 
         /// <summary>
         /// Call this to create the identifier for each message to be sent.
@@ -2822,27 +2933,127 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// First-handler of any received message.
+        /// First-handler of any received frame: the merge point of the receive paths.
+        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type —
+        ///     json bodies flow through envelope processing (internal messages, chunking, dispatch),
+        ///     binary bodies through routing-header parsing and binary dispatch.
+        /// Returns 1 handled, 0 recoverable problem (message disregarded), -1 fatal to the connection.
+        /// </summary>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes.</param>
+        /// <returns></returns>
+        protected int Process_ReceivedMessage(byte frametype, byte[] body)
+        {
+            try
+            {
+                // Check if a raw message handler is set...
+                // The tap is a dumb-pipe mode: the assigned handler owns ALL processing, and everything
+                //  below (internal messages, chunking, dispatch) is bypassed.
+                var tap = this._delOnRawMessageReceived;
+                if (tap != null)
+                {
+                    // Call the raw message handler...
+                    tap(this, frametype, body);
+
+                    return 1;
+                }
+
+                if (frametype == FrameTypes.Json)
+                {
+                    // Json body: decode once, here, and hand to envelope processing...
+                    var rawmsg = Encoding.UTF8.GetString(body);
+                    return this.Process_ReceivedJsonMessage(rawmsg);
+                }
+
+                if (frametype == FrameTypes.Binary)
+                {
+                    return this.Process_ReceivedBinaryMessage(body);
+                }
+
+                // The receive loop validates frame types before delivery, so this is unreachable in practice...
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage)} - " +
+                    $"Received frame of unhandled type ({frametype.ToString()}).");
+
+                return 0;
+            }
+            catch (Exception e)
+            {
+                this.Logger?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage)} - " +
+                    "Exception occurred while processing received frame.");
+
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Parses a binary message body (routing header plus raw payload) and dispatches it.
+        /// Chunk-data messages are diverted to the chunking layer by their message type; everything else routes
+        ///     through the dispatcher — to the channel's binary-kind adapter, or the no-channel binary fallback.
+        /// Returns 1 handled, 0 recoverable problem (message disregarded).
+        /// </summary>
+        /// <param name="body">The binary frame's body bytes.</param>
+        /// <returns></returns>
+        protected int Process_ReceivedBinaryMessage(byte[] body)
+        {
+            BinaryMessageHeader header;
+            byte[] payload;
+            var parseres = BinaryMessageHeader.TryParseBody(body, out header, out payload);
+            if (parseres != 1)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryMessage)} - " +
+                    $"Received binary message body was malformed (parse result {parseres.ToString()}). Message disregarded.");
+
+                return 0;
+            }
+
+            var mt = (header.MessageType ?? "").ToLower();
+
+            // Recover any correlation id from the header props, so dispatch can carry it to handlers...
+            string cid = "";
+            try
+            {
+                if (header.Props != null)
+                {
+                    foreach (var p in header.Props)
+                    {
+                        if (p != null && p.StartsWith("corelationid="))
+                        {
+                            cid = p.Substring(13);
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception) { }
+
+            // Divert chunk-data messages to the chunking layer...
+            if (mt == ChunkingConstants.CONST_ChunkSegment_MessageType)
+            {
+                return this.Process_ChunkSegment(header, payload);
+            }
+
+            // Route through the shared dispatcher: channel lookup, kind enforcement, delivery, and the
+            //  no-channel fallback all live there...
+            var res = this._dispatcher.DispatchBinary(this, header.Channel, mt, payload, cid);
+            return res >= 1 ? 1 : res == 0 ? 1 : 0;
+        }
+
+        /// <summary>
+        /// First-handler of a received json message body.
         /// Will hydrate it to the standard message envelope, and dispense it as internal or consumer message.
         /// </summary>
         /// <param name="rawmsg"></param>
         /// <returns></returns>
-        protected int Process_ReceivedMessage(string rawmsg)
+        protected int Process_ReceivedJsonMessage(string rawmsg)
         {
             // Each message arrives as a json string of a message envelope.
             // We need to deserialize that, recover the message type, and deserialize that.
 
             try
             {
-                // Check if a raw message handler is set...
-                if (this._delOnRawMessageReceived != null)
-                {
-                    // Call the raw message handler...
-                    this._delOnRawMessageReceived(this, rawmsg);
-
-                    return 1;
-                }
-
                 // Recover the envelope...
                 var me = Newtonsoft.Json.JsonConvert.DeserializeObject<MessageEnvelope>(rawmsg);
                 if (me == null)
@@ -2894,23 +3105,17 @@ namespace OGA.TCP.SessionLayer
                     return 0;
                 }
 
-                // Here, we intercept incoming messages, and handling any chunking of large messages.
-                // We will look for any of the chunk message types...
-                // ChunkAckDTO, ChunkRequestDTO, ChunkDTO, ChunkStartDTO.
-                // If we encounter one, we forward it to the chunk handler...
+                // Here, we intercept the chunking layer's control messages (start, end, cancel).
+                // Chunk data does not appear on this path: segments ride binary frames, intercepted by their
+                //  routing-header message type in the binary processing path.
                 if(mt == nameof(ChunkStartDTO).ToLower() ||
-                    mt == nameof(ChunkDTO).ToLower() ||
-                    //mt == nameof(ChunkAckDTO).ToLower() \\
-                    //mt == nameof(ChunkCancelDTO).ToLower() ||
-                    //mt == nameof(ChunkRequestDTO).ToLower() ||
-                    mt == nameof(ChunkEndDTO).ToLower()
+                    mt == nameof(ChunkEndDTO).ToLower() ||
+                    mt == nameof(ChunkCancelDTO).ToLower()
                     )
                 {
-                    // Received message is a chunking message.
-                    // We will forward it to our chunking handler...
-                    ProcessChunkingMessage(me.MsgId, mt, me.Data, me.Channel, me.Scope);
-
-                    return 1;
+                    // Received message is a chunking control message.
+                    // Chunk control is synchronous work (no awaits), so its failures are observable here.
+                    return this.ProcessChunkingControl(mt, me.Data);
                 }
                 // Not a chunking message type.
                 // We will dispatch it as normal.
@@ -3029,285 +3234,362 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Process large messages that are conveyed via chunks on channels.
+        /// Guards the large-message receiver registry: registrations arrive on the receive path while the
+        ///     connection loop prunes, so every access is serialized here.
         /// </summary>
-        /// <param name="msgId"></param>
-        /// <param name="messagetype"></param>
-        /// <param name="data"></param>
-        /// <param name="channel"></param>
-        /// <param name="scope"></param>
-        private async void ProcessChunkingMessage(string msgId, string messagetype, string data, string channel, string scope)
+        private readonly object _receiverslock = new object();
+
+        /// <summary>
+        /// Handles the chunking layer's json control messages: start (create a receiver), end (validate
+        ///     completeness and re-inject the reassembled message), and cancel (tear down the transfer).
+        /// Synchronous by design: chunk control performs no awaits, so failures are observable by the caller,
+        ///     and segment ordering cannot slip past control ordering.
+        /// Returns 1 handled, 0 for malformed or unknown-transfer messages (disregarded).
+        /// </summary>
+        /// <param name="messagetype">Lowercased control message type.</param>
+        /// <param name="data">The control DTO json.</param>
+        /// <returns></returns>
+        private int ProcessChunkingControl(string messagetype, string data)
         {
-            if(string.IsNullOrEmpty(msgId))
+            if (string.IsNullOrEmpty(data))
             {
-                // Invalid messageid.
-                return;
-            }
-            if(string.IsNullOrEmpty(messagetype))
-            {
-                // Invalid message type.
-                return;
-            }
-            if(string.IsNullOrEmpty(data))
-            {
-                // Invalid message data.
-                return;
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                    "Received chunking control message with no payload.");
+
+                return 0;
             }
 
-            // Determine what action to take...
-            if(messagetype == nameof(ChunkStartDTO).ToLower())
+            if (messagetype == nameof(ChunkStartDTO).ToLower())
             {
-                // The far end is attempting to send us a large message, one chunk at a time.
-                // And, they've sent us the metadata for the message.
-
+                // The far end is announcing a chunked transfer...
                 ChunkStartDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkStartDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk start message.
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk start message.");
-
-                        return;
-                    }
                 }
-                catch(Exception e)
+                catch (Exception)
                 {
-                    this.Logger?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk start message.");
+                    dto = null;
+                }
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk start message.");
 
-                    return;
+                    return 0;
                 }
 
-                // We will create a new large message receiver, to handle the in-progress large message...
+                // Stand up a receiver for the transfer, enforcing the local transfer-size cap...
                 var lmr = new LargeMsgReceiver();
-                lmr.Scope = scope;
-                lmr.Channel = channel;
-                var res = await lmr.AcceptChunkStart(dto);
-                if(res != 1)
+                var res = lmr.AcceptChunkStart(dto, this.MaxTransferSize);
+                if (res != 1)
                 {
-                    // Failed to accept chunk start message.
                     this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Failed to accept chunk start for large message.");
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        $"Rejected chunk start for transfer ({dto.TransferId}): result {res.ToString()} " +
+                        $"(declared {dto.TotalSize.ToString()} bytes; local MaxTransferSize {this.MaxTransferSize.ToString()}).");
 
-                    return;
+                    return 0;
                 }
-                // If here, we accepted the chunk start message.
-                // We can add the receiver to our running list.
-                this._largemsgreceivers.Add(dto.MsgId, lmr);
 
-                return;
-            }
-            else if(messagetype == nameof(ChunkDTO).ToLower())
-            {
-                // The far end has sent us a chunk that we need to include with the large message we're building.
-
-                ChunkDTO dto;
-                try
+                lock (this._receiverslock)
                 {
-                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkDTO>(data);
-                    if(dto == null)
+                    // A duplicate transfer id is a protocol error: refuse the new transfer, keep the old...
+                    if (this._largemsgreceivers.ContainsKey(dto.TransferId))
                     {
-                        // Failed to deserialize chunk message.
                         this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk message.");
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                            $"Received duplicate chunk start for transfer ({dto.TransferId}). New transfer refused.");
 
-                        return;
+                        return 0;
                     }
-                }
-                catch(Exception e)
-                {
-                    this.Logger?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk message.");
 
-                    return;
+                    this._largemsgreceivers.Add(dto.TransferId, lmr);
                 }
 
-                // Look for the receiver...
-                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
-                {
-                    // Have a receiver for the in-progress message.
-                    var rcv = this._largemsgreceivers[dto.MsgId];
-
-                    // Accept the received chunk...
-                    var res = await rcv.AcceptChunk(dto);
-                    if(res != 1)
-                    {
-                        // Failed to accept message chunk.
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to accept message chunk of large message.");
-
-                        return;
-                    }
-                }
-                else
-                {
-                    // We don't have a receiver for the message.
-                    // Since, we never received a start message, we cannot handle it.
-
-                    this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Received message chunk without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
-
-                    return;
-                }
+                return 1;
             }
-            else if(messagetype == nameof(ChunkEndDTO).ToLower())
+            else if (messagetype == nameof(ChunkEndDTO).ToLower())
             {
-                // The far end has sent us an end message, so we know that we can compose and handle the large message.
-
+                // The far end has finished a transfer: validate completeness and release the message...
                 ChunkEndDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkEndDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk start message.
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk end message.");
-
-                        return;
-                    }
                 }
-                catch(Exception e)
+                catch (Exception)
                 {
-                    this.Logger?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk end message.");
-
-                    return;
+                    dto = null;
                 }
-
-                // Look for the receiver...
-                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
                 {
-                    // Have a receiver for the in-progress message.
-                    var rcv = this._largemsgreceivers[dto.MsgId];
-
-                    // Accept the chunk end message...
-                    var res = await rcv.AcceptChunkEnd(dto);
-                    if(res.res != 1 && res.me != null)
-                    {
-                        // Failed to accept chunk end message.
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to accept chunk end message.");
-
-                        return;
-                    }
-                    // If here, we have composed the large message, and can dispatch it as we would normal size messages.
-
-                    // We will let subscribers of our received delegate do deserialization...
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-                    DispatchReceivedMessage(res.me.MessageType, res.me.Data, res.me.Channel, res.me.Scope);
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-                }
-                else
-                {
-                    // We don't have a receiver for the message.
-                    // Since, we never received a start message, we cannot handle it.
-
                     this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Received chunk end message without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk end message.");
 
-                    return;
+                    return 0;
                 }
-            }
-            else if(messagetype == nameof(ChunkCancelDTO).ToLower())
-            {
-                // The far end has sent us a cancel message.
-                // We need to teardown any receiver for the message.
 
+                LargeMsgReceiver lmr;
+                lock (this._receiverslock)
+                {
+                    if (!this._largemsgreceivers.TryGetValue(dto.TransferId, out lmr))
+                    {
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                            $"Received chunk end for unknown transfer ({dto.TransferId}).");
+
+                        return 0;
+                    }
+
+                    // The transfer is complete or dead either way: its state leaves the registry now...
+                    this._largemsgreceivers.Remove(dto.TransferId);
+                }
+
+                byte frametype;
+                byte[] body;
+                var res = lmr.AcceptChunkEnd(out frametype, out body);
+                if (res != 1)
+                {
+                    // Incomplete transfers are discarded, never dispatched...
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        $"Discarded incomplete chunked transfer ({dto.TransferId}): result {res.ToString()}.");
+
+                    return 0;
+                }
+
+                // Re-inject the reassembled message at the top of normal processing, marked as reassembled
+                //  so nested chunk messages are rejected...
+                return this.Process_ReassembledMessage(frametype, body);
+            }
+            else if (messagetype == nameof(ChunkCancelDTO).ToLower())
+            {
+                // The far end abandoned a transfer: tear down its state immediately...
                 ChunkCancelDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkCancelDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk cancel message.
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk cancel message.");
+                }
+                catch (Exception)
+                {
+                    dto = null;
+                }
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk cancel message.");
 
-                        return;
+                    return 0;
+                }
+
+                lock (this._receiverslock)
+                {
+                    this._largemsgreceivers.Remove(dto.TransferId);
+                }
+
+                return 1;
+            }
+
+            // Unknown chunking message type...
+            this.Logger?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                $"Received unknown chunking message type: ({(messagetype ?? "")}).");
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Accepts a binary chunk-segment message: locates the transfer's receiver by the header's transfer id,
+        ///     and accumulates the payload slice at the declared offset.
+        /// A rejected segment (out-of-order, over-declared) abandons the transfer.
+        /// Returns 1 handled, 0 disregarded.
+        /// </summary>
+        /// <param name="header">The segment's routing header, carrying transfer id and offset props.</param>
+        /// <param name="payload">The segment's payload slice.</param>
+        /// <returns></returns>
+        private int Process_ChunkSegment(BinaryMessageHeader header, byte[] payload)
+        {
+            // Recover the transfer id and offset from the header props...
+            string transferid = "";
+            long offset = -1;
+            try
+            {
+                if (header.Props != null)
+                {
+                    foreach (var p in header.Props)
+                    {
+                        if (p == null)
+                            continue;
+                        if (p.StartsWith(ChunkingConstants.CONST_Prop_TransferId))
+                            transferid = p.Substring(ChunkingConstants.CONST_Prop_TransferId.Length);
+                        else if (p.StartsWith(ChunkingConstants.CONST_Prop_Offset))
+                            long.TryParse(p.Substring(ChunkingConstants.CONST_Prop_Offset.Length), out offset);
                     }
                 }
-                catch(Exception e)
-                {
-                    this.Logger?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk cancel message.");
+            }
+            catch (Exception) { }
 
-                    return;
+            if (string.IsNullOrEmpty(transferid) || offset < 0)
+            {
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                    "Received chunk segment with missing transfer id or offset.");
+
+                return 0;
+            }
+
+            LargeMsgReceiver lmr;
+            lock (this._receiverslock)
+            {
+                if (!this._largemsgreceivers.TryGetValue(transferid, out lmr))
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                        $"Received chunk segment for unknown transfer ({transferid}).");
+
+                    return 0;
+                }
+            }
+
+            var res = lmr.AcceptSegment(offset, payload);
+            if (res != 1)
+            {
+                // A rejected segment abandons the whole transfer: remove its state...
+                this.Logger?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                    $"Rejected chunk segment at offset ({offset.ToString()}) for transfer ({transferid}): result {res.ToString()}. Transfer abandoned.");
+
+                lock (this._receiverslock)
+                {
+                    this._largemsgreceivers.Remove(transferid);
                 }
 
-                // Remove the receiver...
-                this._largemsgreceivers.Remove(dto.MsgId);
+                return 0;
             }
-            else
-            {
-                // Unknown chunking message type.
-                this.Logger?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                    $"Received unknown chunking message type: ({(messagetype ?? "")}).");
 
-                return;
+            return 1;
+        }
+
+        /// <summary>
+        /// Re-injects a reassembled message into normal processing as its original frame type.
+        /// A reassembled body that itself parses to chunking messages is a protocol error (nesting is not
+        ///     legal), and is rejected here rather than recursing.
+        /// Returns 1 handled, 0 disregarded.
+        /// </summary>
+        /// <param name="frametype">The original message's frame type.</param>
+        /// <param name="body">The reassembled body bytes.</param>
+        /// <returns></returns>
+        private int Process_ReassembledMessage(byte frametype, byte[] body)
+        {
+            try
+            {
+                if (frametype == FrameTypes.Json)
+                {
+                    var rawmsg = Encoding.UTF8.GetString(body);
+
+                    // Guard against nested chunking...
+                    var me = Newtonsoft.Json.JsonConvert.DeserializeObject<MessageEnvelope>(rawmsg);
+                    if (me == null)
+                    {
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                            "Reassembled message was not a message envelope.");
+
+                        return 0;
+                    }
+
+                    var mt = (me.MessageType ?? "").ToLower();
+                    if (mt == nameof(ChunkStartDTO).ToLower() || mt == nameof(ChunkEndDTO).ToLower() ||
+                        mt == nameof(ChunkCancelDTO).ToLower())
+                    {
+                        this.Logger?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                            "Reassembled message contained nested chunking messages. Protocol error; message discarded.");
+
+                        return 0;
+                    }
+
+                    return this.Process_ReceivedJsonMessage(rawmsg);
+                }
+
+                if (frametype == FrameTypes.Binary)
+                {
+                    // Guard against nested chunking: a reassembled binary body must not be a chunk segment...
+                    BinaryMessageHeader header;
+                    byte[] payload;
+                    if (BinaryMessageHeader.TryParseBody(body, out header, out payload) == 1)
+                    {
+                        var mt = (header.MessageType ?? "").ToLower();
+                        if (mt == ChunkingConstants.CONST_ChunkSegment_MessageType)
+                        {
+                            this.Logger?.Error(
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                                "Reassembled message contained a nested chunk segment. Protocol error; message discarded.");
+
+                            return 0;
+                        }
+                    }
+
+                    return this.Process_ReceivedBinaryMessage(body);
+                }
+
+                return 0;
+            }
+            catch (Exception e)
+            {
+                this.Logger?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                    "Exception occurred while processing reassembled message.");
+
+                return 0;
             }
         }
 
         /// <summary>
         /// Removes any large message receivers that haven't been updated in a while.
+        /// Runs on the connection loop's tick; accesses the registry under its lock, so a segment arriving
+        ///     mid-prune cannot corrupt the collection.
         /// </summary>
         private void PruneStaleLargeMessageReceivers()
         {
-            if(this._largemsgreceivers == null)
-                this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
-
-            if (this._largemsgreceivers.Count == 0)
-                return;
-
             // Get the current time...
             var ctime = DateTime.UtcNow;
 
-            List<string> entriestodelete = new List<string>();
-
-            // Loop through each receiver...
-            foreach(var r in this._largemsgreceivers)
+            lock (this._receiverslock)
             {
-                if (r.Value == null)
+                if (this._largemsgreceivers.Count == 0)
+                    return;
+
+                List<string> entriestodelete = new List<string>();
+
+                // Loop through each receiver...
+                foreach (var r in this._largemsgreceivers)
                 {
-                    entriestodelete.Add(r.Key);
-                    continue;
+                    if (r.Value == null)
+                    {
+                        entriestodelete.Add(r.Key);
+                        continue;
+                    }
+
+                    // Calculate when the receiver expires...
+                    var etime = r.Value.LastReceivedTimeUTC.AddSeconds(this._cfg_ReceiverTimeout);
+
+                    // See if it expired...
+                    if (etime.CompareTo(ctime) < 0)
+                    {
+                        // The receiver has expired.
+                        entriestodelete.Add(r.Key);
+                    }
                 }
 
-                // Calculate when the entry expires...
-                if(!r.Value.LastReceivedTimeUTC.HasValue)
-                    continue;
-
-                // Calculate when the receiver expires...
-                var etime = r.Value.LastReceivedTimeUTC.Value.AddSeconds(this._cfg_ReceiverTimeout);
-
-                // See if it expired...
-                if(etime.CompareTo(ctime) < 0)
-                {
-                    // The receiver has expired.
-                    entriestodelete.Add(r.Key);
-                }
+                // Delete entries...
+                foreach (var d in entriestodelete)
+                    this._largemsgreceivers.Remove(d);
             }
-
-            // Delete entries...
-            foreach(var d in entriestodelete)
-                this._largemsgreceivers.Remove(d);
         }
 
         #endregion
@@ -3553,6 +3835,31 @@ namespace OGA.TCP.SessionLayer
             this.Logger?.Error(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Handle_NoChannelMessage)} - " +
                 $"Default message handler is not defined. Message type is: {messagetype}.");
+
+            return 0;
+        }
+
+        /// <summary>
+        /// No-channel binary fallback, wired into the dispatcher at construction.
+        /// Forwards channel-less binary payloads to the consumer's OnBinaryFrameReceived delegate,
+        ///     preserving its typed signature.
+        /// </summary>
+        /// <param name="host">The endpoint that received the message (this instance).</param>
+        /// <param name="messagetype">Lowercased message type name from the routing header.</param>
+        /// <param name="payload">The raw payload bytes.</param>
+        /// <param name="corelationid">Correlation id carried with the message, or empty.</param>
+        /// <returns></returns>
+        private int Handle_NoChannelBinary(IMessagingHost host, string messagetype, byte[] payload, string corelationid)
+        {
+            var d = this._delOnBinaryFrameReceived;
+            if (d != null)
+            {
+                return d(this, payload);
+            }
+
+            this.Logger?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Handle_NoChannelBinary)} - " +
+                $"Default binary handler is not defined. Message type is: {messagetype}.");
 
             return 0;
         }

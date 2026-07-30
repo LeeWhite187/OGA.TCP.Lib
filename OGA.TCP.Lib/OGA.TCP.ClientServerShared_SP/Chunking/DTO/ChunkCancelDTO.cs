@@ -1,29 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System;
 
 namespace OGA.TCP.Chunking.DTO
 {
     /// <summary>
-    /// Currently unused chunk message type.
+    /// Announces the abandonment of an in-progress chunked transfer.
+    /// Sent as a json message by the sender when a transfer is cancelled or a mid-sequence send fails,
+    ///     so the receiver can tear down the transfer's state immediately instead of waiting for the
+    ///     idle-receiver prune.
     /// </summary>
     public class ChunkCancelDTO
     {
-        public string MsgId { get; set; }
+        /// <summary>
+        /// The transfer's id, matching the ChunkStartDTO that opened it.
+        /// </summary>
+        public string TransferId { get; set; }
 
-
+        /// <summary>
+        /// Constructor preloads fields, so the DTO is never sent with nulls.
+        /// </summary>
         public ChunkCancelDTO()
         {
-            MsgId = "";
-        }
-
-        public string ToLogString()
-        {
-            StringBuilder b = new StringBuilder();
-
-            b.AppendLine("MsgId = " + this.MsgId ?? "");
-
-            return b.ToString();
+            this.TransferId = "";
         }
     }
 }

@@ -17,10 +17,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)Channels\eChannelKind.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Channels\IChannelAdapter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Channels\IMessagingHost.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Chunking\ChunkingConstants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkCancelDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkRequestDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkAckDTO.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkEndDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkStartDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\Helpers\LargeMsgReceiver.cs" />
@@ -33,6 +33,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Enumerations.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ExpBackoff_wJitter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)FrameTypes.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Messages\BinaryMessageHeader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Messages\MessageEnvelope.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Model\Enumerations.cs" />
   </ItemGroup>

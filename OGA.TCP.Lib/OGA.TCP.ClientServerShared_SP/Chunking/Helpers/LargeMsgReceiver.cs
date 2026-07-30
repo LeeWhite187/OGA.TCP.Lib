@@ -1,238 +1,155 @@
-﻿using OGA.TCP.Chunking.DTO;
-using OGA.TCP.Messages;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using OGA.TCP.Chunking.DTO;
 
 namespace OGA.TCP.Chunking.Helpers
 {
+    /// <summary>
+    /// Reassembles a chunked transfer: accumulates the binary chunk segments' byte slices against the
+    ///     ChunkStartDTO declaration, and releases the reassembled body at end-of-transfer.
+    /// Byte-true and strictly in-order: a segment must land exactly at the accumulation offset (the transports
+    ///     are ordered, so a mismatch is corruption, not reordering), accumulation may never exceed the
+    ///     declaration, and end-of-transfer validates both total bytes and segment count before the message
+    ///     is released — a truncated transfer is discarded, never dispatched.
+    /// One instance serves one transfer; the owning endpoint keys instances by TransferId and prunes idle ones.
+    /// </summary>
     public class LargeMsgReceiver
     {
-        #region Private Fields
-
-        Dictionary<int, string> _chunks;
-
-        #endregion
-
-
-        #region Public Properties
-
-        public DateTime MessageSentTimeUTC { get; private set; }
-        public DateTime StartTimeUTC { get; private set; }
-
-        public DateTime? LastReceivedTimeUTC { get; private set; }
-
-        public DateTime? EndTimeUTC { get; private set; }
-
-        public TimeSpan? Duration { get; private set; }
+        /// <summary>
+        /// The transfer's id, from the ChunkStartDTO that opened it.
+        /// </summary>
+        public string TransferId { get; private set; }
 
         /// <summary>
-        /// Transfer in bytes per second.
+        /// Frame type the reassembled body is re-injected as (from the FrameTypes registry).
         /// </summary>
-        public float? TransferSpeed { get; private set; }
+        public byte InnerFrameType { get; private set; }
 
-        public int MessageSize { get; private set; }
-        public int ReceiveOffset { get; private set; }
+        /// <summary>
+        /// Declared total size of the transfer, in bytes.
+        /// </summary>
+        public long TotalSize { get; private set; }
 
-        public int ChunkSize { get; private set; }
+        /// <summary>
+        /// Declared segment count of the transfer.
+        /// </summary>
         public int ChunkCount { get; private set; }
 
-        public string MessageId { get; private set; }
-        public string MessageType { get; private set; }
-        public string Channel { get; set; }
-        public string Scope { get; set; }
-        public string CorelationId { get; private set; }
-
-        #endregion
-
-
-        #region ctor / dtor
-
-        public LargeMsgReceiver()
-        {
-            _chunks = new Dictionary<int, string>();
-        }
-
-        #endregion
-
-
-        #region Public Methods
+        /// <summary>
+        /// Bytes accumulated so far. Doubles as the required offset of the next segment.
+        /// </summary>
+        public long ReceivedBytes { get; private set; }
 
         /// <summary>
-        /// Sets up the message properties for the message that will be composed when all chunks are received.
+        /// Segments accepted so far.
         /// </summary>
-        /// <param name="dto"></param>
+        public int ReceivedSegments { get; private set; }
+
+        /// <summary>
+        /// UTC time of the last accepted message of the transfer. The owning endpoint prunes receivers whose
+        ///     last activity is older than its receiver timeout.
+        /// </summary>
+        public DateTime LastReceivedTimeUTC { get; private set; }
+
+        /// <summary>
+        /// The reassembly buffer, allocated from the start declaration (which the owner has already
+        ///     validated against its MaxTransferSize).
+        /// </summary>
+        private byte[] _buffer;
+
+        /// <summary>
+        /// Accepts the transfer's start declaration, validating it against the receiver-side transfer cap.
+        /// Returns 1 on success; -1 for a malformed declaration; -2 when the declared size exceeds the cap.
+        /// </summary>
+        /// <param name="dto">The transfer's start declaration.</param>
+        /// <param name="maxtransfersize">The receiving endpoint's transfer-size cap, enforced here.</param>
         /// <returns></returns>
-        public async Task<int> AcceptChunkStart(ChunkStartDTO dto)
+        public int AcceptChunkStart(ChunkStartDTO dto, long maxtransfersize)
         {
-            if(dto == null)
-            {
+            if (dto == null || string.IsNullOrEmpty(dto.TransferId))
                 return -1;
-            }
-
-            // Validate the dto...
-            if(string.IsNullOrEmpty(dto.MsgId))
-            {
-                // Empty message id.
+            if (dto.TotalSize <= 0 || dto.ChunkCount <= 0)
                 return -1;
-            }
-            if(string.IsNullOrEmpty(dto.MessageType))
-            {
-                // Empty MessageType.
+            if (dto.InnerFrameType != FrameTypes.Json && dto.InnerFrameType != FrameTypes.Binary)
                 return -1;
-            }
 
-            // Set a start time for transfer...
-            this.StartTimeUTC = DateTime.UtcNow;
+            // The declared size is bounded by local policy: this is the receiver's memory defense...
+            if (dto.TotalSize > maxtransfersize)
+                return -2;
 
-            // Accept the message sent time, as we will use this as the composed message sent time...
-            this.MessageSentTimeUTC = dto.SentTimeUTC;
-
-            // Accept properties of the message to be composed...
-            this.MessageId = dto.MsgId;
-            this.MessageType = dto.MessageType;
-            this.MessageSize = dto.MessageSize;
-            this.ChunkSize = dto.ChunkSize;
+            this.TransferId = dto.TransferId;
+            this.InnerFrameType = dto.InnerFrameType;
+            this.TotalSize = dto.TotalSize;
             this.ChunkCount = dto.ChunkCount;
-            //this.Channel = dto.Channel;
-            //this.Scope = dto.Scope;
-            this.CorelationId = CorelationId;
+            this.ReceivedBytes = 0;
+            this.ReceivedSegments = 0;
+            this._buffer = new byte[dto.TotalSize];
 
-            this.Update_Metrics();
-
-            return 1;
-        }
-
-        /// <summary>
-        /// Accepts chunks, to compose the whole message.
-        /// </summary>
-        /// <returns></returns>
-        public async Task<int> AcceptChunk(ChunkDTO dto)
-        {
-            if(dto == null)
-            {
-                return -1;
-            }
-
-            // Verify the chunk belongs to our message...
-            if(dto.MsgId != this.MessageId)
-            {
-                // Wrong message id.
-                return -1;
-            }
-
-            // We expect chunks to arrive in order.
-            if(dto.Offset != this.ReceiveOffset)
-            {
-                return -1;
-            }
-
-            // Add the chunk...
-            try
-            {
-                this._chunks.Add(dto.ChunkId, dto.Data);
-            }
-            catch(Exception ex)
-            {
-                // Already exists.
-                this._chunks[dto.ChunkId] = dto.Data;
-            }
-
-            // Advance the receive offset...
-            this.ReceiveOffset = this.ReceiveOffset + dto.ChunkSize;
-
-            this.Update_Metrics();
-
-            return 1;
-        }
-
-        /// <summary>
-        /// When the chunk end message is received, this method will compose the actual message and return it.
-        /// </summary>
-        /// <returns></returns>
-#if (NET452 || NET48)
-        public async Task<(int res, MessageEnvelope me)> AcceptChunkEnd(ChunkEndDTO dto)
-#else
-        public async Task<(int res, MessageEnvelope? me)> AcceptChunkEnd(ChunkEndDTO dto)
-#endif
-        {
-            if(dto == null)
-            {
-                return (-1, null);
-            }
-
-            // Verify the chunk belongs to our message...
-            if(dto.MsgId != this.MessageId)
-            {
-                // Wrong message id.
-                return (-1, null);
-            }
-
-            // We've received the whole message.
-            // We can return it to the caller.
-            var msg = new MessageEnvelope();
-            msg.MsgId = this.MessageId;
-            msg.SentTimeUTC = this.MessageSentTimeUTC;
-            msg.MessageType = this.MessageType;
-            msg.Channel = this.Channel;
-            msg.Scope = this.Scope;
-            msg.ReplyTo = "";
-            msg.Props = new string[] { "corelationid=" + this.CorelationId ?? "" };
-
-            StringBuilder b = new StringBuilder();
-            foreach(var chunk in this._chunks)
-                b.Append(chunk.Value);
-            msg.Data = b.ToString();
-
-            this.Update_Metrics();
-
-            return (1, msg);
-        }
-
-        public async Task<int> AcceptChunkCancel(ChunkCancelDTO dto)
-        {
-            if(dto == null)
-            {
-                return -1;
-            }
-
-            // Verify the chunk belongs to our message...
-            if(dto.MsgId != this.MessageId)
-            {
-                // Wrong message id.
-                return -1;
-            }
-
-            this.Update_Metrics();
-
-            return 1;
-        }
-
-        #endregion
-
-
-        #region Private Methods
-
-        private void Update_Metrics(bool isend = false)
-        {
             this.LastReceivedTimeUTC = DateTime.UtcNow;
 
-            // Calculate duration...
-            var ctime = DateTime.UtcNow;
-            this.Duration = ctime.Subtract(this.StartTimeUTC);
-
-            // Calculate the transfer velocity...
-            if(this.Duration.HasValue && this.Duration.Value.TotalSeconds > 0)
-                this.TransferSpeed = (float)(this.ReceiveOffset / this.Duration.Value.TotalSeconds);
-            else
-                this.TransferSpeed = 0.0f;
-
-            if(isend)
-                this.EndTimeUTC = ctime;
+            return 1;
         }
 
-        #endregion
+        /// <summary>
+        /// Accepts one segment's payload slice at the declared offset.
+        /// Returns 1 on success; -1 when no start was accepted; -2 for an out-of-order offset (corruption guard);
+        ///     -3 when accumulation would exceed the declaration (an under-declaring sender cannot bypass the cap).
+        /// A failure abandons the transfer: the owner removes this receiver.
+        /// </summary>
+        /// <param name="offset">The segment's declared byte offset within the transfer.</param>
+        /// <param name="payload">The segment's payload slice.</param>
+        /// <returns></returns>
+        public int AcceptSegment(long offset, byte[] payload)
+        {
+            if (this._buffer == null)
+                return -1;
+            if (payload == null || payload.Length == 0)
+                return -1;
+
+            // Strict in-order: the transports are ordered, so a mismatched offset means corruption, not reordering...
+            if (offset != this.ReceivedBytes)
+                return -2;
+
+            // Accumulation may never exceed the declaration...
+            if (this.ReceivedBytes + payload.Length > this.TotalSize)
+                return -3;
+
+            Array.Copy(payload, 0, this._buffer, this.ReceivedBytes, payload.Length);
+            this.ReceivedBytes += payload.Length;
+            this.ReceivedSegments++;
+
+            this.LastReceivedTimeUTC = DateTime.UtcNow;
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Accepts the transfer's end declaration, validating completeness before releasing the message.
+        /// Returns 1 with the reassembled body on success; -1 when no start was accepted; -2 when the
+        ///     accumulated bytes or segment count do not match the start declaration (the transfer is
+        ///     incomplete, and must be discarded rather than dispatched).
+        /// </summary>
+        /// <param name="frametype">The frame type to re-inject the reassembled body as.</param>
+        /// <param name="body">The reassembled body bytes, on success.</param>
+        /// <returns></returns>
+        public int AcceptChunkEnd(out byte frametype, out byte[] body)
+        {
+            frametype = 0;
+            body = null;
+
+            if (this._buffer == null)
+                return -1;
+
+            // Completeness: every declared byte and every declared segment must have arrived...
+            if (this.ReceivedBytes != this.TotalSize || this.ReceivedSegments != this.ChunkCount)
+                return -2;
+
+            frametype = this.InnerFrameType;
+            body = this._buffer;
+            this._buffer = null;
+
+            this.LastReceivedTimeUTC = DateTime.UtcNow;
+
+            return 1;
+        }
     }
 }
-

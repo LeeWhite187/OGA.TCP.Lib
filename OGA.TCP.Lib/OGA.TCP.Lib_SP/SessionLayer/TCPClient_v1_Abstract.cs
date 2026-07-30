@@ -436,7 +436,7 @@ namespace OGA.TCP.SessionLayer
                 this._receiveLoop.OnConnection_Went_Bad = this.CALLBACK_Receiver_Conn_Went_Bad;
                 this._receiveLoop.OnMessage_Received = this.CALLBACK_Receiver_Message_Received;
                 this._receiveLoop.OnStatus_Change = this.CALLBACK_Receiver_Status_Change;
-                this._receiveLoop.MaxMessageSize = this.MaxMessageSize;
+                this._receiveLoop.MaxFrameSize = this.MaxFrameSize;
 
                 // Since the BeginRead method of a TCP socket doesn't accept a cancellation token,
                 //  and we have a receiver cancellation token source that we are using for other transports,
@@ -530,72 +530,45 @@ namespace OGA.TCP.SessionLayer
         #region Send Methods
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
+        /// TCP-specific frame send: prepends the five-byte preamble (4-byte little-endian body length, then the
+        ///     frame-type byte from the FrameTypes registry) and pushes preamble plus body as one network write.
+        /// A zero-length body is legal: it produces a preamble-only frame, used as a lightweight keepalive probe.
         /// No need for any try-catch, as the call to this method is safely wrapped.
         /// </summary>
-        /// <param name="data"></param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes. May be empty, never null.</param>
         /// <returns></returns>
-        override protected async Task<int> RawTransportSend(byte[] data)
+        override protected async Task<int> RawTransportSend(byte frametype, byte[] body)
         {
-			int Result = 0;
-			int bytes_pushed_into_buffer = 0;
-			byte[] frame;
+            // Compose the raw buffer that will be pushed down the network stack.
+            // We push the preamble and the body into a single buffer, so the send is one network call:
+            //  two array copies plus one write are faster than separate writes for preamble and body.
+            int bodylength = body?.Length ?? 0;
+            int bytes_pushed_into_buffer = bodylength + 5;
+            byte[] frame = new byte[bytes_pushed_into_buffer];
 
-			// Handle the special case that the caller send us an empty message.
-			// This is usually a zer-bypte ping message, and we will send it as a zero-length and empty data section.
-			if(data.Length == 0)
-			{
-				// We retrieved a zero-length message that we need to send.
+            // Serialize the body length into the first four bytes...
+            int Result = cCustom_Serializer.Serialize_Integer32(bodylength, ref frame, 0);
+            if (Result < 0)
+            {
+                this.Logger?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(RawTransportSend)} - " +
+                    "Error occurred while forming the message frame.");
 
-				// Create a frame of just the header size.
-				bytes_pushed_into_buffer = cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+                return -2;
+            }
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(0, ref frame, 0);
-				if (Result < 0)
-				{
-					this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(RawTransportSend)} - " +
-						"Error occurred while forming the empty message.");
+            // Stamp the frame type as the fifth byte...
+            frame[4] = frametype;
 
-					return -2;
-				}
-				// We serialized the empty message.
-			}
-			else
-			{
-				// We received a positive length message.
-				// Process it as normal.
+            // Copy over the body, when present...
+            if (bodylength > 0)
+                Array.Copy(body, 0, frame, 5, bodylength);
 
-				// Compose the raw buffer that will be pushed down the network stack.
-				// We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
-				// We push both the size and the data into a single buffer so it's a single network call.
-				// Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				bytes_pushed_into_buffer = data.Length + cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+            // We have a frame in the buffer that can be pushed to the wire.
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(data.Length, ref frame, 0);
-				if (Result < 0)
-				{
-					this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(RawTransportSend)} - " +
-						"Error occurred while forming the message frame.");
-
-					return -2;
-				}
-				// We serialized the message size.
-
-			}
-
-			// Copy over the data.
-			Array.Copy(data, 0, frame, 4, data.Length);
-
-			// We have a message in the buffer that can be pushed to the wire.
-
-			// Push the buffer to the wire.
-			return this.Push_Buffer_to_Wire(frame, 0, bytes_pushed_into_buffer);
+            // Push the buffer to the wire.
+            return this.Push_Buffer_to_Wire(frame, 0, bytes_pushed_into_buffer);
         }
 
 		/// <summary>
@@ -837,13 +810,14 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Receive-loop message callback: stamps the receive timestamp and counters, then forwards the
-        ///     raw message into the session layer's processing pipeline.
-        /// Runs on the receive loop's callback thread.
+        /// Receive-loop frame callback: stamps the receive timestamp and counters, then forwards the
+        ///     frame (type and body bytes) into the session layer's processing pipeline.
+        /// Runs on the receive loop's pump thread.
         /// </summary>
-        /// <param name="mep">The receive loop that received the message.</param>
-        /// <param name="rawmsg">The raw received message string.</param>
-        protected void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, string rawmsg)
+        /// <param name="mep">The receive loop that received the frame.</param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes.</param>
+        protected void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, byte frametype, byte[] body)
         {
             // Update our received timestamp...
             LastReceivedTime = DateTime.UtcNow;
@@ -855,7 +829,7 @@ namespace OGA.TCP.SessionLayer
             ///  1 = Message was handled.
             ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
             /// -1 = Registration failed. The receive loop cannot continue, and the connection must close down.
-            int res = Process_ReceivedMessage(rawmsg);
+            int res = Process_ReceivedMessage(frametype, body);
             if (res == 0)
             {
                 // Message process and dispatch had a problem, but we can keep going.
