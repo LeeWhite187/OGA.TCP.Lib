@@ -12,7 +12,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)HelperMessages\LargeMessage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClientServer_Test_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\cClient_Helper.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Helpers\cTestHost_Helper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\clientproperties.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helper_ServerClasses\TESTINGSRVR_cListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\CommonChannel.cs" />

@@ -389,7 +389,7 @@ namespace OGA.TCP_Test_SP
 
         private Simple_TCPListener _wsl;
         // Resolved at runtime, so the suite runs on any host (see cTestHost_Helper for the resolution strategy)...
-        string tcphost = Testing_CommonHelpers_SP.Helpers.cTestHost_Helper.GetPrimaryIPv4();
+        string tcphost = OGA.Testing.Helpers.cTestHost_Helper.GetPrimaryIPv4();
         int tcpport = 5000;
 
         private CancellationTokenSource _receive_cts = new CancellationTokenSource();
