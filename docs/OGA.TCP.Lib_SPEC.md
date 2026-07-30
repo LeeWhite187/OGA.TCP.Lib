@@ -739,6 +739,16 @@ Usage is now established: repository-wide, the only production callers of `cCust
 
 **Rationale.** The substrate refactor and the wire break are the two risky changes; landing them separately means neither's failure investigation is confounded by the other. Release 1 delivers standalone value (thread safety, working counters, correct dispose) even if the v3 work paused. Bundling the receive-loop rework into the wire break avoids rebuilding the read state machine twice.
 
+### KD-10 — Client and endpoint instances are single-use
+
+**Decision.** A session instance (`Client_v1_Abstract` derivatives; server `Endpoint_Abstract` derivatives) is single-use: it may be started once. `Start_Async` SHALL validate instance viability and refuse with an error result unless the instance is in its never-started state; starting from stopping, stopped, or disposed states is refused. Viability is tracked by a lifecycle flag or small state enum (the existing transport-driven `State` is not suitable — it is not reset and not authoritative for the session). A consumer wanting a new session constructs a new instance. `Stop_Async` remains terminal: quiesce, clear delegates, close channel adapters — its existing clearing behavior now matches an enforced contract instead of silently breaking a restart. A consumer-initiated Stop SHALL NOT raise the connection-lost delegate.
+
+**Rationale.** The class previously permitted Start-after-Stop while Stop's teardown cleared all consumer wiring — one method serving both "pause" and "shutdown" contracts, with restart silently losing every registration. The owner's convention never restarts an instance, so the cheap and honest fix is enforcing single-use rather than engineering a correct restart (delegate preservation, state reset, CTS lifecycle). The same viability check closes the double-start hole (two connection loops fighting over one client).
+
+**Consequences.** The already-started guard and the Stop-clearing/lost-handlers items in OI-37 are resolved by this contract; the guide documents single-use lifecycle (create per session) rather than restart flows. Implemented in Release 1 alongside the OI-24 shutdown-ordering fixes, on both client and server session classes.
+
+A pause capability — stopping a client while retaining its delegate/adapter graph until Dispose wipes it — was considered and deferred: it would only earn its place if constructing a configured client instance proves impractical for some consumer, and no near-term use case exists. The codebase is deliberately not structured for it now; if the need arises, it becomes a new decision.
+
 ### OI-13 — (Closed by KD-09)
 
 ### OI-39 — (Closed by KD-09)
@@ -751,7 +761,7 @@ Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empt
 
 ### OI-16 — Author the consumer implementation guide
 
-Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) and the size limits (frame, chunk payload, transfer; see KD-06, including the local-policy posture that limit mismatches surface as transfer-time cancels) — and chunking/keepalive behavior a consumer should understand. As part of this work, the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description). Unblocked: the spec sections it draws from are authored (§§8–9); the guide can be written against them, with the v3 surface marked as arriving in Release 2 (KD-09).
+Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) and the size limits (frame, chunk payload, transfer; see KD-06, including the local-policy posture that limit mismatches surface as transfer-time cancels) — and chunking/keepalive behavior a consumer should understand. Status: the guide is authored (`docs/OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`, anchored to spec Revision 2, describing the LibVersion 3 build) and awaits owner review; it doubles as a fidelity signal against the design during implementation. Remaining in this item: the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description).
 
 ### OI-17 — (Closed by §13)
 
@@ -847,7 +857,7 @@ Independent of how widely it is used (OI-11), the codec has real defects: the em
 
 ### OI-33 — Metrics and telemetry defects
 
-`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence (`Endpoint_Abstract.cs:1323`, `:1835`, `:2862`), so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
+`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. Owner decision: reading `Metrics` before a first connection SHALL return a baseline (empty) metrics instance rather than throwing; the fix lands with the Release 1 metrics work. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence (`Endpoint_Abstract.cs:1323`, `:1835`, `:2862`), so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
 
 ### OI-34 — Unbounded task spawning on ping and loopback paths
 
@@ -868,8 +878,8 @@ Collected low-severity items, each small and independent:
 - `cEndpoint_Ping_Tracking` is confirmed dead — zero references repository-wide outside the shared-project include. It is public API, so removal is a minor breaking change; decide keep-or-remove. (If revived it needs fixes: a 20 ms coercion of its delay setters, a copy/paste log message in `Disable()`, an unknown-state branch that returns `None` instead of `CloseConnection`, and local-time timestamps.)
 - The `res == -1` fatal-recycle path in `TCPClient_v1_Abstract.cs:829-859` is unreachable: `Process_ReceivedMessage` maps every negative internal-message result to `0` (`Client_v1_Abstract.cs:2752-2763`), so a garbled registration reply is only logged.
 - `Close_ChannelAdapters` (`Client_v1_Abstract.cs:745-757`) removes the adapter *after* calling its `Close()`; a consumer adapter that throws from `Close()` leaves the collection unchanged and the loop refetches the same element forever — an infinite loop inside `Dispose`.
-- `Start_Async` has no already-started guard (`:541-552`); a second call orphans the first `CancellationTokenSource` and runs two connection loops against one client.
-- `Stop_Async` nulls all consumer delegates and closes all channel adapters (`:586-590`, `:647-649`), so a Stop-then-Start cycle silently loses every handler the consumer registered.
+- `Start_Async` has no already-started guard (`:541-552`); a second call orphans the first `CancellationTokenSource` and runs two connection loops against one client. (Resolved by KD-10's viability check.)
+- `Stop_Async` nulls all consumer delegates and closes all channel adapters (`:586-590`, `:647-649`), so a Stop-then-Start cycle silently loses every handler the consumer registered. (Resolved by KD-10: Start-after-Stop is refused, making the clearing consistent with an enforced single-use contract.)
 - A failed ping *send* returns success (`:1832-1841`), so only pong timeout recycles the connection.
 - `ExpBackoff_wJitter` clamps `JitterHeight` above 1.0 to **0** rather than 1.0 (`:31-37`), silently disabling jitter for a caller asking for maximum; its `maxRetries` constructor argument is stored but never enforced; and `Delay()` returns success even when cancelled.
 - `_instance_counter++` in `cReceiveLoop.cs:161` is not atomic despite the field being `volatile`, so concurrent accepts can share an InstanceId in logs.
@@ -877,6 +887,18 @@ Collected low-severity items, each small and independent:
 - `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
+
+### OI-44 — XML documentation completeness on touched classes
+
+Classes modified by this effort SHALL gain XML documentation on the properties, methods, and fields currently emitting missing-comment warnings, as part of the change that touches them — starting with the Release 1 and Release 2 work (KD-09). Comments follow the OI-02 precedent: expressive, stating what a member protects or coordinates with, not restating its name. A final sweep for untouched classes still emitting warnings is deferred until the release train completes.
+
+### OI-45 — Component-level machinery documentation in the design spec
+
+Extend the design documentation so a future reader can understand the machinery of each library component and class — deeper than §5.1's tier descriptions: per-component narratives of internal mechanics (the receive state machine, the connection loop's phases, dispatcher internals, chunking sender/receiver lifecycles, manager/listener interplay), likely as an expansion of §5 or a dedicated component reference within the spec. Authored against the Release 2 design so it documents what is being built, then verified against code as implementation lands (a congruency-check candidate per the methodology).
+
+### OI-46 — Test helper classes require updates mirroring the v3 changes
+
+The test projects contain helper classes that proxy library functionality — the `TESTINGSRVR_*` forked server classes, `Simple_TCPListener` harnesses, `cClientServer_Test_Helper`/`cClient_Helper`, `CommonChannel`, and the test-only client subclasses — simulating "the other end" of conversations or acting as harnesses. The Release 1 and Release 2 changes (channel substrate, framing, receive-loop contract, chunking) will invalidate some of them. Most will surface through unit-test failures during the release work; this item tracks the ones that need explicit, deliberate update — in particular the `TESTINGSRVR_*` fork (whose re-sync/consolidation decision is OI-06) and any helper that hand-builds legacy frames. Resolved incrementally alongside the KD-09 releases.
 
 ### OI-43 — Repoint wiki links to the Bookstack instance after page migration
 
