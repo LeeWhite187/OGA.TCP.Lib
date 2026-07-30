@@ -105,6 +105,14 @@ namespace OGA.TCP.Chunking.Helpers
         public long SentBytes { get; private set; }
 
         /// <summary>
+        /// One timestamp for every segment header of the transfer, captured at Load.
+        /// Segment headers are serialized twice per offset (once to measure, once to send), and json
+        ///     DateTime serialization is variable-length (trailing zeros of the fraction are trimmed) —
+        ///     a per-serialization timestamp would make the measured size differ from the sent size.
+        /// </summary>
+        private DateTime _headertimestamp;
+
+        /// <summary>
         /// Constructor accepts an optional logger.
         /// </summary>
         /// <param name="logger">Optional logger instance.</param>
@@ -137,6 +145,7 @@ namespace OGA.TCP.Chunking.Helpers
             this.Scope = scope ?? "";
             this.CorelationId = corelationid ?? "";
             this.SentBytes = 0;
+            this._headertimestamp = DateTime.UtcNow;
 
             return 1;
         }
@@ -291,6 +300,9 @@ namespace OGA.TCP.Chunking.Helpers
         private BinaryMessageHeader Compose_SegmentHeader(long offset)
         {
             var header = new BinaryMessageHeader();
+            // The transfer-constant timestamp keeps the serialized header length identical between the
+            //  measuring pass and the sending pass (see _headertimestamp)...
+            header.SentTimeUTC = this._headertimestamp;
             header.MessageType = ChunkingConstants.CONST_ChunkSegment_MessageType;
             header.Channel = this.Channel;
             header.Scope = this.Scope;

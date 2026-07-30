@@ -226,6 +226,9 @@ namespace OGA.TCP
 
             this._client = client;
             this._metrics = new cEndpoint_Metrics();
+            // Baseline the received timestamp at construction, so last-received consumers
+            //  (keepalive credit, staleness checks) never see a default time.
+            this._metrics.Last_Received_Message_Time = DateTime.UtcNow;
 
             this.State = eLoop_ConnectionStatus.Initialized;
         }
@@ -306,6 +309,11 @@ namespace OGA.TCP
                 }
 
                 this._comms_begun = true;
+
+                // Connection open counts as liveness: baseline the received timestamp at startup, so
+                //  last-received consumers (keepalive credit, staleness checks) never see a default time.
+                this._metrics.Last_Received_Message_Time = DateTime.UtcNow;
+
                 this.UpdateState(eLoop_ConnectionStatus.Newly_Opened);
 
                 this._cts = new CancellationTokenSource();
@@ -335,10 +343,12 @@ namespace OGA.TCP
 
                 this._comms_ended = true;
 
-                // Transition to Closed through the legal path, without publishing intermediate noise...
+                // Transition to Closed through the legal path.
+                // Both transitions are published: consumers (and the historical contract) observe the
+                //  Shutting_Down step as well as the final Closed.
                 if (this.State == eLoop_ConnectionStatus.Newly_Opened || this.State == eLoop_ConnectionStatus.Open)
                 {
-                    this.UpdateState(eLoop_ConnectionStatus.Shutting_Down, false);
+                    this.UpdateState(eLoop_ConnectionStatus.Shutting_Down);
                     this.UpdateState(eLoop_ConnectionStatus.Closed);
                 }
                 else if (this.State == eLoop_ConnectionStatus.Initialized)
@@ -514,7 +524,12 @@ namespace OGA.TCP
             Task<int> readtask;
             try
             {
-                readtask = stream.ReadAsync(buffer, offset, count, this._cts.Token);
+                // NOTE: The read is deliberately started WITHOUT the cancellation token.
+                // Cancelling a pending socket read aborts the connection itself, and a locally closed
+                //  loop must leave the socket usable — the parent endpoint owns the transport.
+                // Local closedown instead cancels the delay this read is raced against, and the
+                //  abandoned read is observed (see Observe_AbandonedRead).
+                readtask = stream.ReadAsync(buffer, offset, count, CancellationToken.None);
             }
             catch (Exception e)
             {
@@ -525,17 +540,35 @@ namespace OGA.TCP
                 return -1;
             }
 
-            // No deadline armed (waiting for a frame's first byte): await the read directly.
+            // No deadline armed (waiting for a frame's first byte): idle time is unlimited, so race the
+            //  read against local closedown only.
             if (deadline == DateTime.MaxValue)
             {
                 try
                 {
-                    return await readtask;
+                    var done = await Task.WhenAny(readtask, Task.Delay(Timeout.Infinite, this._cts.Token));
+                    if (!ReferenceEquals(done, readtask))
+                    {
+                        // Locally initiated exit: leave the read pending; the owner tears down the transport.
+                        this.Observe_AbandonedRead(readtask);
+                        return -1;
+                    }
+
+                    var n = await readtask;
+
+                    // A read that lands after local closedown is not delivered...
+                    if (this._comms_ended)
+                        return -1;
+
+                    return n;
                 }
                 catch (Exception e)
                 {
                     if (this._comms_ended || this._cts.IsCancellationRequested)
+                    {
+                        this.Observe_AbandonedRead(readtask);
                         return -1;
+                    }
 
                     this.Fail_and_Close(eLoop_ConnectionStatus.Error, $"Read failed on the connection: {e.Message}");
                     return -1;
@@ -581,7 +614,13 @@ namespace OGA.TCP
 
             try
             {
-                return await readtask;
+                var n = await readtask;
+
+                // A read that lands after local closedown is not delivered...
+                if (this._comms_ended)
+                    return -1;
+
+                return n;
             }
             catch (Exception e)
             {
@@ -630,8 +669,9 @@ namespace OGA.TCP
                     this.Logger?.Info(
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Fail_and_Close)} - " + reason);
 
-                    // Closed is reached through Shutting_Down, per the transition rules...
-                    this.UpdateState(eLoop_ConnectionStatus.Shutting_Down, false);
+                    // Closed is reached through Shutting_Down, per the transition rules.
+                    // Both transitions are published, matching the historical contract...
+                    this.UpdateState(eLoop_ConnectionStatus.Shutting_Down);
                     this.UpdateState(eLoop_ConnectionStatus.Closed);
                 }
                 else
