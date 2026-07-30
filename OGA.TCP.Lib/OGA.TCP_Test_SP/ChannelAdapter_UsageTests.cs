@@ -67,7 +67,8 @@ namespace OGA.TCP_Test_SP
 
         private List<MessageEnvelope> receivedmsgs = new List<MessageEnvelope>();
 
-        protected string RemoteHost = "192.168.70.103";
+        // Resolved at runtime, so the suite runs on any host (see cTestHost_Helper for the resolution strategy)...
+        protected string RemoteHost = Testing_CommonHelpers_SP.Helpers.cTestHost_Helper.GetPrimaryIPv4();
         protected int RemotePort = 5003;
 
         private TESTINGSRVR_Simple_TCPListener _wsl;

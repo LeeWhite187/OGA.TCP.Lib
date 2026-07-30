@@ -49,15 +49,16 @@ namespace OGA.TCP_Test_SP
         //              Verify the server endpoint indicates closed.
 
 
-        // Verify that the closed connection delegate triggers only once on a client-side closure...
+        // Verify that the connection lost delegate does NOT trigger on a client-side (consumer-initiated) closure...
         //  Test_1_1_3  Create an instance of the v1 tcpsocket client.
         //              Hookup the connection lost delegate.
         //              Attempt to connect to the test tcpendpoint.
         //              Verify client and server both agree as connected.
         //              Verify client properties are registered with the server endpoint.
-        //              Close the client connection.
+        //              Close the client connection with Stop_Async.
         //              Verify the client indicates closed.
         //              Verify the server endpoint indicates closed.
+        //              Verify the connection lost delegate never fired (a consumer stop is not a connection loss).
 
 
         // Verify that the closed connection delegate triggers only once on a server-side closure...
@@ -164,16 +165,16 @@ namespace OGA.TCP_Test_SP
         //              Verify client properties are registered with the server endpoint.
         //              Verify the client's connected method was called.
 
-        // Start a client that overrides the DispatchConnected method, and verify it is called when the connection is made, and that the Connection Lost delegate is fired when closed...
+        // Start a client that overrides the DispatchConnected method, and verify it is called when the connection is made, and that the Connection Lost delegate does NOT fire on a consumer stop...
         //  Test_1_5_2  Create an instance of the v1 tcpsocket client that gives us notification of connection events.
         //              Attempt to connect to the test tcpendpoint.
         //              Verify client and server both agree as connected.
         //              Verify client properties are registered with the server endpoint.
         //              Verify the client's connected method was called.
-        //              Close the client connection.
+        //              Close the client connection with Stop_Async.
         //              Verify the client indicates closed.
         //              Verify the server endpoint indicates closed.
-        //              Verify the connection lost delegate was called.
+        //              Verify the connection lost delegate never fired (a consumer stop is not a connection loss).
         
         // Verify client sets AllowSend after registering...
         //  Test_1_6_1  Create an instance of the v1 tcpsocket client.
@@ -240,7 +241,8 @@ namespace OGA.TCP_Test_SP
 
         private List<MessageEnvelope> receivedmsgs = new List<MessageEnvelope>();
 
-        protected string RemoteHost = "192.168.70.103";
+        // Resolved at runtime, so the suite runs on any host (see cTestHost_Helper for the resolution strategy)...
+        protected string RemoteHost = Testing_CommonHelpers_SP.Helpers.cTestHost_Helper.GetPrimaryIPv4();
         protected int RemotePort = 5003;
 
         private TESTINGSRVR_Simple_TCPListener _wsl;
@@ -628,15 +630,16 @@ namespace OGA.TCP_Test_SP
         }
 
 
-        // Verify that the closed connection delegate triggers only once on a client-side closure...
+        // Verify that the connection lost delegate does NOT trigger on a client-side (consumer-initiated) closure...
         //  Test_1_1_3  Create an instance of the v1 tcpsocket client.
         //              Hookup the connection lost delegate.
         //              Attempt to connect to the test tcpendpoint.
         //              Verify client and server both agree as connected.
         //              Verify client properties are registered with the server endpoint.
-        //              Close the client connection.
+        //              Close the client connection with Stop_Async.
         //              Verify the client indicates closed.
         //              Verify the server endpoint indicates closed.
+        //              Verify the connection lost delegate never fired (a consumer stop is not a connection loss).
         [TestMethod]
         public async Task Test_1_1_3()
         {
@@ -771,11 +774,13 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
 
-                // Wait to ensure we got the loss callback...
-                WaitforCondition(() => losscounter == 1, 2000);
+                // A consumer-initiated stop is not a connection loss: per the single-use lifecycle contract,
+                //  the connection-lost delegate must NOT fire on Stop_Async.
+                // Give any stray teardown callbacks a moment, then verify the delegate never fired...
+                await Task.Delay(1000);
 
-                // Verify the counter is exactly one...
-                if(losscounter != 1)
+                // Verify the counter is exactly zero...
+                if(losscounter != 0)
                     Assert.Fail("Wrong Value");
             }
             finally
@@ -1903,16 +1908,16 @@ namespace OGA.TCP_Test_SP
         }
 
 
-        // Start a client that overrides the DispatchConnected method, and verify it is called when the connection is made, and that the Connection Lost delegate is fired when closed...
+        // Start a client that overrides the DispatchConnected method, and verify it is called when the connection is made, and that the Connection Lost delegate does NOT fire on a consumer stop...
         //  Test_1_5_2  Create an instance of the v1 tcpsocket client that gives us notification of connection events.
         //              Attempt to connect to the test tcpendpoint.
         //              Verify client and server both agree as connected.
         //              Verify client properties are registered with the server endpoint.
         //              Verify the client's connected method was called.
-        //              Close the client connection.
+        //              Close the client connection with Stop_Async.
         //              Verify the client indicates closed.
         //              Verify the server endpoint indicates closed.
-        //              Verify the connection lost delegate was called.
+        //              Verify the connection lost delegate never fired (a consumer stop is not a connection loss).
         [TestMethod]
         public async Task Test_1_5_2()
         {
@@ -1987,8 +1992,13 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Connection Failed");
 
 
-                // Verify the connection lost delegate was triggered...
-                if(connlosscounter != 1)
+                // A consumer-initiated stop is not a connection loss: per the single-use lifecycle contract,
+                //  the connection-lost delegate must NOT fire on Stop_Async.
+                // Give any stray teardown callbacks a moment, then verify the delegate never fired...
+                await Task.Delay(1000);
+
+                // Verify the connection lost delegate was NOT triggered...
+                if(connlosscounter != 0)
                     Assert.Fail("Connection Lost Count Incorrect");
             }
             finally
