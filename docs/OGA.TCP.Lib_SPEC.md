@@ -950,6 +950,39 @@ Plan for a published library (nuget package) of the common elements that both th
 
 ### OI-38 — (Closed)
 
+### OI-47 — Investigate the .NET Framework 4.5.2 build/test trouble ⚠ NEEDS YOUR REVIEW
+
+The old-style `OGA.TCP.Lib_NET452_Test` csproj cannot build on the current dev VM. Symptoms: MSB3644 ("reference assemblies for .NETFramework,Version=v4.5.2 were not found") under VS 18 Community's MSBuild, and with a `FrameworkPathOverride` workaround, CSC then fails on a missing `mscorlib.dll` — the installed 4.5.2 reference-assembly folder exists (124 items) but is incomplete. So the 4.5.2 targeting pack on this VM is broken or was never fully installed (plausibly because newer VS installers no longer offer the 4.5.2 developer pack).
+
+Important scoping: this does not indicate a source problem. The SDK-style `OGA.TCP.Lib_NET452` library target builds clean via the dotnet CLI (SDK projects resolve .NET Framework reference assemblies from NuGet rather than the machine), and the identical shared test sources compile under the old-style NET48 test csproj. Also noted while diagnosing: the two old-style test csprojs define only the plain `Debug`/`Release` configurations, not the `DebugWin` configuration the SDK projects use.
+
+To investigate together: (a) whether the 4.5.2 developer pack can be (re)installed on this VM, or whether the old-style test csproj should reference the `Microsoft.NETFramework.ReferenceAssemblies.net452` package so it builds on any machine; (b) whether the Linux Jenkins build of the NET452 test solution (mono msbuild) is affected at all — it resolves reference assemblies differently and may be fine; (c) whether the NET452 test suite has actually been run anywhere recently, to establish its true baseline.
+
+### OI-48 — Discuss in isolation: the LibVersions default-field finding ⚠ NEEDS YOUR REVIEW
+
+Clarification first, because the finding was easy to misread: **no live client ever failed registration from this.** The defect was latent and consumed by nothing until this session. `LibVersions.cs` declared `DEFAULT_CONST_WSLIBVERSION = CONST_LibVersion_2` *above* the `CONST_LibVersion_2` declaration; C# static field initializers run in declaration order, so `DEFAULT_CONST_WSLIBVERSION` has always initialized to null at runtime. It never mattered, because the shipped v1/v2 code never read it on the registration path — `Client_v1_Abstract`'s constructor assigned `LibVersion = CONST_LibVersion_1` directly, and v2 clients set their version in their derived constructors. Your registration/connection-id establishment worked, works, and was never in question.
+
+The Release 2 change made the constructor consume the default (`LibVersion = DEFAULT_CONST_WSLIBVERSION`) so the base client announces the current version — and that is the moment the latent null surfaced: the in-session test runs (only) saw clients announce an empty version and fail the base method's version gate. Fixed by reordering the declarations (constants first, default last), with a comment explaining the initializer-order trap.
+
+To discuss: whether `WSLibVersions.cs` in the WebSocket library has the same latent declaration-order pattern (harmless today for the same reason, but the same trap for any future code that consumes its default), and whether to backport the reordering as cheap insurance ahead of OI-42's v3 propagation.
+
+### OI-49 — Discuss in isolation: the receive-loop rewrite's contract regressions ⚠ NEEDS YOUR REVIEW
+
+Scoping first: these were regressions of the **Release 2 rewrite relative to the old `cReceiveLoop`**, introduced and fixed within this session's implementation work — they never existed in any shipped version, and `cReceiveLoop` is TCP-only, so there is nothing that must be backported. Three items, caught by the reworked receive-loop suite during verification:
+
+1. **Status-publish granularity.** The old loop published both the `Shutting_Down` and `Closed` transitions on closedown; the rewrite initially collapsed that to one published change. Restored: consumers observe both, matching the historical contract the endpoint state machines and tests encode.
+2. **Socket ownership on Dispose.** The rewrite initially passed a cancellation token into `NetworkStream.ReadAsync`; cancelling a pending socket read **aborts the underlying connection**, so disposing the loop killed a socket the parent endpoint still owned. Restored: reads start token-free and are raced against a cancellable delay; local closedown abandons the pending read (its eventual fault is observed) and leaves the transport to its owner. **This is the one item with possible WebSocket-library relevance**: if any WS receive path cancels a pending `ReceiveAsync` via token expecting the socket to survive, it is worth verifying what that does to the WebSocket state — that is the discussion to have.
+3. **Metrics baseline.** The old loop's last-received timestamp read as "now" from construction (connection open counts as liveness, so keepalive credit never sees a default time); the rewrite initially left it at default until the first frame. Restored at construction and re-baselined at start.
+
+### OI-50 — Discuss in isolation: v3 registration semantics in the base classes ⚠ NEEDS YOUR REVIEW
+
+Nothing about v1 or v2 handling changed — both behave exactly as before, which is why the WebSocket library's v1/v2 flow is unaffected and this library's mirror of it keeps working. What Release 2 added is how the **base classes** handle version 3, and two judgment calls inside that are the discussion:
+
+1. **Client side.** The base `Send_RegistrationMessage` was v1-only: it refused to run unless `LibVersion == "1"`, because v2 registration carries mandatory app-identity props (`appid`, `appver`) that only a derived class knows — so v2 clients override it (same pattern as the WebSocket library). KD-07 requires the stock v3 client to announce version 3, so the base method now handles v1 **and** v3: v3 sends the `tcplibver` prop plus the same props v1 sends; v2 still requires the override, unchanged.
+2. **Server side.** The accepted range extends to [1..3]. The app-identity presence mandate was written as `libver > 1`; kept as-is, it would reject every stock v3 client, since the base class has no app identity to send. The implemented choice scopes the **presence mandate to v2 only**, treats app-identity props as optional-but-honored for v3, keeps the AppId-immutability rule for any registration that supplies one, and stops a later registration that omits app-identity props from erasing previously recorded `ClientInfo` values.
+
+The alternative worth weighing together: define v3 registration as "v2 plus the version prop" — i.e., app identity stays mandatory at v3. That is arguably cleaner policy, but it means a stock base client cannot register without the consumer supplying app identity — either by overriding registration (as for v2) or by the base class gaining `AppId`/`AppVersion` properties. Owner's call; the server-side mandate is a one-line scope change in each of the two endpoint classes (plus the fork) if the decision goes the other way.
+
 ---
 
 *End of document.*
