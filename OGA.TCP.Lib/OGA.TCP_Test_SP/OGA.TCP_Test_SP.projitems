@@ -18,6 +18,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ClientLifecycle_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)KeepAlive_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPClient_v1_Tests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)V3Framing_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cCustom_Serializer_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />
   </ItemGroup>

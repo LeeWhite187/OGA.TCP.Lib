@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using OGA.Common.Process;
+using OGA.TCP.Chunking;
 using OGA.TCP.Chunking.DTO;
 using OGA.TCP.Chunking.Helpers;
 using OGA.TCP.Messages;
@@ -75,7 +76,30 @@ namespace OGA.TCP.Server
         /// -> simply increase max packet size if you want to send around bigger files!
         /// -> 1MB per message should be more than enough.
         /// </summary>
-        public int MaxMessageSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
+        public int MaxFrameSize { get; set; } = OGA.TCP.Constants.CONST_MAX_MessageSize;
+
+        /// <summary>
+        /// The most payload bytes one chunk-data message may carry, when a large message is split for transfer.
+        /// Zero (the default) means fit-to-frame: each chunk carries as much as fits under MaxFrameSize after
+        ///     the measured chunk-message overhead.
+        /// </summary>
+        public int MaxChunkPayloadSize { get; set; } = 0;
+
+        /// <summary>
+        /// The most total bytes a chunked (multi-frame) message may reassemble to; the true message-size ceiling,
+        ///     and the receiver's memory defense.
+        /// </summary>
+        public long MaxTransferSize { get; set; } = OGA.TCP.Constants.CONST_MAX_TransferSize;
+
+        /// <summary>
+        /// Superseded name for MaxFrameSize, retained so existing call sites compile; forwards to MaxFrameSize.
+        /// </summary>
+        [Obsolete("Use MaxFrameSize. This alias forwards to it.")]
+        public int MaxMessageSize
+        {
+            get => this.MaxFrameSize;
+            set => this.MaxFrameSize = value;
+        }
 
         /// <summary>
         /// Set this to the lowercase name of the transport: tcp, ws, etc...
@@ -237,17 +261,33 @@ namespace OGA.TCP.Server
             }
         }
 
-        public delegate int DelRawMessageReceived(TESTINGSRVR_Endpoint_Abstract mep, string rawstring);
+        public delegate int DelRawMessageReceived(TESTINGSRVR_Endpoint_Abstract mep, byte frametype, byte[] raw);
         protected DelRawMessageReceived _delOnRawMessageReceived;
         /// <summary>
         /// Normally, this is not used as messages are exchanged as typed classes.
-        /// However, attaching a handler to this will allow raw message strings to be processed.
+        /// However, attaching a handler to this will allow raw frames to be processed.
+        /// The tap is a dumb-pipe mode: the assigned handler owns ALL processing, and normal
+        ///     interpretation (internal messages, chunking, dispatch) is bypassed.
         /// </summary>
         public DelRawMessageReceived OnRawMessageReceived
         {
             set
             {
                 _delOnRawMessageReceived = value;
+            }
+        }
+
+        public delegate int DelBinaryMessageReceived(TESTINGSRVR_Endpoint_Abstract mep, string messagetype, byte[] payload, string channel, string scope, string corelationid);
+        protected DelBinaryMessageReceived _delOnBinaryMessageReceived;
+        /// <summary>
+        /// Public delegate hook for accepting binary message traffic.
+        /// This testing fork has no channel-adapter machinery, so all received binary messages land here.
+        /// </summary>
+        public DelBinaryMessageReceived OnBinaryMessageReceived
+        {
+            set
+            {
+                _delOnBinaryMessageReceived = value;
             }
         }
 
@@ -1022,7 +1062,7 @@ namespace OGA.TCP.Server
             catch (Exception e) { }
 
             // Clear out any large message receivers...
-            this._largemsgreceivers.Clear();
+            lock (this._receiverslock) { this._largemsgreceivers.Clear(); }
         }
 
         /// <summary>
@@ -1117,83 +1157,8 @@ namespace OGA.TCP.Server
             string messagetype = OGA.SharedKernel.Serialization.Serialization_Helper.GetType_forSerialization(objectinstance);
             string jsonmsg = JsonConvert.SerializeObject(objectinstance);
 
-            // See if chunking is enabled for this connection...
-            if (!this.Cfg_EnableChannelLayerChunking)
-            {
-                // Chunking is off.
-                // We will attempt to send all messages in a single frame.
-                // This will be done, below.
-            }
-            else
-            {
-                // Chunking is enabled.
-                // We will check if the message needs to be split up for sending.
-
-                // Ensure the serialized buffer is not too large for the receiver...
-                // We derate the max size enough to fit the message envelope and header (length value).
-                if (jsonmsg.Length > (this.MaxMessageSize - 1024))
-                {
-                    // Message is too large to fit in a single message frame.
-                    // Message needs to be split up.
-
-                    // Given message frame is too large to send in one frame.
-                    // We will chunk it up, sending pieces, and the other end will reassemble them for processing.
-
-                    // The given message has an assigned channel.
-                    // We will attempt to honor that channel assignment, and send chunks over it.
-
-                    // Setup our large message sender...
-                    var lms = new LargeMsgSender();
-                    lms.MaxChunkSize = (this.MaxMessageSize - 1024);
-                    // Load the raw message to be chunked out...
-                    // Give the chunker the messageid of the composed message...
-                    var resload = lms.Load(GetNextMessageId(), messagetype, jsonmsg, channel, scope, corelationid);
-                    if (resload != 1)
-                    {
-                        // Failed to load the message for chunking.
-
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_toClient)} - " +
-                            $"Failed to load outgoing message for chunking.");
-
-                        return -1;
-                    }
-
-                    // Tell it to do a blocking send, to our send call...
-                    // This will block the thread, until all chunks are sent, the connection drops, or we are cancelled.
-                    // Give it a send delegate, a delegate for creating messageIds, and our cancellation token.
-                    var ressend = await lms.SendChunksAsync(this.Send_SerializedObject_toClient_Async, this._cts.Token);
-                    if (ressend == 0)
-                    {
-                        // The send was cancelled.
-
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_toClient)} - " +
-                            $"Send was cancelled while conveying chunked message to the remote endpoint.");
-
-                        return 0;
-                    }
-                    else if (ressend < 0)
-                    {
-                        // The send failed.
-
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_toClient)} - " +
-                            $"Send failed while conveying chunked message to the remote endpoint.");
-
-                        return -1;
-                    }
-                    // If here, we were able to send all chunks of the message.
-
-                    return 1;
-                }
-                else
-                {
-                    // Message can be sent in a single frame.
-                    // We will pass it along like normal.
-                    // This will be done, below.
-                }
-            }
+            // Size handling happens downstream, byte-true, after the envelope is encoded:
+            //  the serialized-object send diverts oversized messages to the chunking layer.
 
             OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Object_toClient)} - " +
@@ -1304,26 +1269,6 @@ namespace OGA.TCP.Server
             if (jsonobject == null)
                 jsonobject = "";
 
-            if (!this.Cfg_EnableChannelLayerChunking)
-            {
-                // No large message support.
-
-                // Ensure the serialized buffer is not too large for the receiver...
-                // We derate the max size enough to fit the message envelope and header (length value).
-                if (jsonobject.Length > (this.MaxMessageSize - 1024))
-                {
-                    // Message is too large to fit in a single message frame.
-                    // We will tell the caller, so they can send the message, piece-wise.
-
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toClient_Async)} - " +
-                        $"Message is too large ({(jsonobject?.Length.ToString() ?? "unknown size")}) to send to the remote endpoint.");
-
-                    return -10;
-                }
-            }
-            // The raw message will fit into a single message frame.
-
             // Create and stuff an envelope...
             MessageEnvelope me = new MessageEnvelope();
             me.MsgId = GetNextMessageId();
@@ -1335,23 +1280,167 @@ namespace OGA.TCP.Server
             me.MessageType = objecttype;
             me.Props = new string[] { "corelationid=" + corelationid ?? "" };
 
-            /// Returns  1 = Message was sent.
-            /// Returns  0 = No connection. Cannot send.
-            /// Returns -1 = Disposed instance. Cannot send.
-            /// Returns -2 = Unknown exception. Cannot send.
-            return await Send_MessageEnvelope_toClient_Async(me);
+            // Encode the envelope, so the size decision is byte-true...
+            var jsonmsg = JsonConvert.SerializeObject(me);
+            byte[] body = Encoding.UTF8.GetBytes(jsonmsg);
+
+            // An encoded body that fits in one frame ships directly...
+            if (body.Length <= this.MaxFrameSize)
+                return await this.Send_Frame_toClient_Async(FrameTypes.Json, body);
+
+            // Oversized: the chunking layer splits the encoded bytes, when enabled...
+            if (!this.Cfg_EnableChannelLayerChunking)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_SerializedObject_toClient_Async)} - " +
+                    $"Message is too large ({body.Length.ToString()} bytes) to send in one frame, and chunking is disabled.");
+
+                return -10;
+            }
+
+            return await this.Send_ChunkedBody_toClient_Async(FrameTypes.Json, body, channel, scope, corelationid);
         }
 
         /// <summary>
-        /// Accepts a prepared message envelope, and sends it to the tcp/websocket client.
-        /// Returns  1 = Message was sent.
-        /// Returns  0 = No connection. Cannot send.
-        /// Returns -1 = Disposed instance. Cannot send.
-        /// Returns -2 = Unknown exception. Cannot send.
+        /// Transfers an oversized encoded body via the chunking layer: a start declaration, binary segments of
+        ///     raw byte slices, and an end declaration — interleaving with other channels' traffic between frames.
+        /// Used by both the json and binary send paths; the frame type tells the receiver how to re-inject
+        ///     the reassembled bytes.
+        /// Returns 1 on success, 0 when cancelled, negatives on failure (a best-effort cancel is sent so the
+        ///     receiver tears down its transfer state).
+        /// </summary>
+        /// <param name="frametype">Frame type of the original message body.</param>
+        /// <param name="body">The encoded body bytes to transfer.</param>
+        /// <param name="channel">Channel of the original message.</param>
+        /// <param name="scope">Scope of the original message.</param>
+        /// <param name="corelationid">Correlation id of the original message, or empty.</param>
+        /// <returns></returns>
+        protected async Task<int> Send_ChunkedBody_toClient_Async(byte frametype, byte[] body, string channel, string scope, string corelationid)
+        {
+            // Setup our large message sender...
+            var lms = new LargeMsgSender(OGA.SharedKernel.Logging_Base.Logger_Ref);
+            lms.MaxFrameSize = this.MaxFrameSize;
+            lms.MaxChunkPayloadSize = this.MaxChunkPayloadSize;
+
+            // Load the encoded bytes to be chunked out, keyed by a fresh transfer id...
+            var resload = lms.Load(GetNextMessageId(), frametype, body, channel, scope, corelationid);
+            if (resload != 1)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toClient_Async)} - " +
+                    $"Failed to load outgoing message for chunking.");
+
+                return -1;
+            }
+
+            // Send the transfer: control messages ride the json path, segments ride binary frames.
+            // Each frame send awaits the write semaphore, so other traffic interleaves between segments.
+            var ressend = await lms.SendChunksAsync(
+                this.Send_SerializedObject_toClient_Async,
+                this.Send_Frame_toClient_Async,
+                this._cts != null ? this._cts.Token : CancellationToken.None);
+
+            if (ressend == 0)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toClient_Async)} - " +
+                    $"Send was cancelled while conveying chunked message to the remote endpoint.");
+
+                return 0;
+            }
+            else if (ressend < 0)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_ChunkedBody_toClient_Async)} - " +
+                    $"Send failed while conveying chunked message to the remote endpoint.");
+
+                return -1;
+            }
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Sends a raw binary payload to the connected client, routed by the same channel, scope, and
+        ///     correlation metadata json messages carry.
+        /// The payload rides the wire uncoded (no base64 or escaping cost); oversized payloads are transparently
+        ///     chunked when chunking is enabled.
+        /// Returns 1 on success, 0 if the session is not ready to send, negatives on error.
+        /// </summary>
+        /// <param name="payload">The raw payload bytes to send.</param>
+        /// <param name="channel">Optional channel name.</param>
+        /// <param name="scope">Optional scope value.</param>
+        /// <param name="corelationid">Optional correlation id, carried for tracing.</param>
+        /// <param name="messagetype">Optional message type name, for consumer routing.</param>
+        /// <returns></returns>
+        public async Task<int> SendBinary_toClient(byte[] payload, string channel = "", string scope = "", string corelationid = "", string messagetype = "")
+        {
+            if (payload == null)
+                return -1;
+
+            // Do we allow sending...
+            if (!this._allowsend)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendBinary_toClient)} - " +
+                    $"{(this.TransportLongName ?? "Socket")} is not currently open for sending messages.");
+
+                return 0;
+            }
+
+            // Compose the binary message body: routing header, then the raw payload...
+            var header = new BinaryMessageHeader();
+            header.MsgId = GetNextMessageId();
+            header.SentTimeUTC = DateTime.UtcNow;
+            header.MessageType = messagetype ?? "";
+            header.Channel = channel ?? "";
+            header.Scope = scope ?? "";
+            header.Props = new string[] { "corelationid=" + (corelationid ?? "") };
+
+            var body = header.ComposeBody(payload);
+
+            // A body that fits in one frame ships directly...
+            if (body.Length <= this.MaxFrameSize)
+                return await this.Send_Frame_toClient_Async(FrameTypes.Binary, body);
+
+            // Oversized: the chunking layer splits the encoded bytes, when enabled...
+            if (!this.Cfg_EnableChannelLayerChunking)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(SendBinary_toClient)} - " +
+                    $"Binary message is too large ({body.Length.ToString()} bytes) to send in one frame, and chunking is disabled.");
+
+                return -10;
+            }
+
+            return await this.Send_ChunkedBody_toClient_Async(FrameTypes.Binary, body, channel ?? "", scope ?? "", corelationid ?? "");
+        }
+
+        /// <summary>
+        /// Accepts a prepared message envelope, and sends it to the client as a json frame.
+        /// Retained for the loopback echo paths, which resend a received envelope as-is.
         /// </summary>
         /// <param name="me"></param>
         /// <returns></returns>
         protected async Task<int> Send_MessageEnvelope_toClient_Async(MessageEnvelope me)
+        {
+            // Serialize the envelope and convert it to bytes...
+            var jsonmsg = JsonConvert.SerializeObject(me);
+            byte[] d = Encoding.UTF8.GetBytes(jsonmsg);
+
+            return await this.Send_Frame_toClient_Async(FrameTypes.Json, d);
+        }
+
+        /// <summary>
+        /// The single frame-send choke point: every outgoing frame of either type funnels through here.
+        /// Verifies the endpoint can send, serializes the write through the send semaphore (so frames never
+        ///     interleave mid-frame on the wire), and maps transport failures to result codes.
+        /// Returns 1 on success, 0 when not connected or the transport refuses, negatives on error.
+        /// </summary>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's encoded body bytes.</param>
+        /// <returns></returns>
+        protected async Task<int> Send_Frame_toClient_Async(byte frametype, byte[] body)
         {
             try
             {
@@ -1359,7 +1448,7 @@ namespace OGA.TCP.Server
                 if (_alreadydisposed)
                 {
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                         $"{(this.TransportLongName ?? "Socket")} is already disposed.");
 
                     return -1;
@@ -1367,16 +1456,22 @@ namespace OGA.TCP.Server
                 if (!IsConnected)
                 {
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                         $"{(this.TransportLongName ?? "Socket")} is not connected.");
 
                     return 0;
                 }
 
-                // Serialize the envelope and convert it to bytes...
-                var jsonmsg = JsonConvert.SerializeObject(me);
-                // Convert the string to bytes for transport...
-                byte[] d = Encoding.UTF8.GetBytes(jsonmsg);
+                // Enforce the frame cap byte-true, at the last common point before the wire...
+                if ((body?.Length ?? 0) > this.MaxFrameSize)
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
+                        $"Frame body ({body.Length.ToString()} bytes) exceeds MaxFrameSize ({this.MaxFrameSize.ToString()}). " +
+                        "Oversized messages must go through the chunking layer.");
+
+                    return -10;
+                }
 
                 //************************************************************************************************************
                 // Start Send Thread Lock
@@ -1385,16 +1480,16 @@ namespace OGA.TCP.Server
                 using (await _write_semaphore.WaitAsync())
                 {
                     // Send the message...
-                    var res = await this.RawTransportSend(d);
+                    var res = await this.RawTransportSend(frametype, body);
                     if (res >= 1)
                     {
                         // Send was successful.
-                        // We will return after the finally.
+                        // We will return after the using releases our send mutex.
                     }
                     else
                     {
                         // Call failed.
-                        // We will return, here, and the finally will release our send mutex.
+                        // We will return, here, and the using will release our send mutex.
                         return res;
                     }
                 }
@@ -1403,7 +1498,7 @@ namespace OGA.TCP.Server
                 //************************************************************************************************************
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                     "Message sent to remote endpoint.");
 
                 return 1;
@@ -1414,7 +1509,7 @@ namespace OGA.TCP.Server
                 // Meaning, the websocket has been closed by the other end.
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} was closed by the other end, and cannot send messages.");
 
                 return -1;
@@ -1425,7 +1520,7 @@ namespace OGA.TCP.Server
                 // Meaning, the tcpsocket has been closed by the other end.
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} was closed by the other end, and cannot send messages.");
 
                 return -1;
@@ -1434,7 +1529,7 @@ namespace OGA.TCP.Server
             {
                 // Socket is disposed.
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} is disposed, and cannot accept messages.");
 
                 return -1;
@@ -1444,7 +1539,7 @@ namespace OGA.TCP.Server
                 // Socket is not open.
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
                     $"{(this.TransportLongName ?? "Socket")} is not open, and cannot accept messages.");
 
                 return 0;
@@ -1456,24 +1551,23 @@ namespace OGA.TCP.Server
                 var f = e?.GetType()?.FullName ?? "";
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_MessageEnvelope_toClient_Async)} - " +
-                    $"Unknown exception type occurred ({f}) while attempting to send message over {(this.TransportLongName.ToLower() ?? "socket")}.");
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_Frame_toClient_Async)} - " +
+                    $"Unknown exception type occurred ({f}) while attempting to send message over {(this.TransportLongName?.ToLower() ?? "socket")}.");
 
                 return -2;
             }
         }
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
+        /// Override this method with the transport-specific means to send one frame.
+        /// The TCP transport prepends the five-byte preamble (4-byte little-endian body length plus the
+        ///     frame-type byte from the FrameTypes registry).
         /// No need for any try-catch, as the call to this method is safely wrapped.
         /// </summary>
-        /// <param name="data"></param>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes. May be empty, never null.</param>
         /// <returns></returns>
-        abstract protected Task<int> RawTransportSend(byte[] data);
-        //{
-        //    await _webSocket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
-        //    return 1;
-        //}
+        abstract protected Task<int> RawTransportSend(byte frametype, byte[] body);
 
         /// <summary>
         /// Call this to create the identifier for each message to be sent.
@@ -1785,7 +1879,129 @@ namespace OGA.TCP.Server
         //}
 
         /// <summary>
-        /// Processes all received messages.
+        /// First-handler of any received frame: the merge point of the receive paths.
+        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type —
+        ///     json bodies flow through envelope processing (internal messages, chunking, dispatch),
+        ///     binary bodies through routing-header parsing and binary dispatch.
+        /// Returns the following:
+        ///  1 = Message was handled.
+        ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
+        /// -1 = Registration failed. The receive loop cannot continue, and the connection must close down.
+        /// </summary>
+        /// <param name="frametype">The frame's type byte, from the FrameTypes registry.</param>
+        /// <param name="body">The frame's body bytes.</param>
+        /// <returns></returns>
+        protected int Process_ReceivedMessage_from_Client(byte frametype, byte[] body)
+        {
+            try
+            {
+                // Check if a raw message handler is set...
+                // The tap is a dumb-pipe mode: the assigned handler owns ALL processing, and everything
+                //  below (internal messages, chunking, dispatch) is bypassed.
+                var tap = this._delOnRawMessageReceived;
+                if (tap != null)
+                {
+                    // Call the raw message handler...
+                    tap(this, frametype, body);
+
+                    return 1;
+                }
+
+                if (frametype == FrameTypes.Json)
+                {
+                    // Json body: decode once, here, and hand to envelope processing...
+                    var rawmsg = Encoding.UTF8.GetString(body);
+                    return this.Process_ReceivedJsonMessage_from_Client(rawmsg);
+                }
+
+                if (frametype == FrameTypes.Binary)
+                {
+                    return this.Process_ReceivedBinaryMessage_from_Client(body);
+                }
+
+                // The receive loop validates frame types before delivery, so this is unreachable in practice...
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage_from_Client)} - " +
+                    $"Received frame of unhandled type ({frametype.ToString()}).");
+
+                return 0;
+            }
+            catch (Exception e)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage_from_Client)} - " +
+                    "Exception occurred while processing received frame.");
+
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Parses a binary message body (routing header plus raw payload) and dispatches it.
+        /// Chunk-data messages are diverted to the chunking layer by their message type; everything else is
+        ///     handed to the consumer's binary delegate (this testing fork has no channel-adapter machinery).
+        /// Returns 1 handled, 0 recoverable problem (message disregarded).
+        /// </summary>
+        /// <param name="body">The binary frame's body bytes.</param>
+        /// <returns></returns>
+        protected int Process_ReceivedBinaryMessage_from_Client(byte[] body)
+        {
+            BinaryMessageHeader header;
+            byte[] payload;
+            var parseres = BinaryMessageHeader.TryParseBody(body, out header, out payload);
+            if (parseres != 1)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryMessage_from_Client)} - " +
+                    $"Received binary message body was malformed (parse result {parseres.ToString()}). Message disregarded.");
+
+                return 0;
+            }
+
+            var mt = (header.MessageType ?? "").ToLower();
+
+            // Recover any correlation id from the header props, so dispatch can carry it to handlers...
+            string cid = "";
+            try
+            {
+                if (header.Props != null)
+                {
+                    foreach (var p in header.Props)
+                    {
+                        if (p != null && p.StartsWith("corelationid="))
+                        {
+                            cid = p.Substring(13);
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception) { }
+
+            // Divert chunk-data messages to the chunking layer...
+            if (mt == ChunkingConstants.CONST_ChunkSegment_MessageType)
+            {
+                return this.Process_ChunkSegment(header, payload);
+            }
+
+            // Hand the message to the consumer's binary delegate...
+            var d = this._delOnBinaryMessageReceived;
+            if (d != null)
+            {
+                var res = d(this, mt, payload, header.Channel ?? "", header.Scope ?? "", cid);
+                return res >= 1 ? 1 : 0;
+            }
+
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedBinaryMessage_from_Client)} - " +
+                $"Binary message received without an assigned handler. Message type is: {mt}.");
+
+            return 0;
+        }
+
+        /// <summary>
+        /// First-handler of a received json message body.
+        /// Will hydrate it to the standard message envelope, and dispense it as internal or consumer message.
         /// Returns the following:
         ///  1 = Message was handled.
         ///  0 = Message could not be deserialized or handled. Ignoring and continuing on.
@@ -1793,7 +2009,7 @@ namespace OGA.TCP.Server
         /// </summary>
         /// <param name="rawmsg"></param>
         /// <returns></returns>
-        protected int Process_ReceivedMessage_from_Client(string rawmsg)
+        protected int Process_ReceivedJsonMessage_from_Client(string rawmsg)
         {
             string cid = "";
 
@@ -1805,15 +2021,6 @@ namespace OGA.TCP.Server
 
             try
             {
-                // Check if a raw message handler is set...
-                if(this._delOnRawMessageReceived != null)
-                {
-                    // Call the raw message handler...
-                    this._delOnRawMessageReceived(this, rawmsg);
-
-                    return 1;
-                }
-
                 // Recover the envelope...
                 var me = JsonConvert.DeserializeObject<MessageEnvelope>(rawmsg);
                 if (me == null)
@@ -1919,25 +2126,17 @@ namespace OGA.TCP.Server
                     return 0;
                 }
 
-                // Here, we intercept incoming messages, and handling any chunking of large messages.
-                // We will look for any of the chunk message types...
-                // ChunkAckDTO, ChunkRequestDTO, ChunkDTO, ChunkStartDTO.
-                // If we encounter one, we forward it to the chunk handler...
+                // Here, we intercept the chunking layer's control messages (start, end, cancel).
+                // Chunk data does not appear on this path: segments ride binary frames, intercepted by their
+                //  routing-header message type in the binary processing path.
                 if(mt == nameof(ChunkStartDTO).ToLower() ||
-                    mt == nameof(ChunkDTO).ToLower() ||
-                    //mt == nameof(ChunkAckDTO).ToLower() \\
-                    //mt == nameof(ChunkCancelDTO).ToLower() ||
-                    //mt == nameof(ChunkRequestDTO).ToLower() ||
-                    mt == nameof(ChunkEndDTO).ToLower()
+                    mt == nameof(ChunkEndDTO).ToLower() ||
+                    mt == nameof(ChunkCancelDTO).ToLower()
                     )
                 {
-                    // Received message is a chunking message.
-                    // We will forward it to our chunking handler...
-#pragma warning disable CS8604 // Possible null reference argument.
-                    ProcessChunkingMessage(me.MsgId, mt, me.Data, me.Channel, me.Scope);
-#pragma warning restore CS8604 // Possible null reference argument.
-
-                    return 1;
+                    // Received message is a chunking control message.
+                    // Chunk control is synchronous work (no awaits), so its failures are observable here.
+                    return this.ProcessChunkingControl(mt, me.Data);
                 }
                 // Not a chunking message type.
                 // We will dispatch it as normal.
@@ -1958,291 +2157,363 @@ namespace OGA.TCP.Server
         }
 
         /// <summary>
-        /// Process large messages that are conveyed via chunks on channels.
+        /// Guards the large-message receiver registry: registrations arrive on the receive path while the
+        ///     connection loop prunes, so every access is serialized here.
         /// </summary>
-        /// <param name="msgId"></param>
-        /// <param name="messagetype"></param>
-        /// <param name="data"></param>
-        /// <param name="channel"></param>
-        /// <param name="scope"></param>
-        private async void ProcessChunkingMessage(string msgId, string messagetype, string data, string channel, string scope)
+        private readonly object _receiverslock = new object();
+
+        /// <summary>
+        /// Handles the chunking layer's json control messages: start (create a receiver), end (validate
+        ///     completeness and re-inject the reassembled message), and cancel (tear down the transfer).
+        /// Synchronous by design: chunk control performs no awaits, so failures are observable by the caller,
+        ///     and segment ordering cannot slip past control ordering.
+        /// Returns 1 handled, 0 for malformed or unknown-transfer messages (disregarded).
+        /// </summary>
+        /// <param name="messagetype">Lowercased control message type.</param>
+        /// <param name="data">The control DTO json.</param>
+        /// <returns></returns>
+        private int ProcessChunkingControl(string messagetype, string data)
         {
-            if(string.IsNullOrEmpty(msgId))
+            if (string.IsNullOrEmpty(data))
             {
-                // Invalid messageid.
-                return;
-            }
-            if(string.IsNullOrEmpty(messagetype))
-            {
-                // Invalid message type.
-                return;
-            }
-            if(string.IsNullOrEmpty(data))
-            {
-                // Invalid message data.
-                return;
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                    "Received chunking control message with no payload.");
+
+                return 0;
             }
 
-            // Determine what action to take...
-            if(messagetype == nameof(ChunkStartDTO).ToLower())
+            if (messagetype == nameof(ChunkStartDTO).ToLower())
             {
-                // The far end is attempting to send us a large message, one chunk at a time.
-                // And, they've sent us the metadata for the message.
-
+                // The far end is announcing a chunked transfer...
                 ChunkStartDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkStartDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk start message.
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk start message.");
-
-                        return;
-                    }
                 }
-                catch(Exception e)
+                catch (Exception)
                 {
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk start message.");
+                    dto = null;
+                }
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk start message.");
 
-                    return;
+                    return 0;
                 }
 
-                // We will create a new large message receiver, to handle the in-progress large message...
+                // Stand up a receiver for the transfer, enforcing the local transfer-size cap...
                 var lmr = new LargeMsgReceiver();
-                lmr.Scope = scope;
-                lmr.Channel = channel;
-                var res = await lmr.AcceptChunkStart(dto);
-                if(res != 1)
+                var res = lmr.AcceptChunkStart(dto, this.MaxTransferSize);
+                if (res != 1)
                 {
-                    // Failed to accept chunk start message.
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Failed to accept chunk start for large message.");
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        $"Rejected chunk start for transfer ({dto.TransferId}): result {res.ToString()} " +
+                        $"(declared {dto.TotalSize.ToString()} bytes; local MaxTransferSize {this.MaxTransferSize.ToString()}).");
 
-                    return;
+                    return 0;
                 }
-                // If here, we accepted the chunk start message.
-                // We can add the receiver to our running list.
-                this._largemsgreceivers.Add(dto.MsgId, lmr);
 
-                return;
-            }
-            else if(messagetype == nameof(ChunkDTO).ToLower())
-            {
-                // The far end has sent us a chunk that we need to include with the large message we're building.
-
-                ChunkDTO dto;
-                try
+                lock (this._receiverslock)
                 {
-                    dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkDTO>(data);
-                    if(dto == null)
+                    // A duplicate transfer id is a protocol error: refuse the new transfer, keep the old...
+                    if (this._largemsgreceivers.ContainsKey(dto.TransferId))
                     {
-                        // Failed to deserialize chunk message.
                         OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk message.");
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                            $"Received duplicate chunk start for transfer ({dto.TransferId}). New transfer refused.");
 
-                        return;
+                        return 0;
                     }
-                }
-                catch(Exception e)
-                {
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk message.");
 
-                    return;
+                    this._largemsgreceivers.Add(dto.TransferId, lmr);
                 }
 
-                // Look for the receiver...
-                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
-                {
-                    // Have a receiver for the in-progress message.
-                    var rcv = this._largemsgreceivers[dto.MsgId];
-
-                    // Accept the received chunk...
-                    var res = await rcv.AcceptChunk(dto);
-                    if(res != 1)
-                    {
-                        // Failed to accept message chunk.
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to accept message chunk of large message.");
-
-                        return;
-                    }
-                }
-                else
-                {
-                    // We don't have a receiver for the message.
-                    // Since, we never received a start message, we cannot handle it.
-
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Received message chunk without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
-
-                    return;
-                }
+                return 1;
             }
-            else if(messagetype == nameof(ChunkEndDTO).ToLower())
+            else if (messagetype == nameof(ChunkEndDTO).ToLower())
             {
-                // The far end has sent us an end message, so we know that we can compose and handle the large message.
-
+                // The far end has finished a transfer: validate completeness and release the message...
                 ChunkEndDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkEndDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk start message.
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk end message.");
-
-                        return;
-                    }
                 }
-                catch(Exception e)
+                catch (Exception)
                 {
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk end message.");
-
-                    return;
+                    dto = null;
                 }
-
-                // Look for the receiver...
-                if(this._largemsgreceivers.ContainsKey(dto.MsgId))
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
                 {
-                    // Have a receiver for the in-progress message.
-                    var rcv = this._largemsgreceivers[dto.MsgId];
-
-                    // Accept the chunk end message...
-                    var res = await rcv.AcceptChunkEnd(dto);
-                    if(res.res != 1 && res.me != null)
-                    {
-                        // Failed to accept chunk end message.
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to accept chunk end message.");
-
-                        return;
-                    }
-
-                    // Remove the receiver...
-                    this._largemsgreceivers.Remove(dto.MsgId);
-
-                    // If here, we have composed the large message, and can dispatch it as we would normal size messages.
-
-                    // We will let subscribers of our received delegate do deserialization...
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-                    _= Task.Run(() => DispatchReceivedMessage(res.me.MessageType, res.me.Data, res.me.Channel, res.me.Scope));
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-                }
-                else
-                {
-                    // We don't have a receiver for the message.
-                    // Since, we never received a start message, we cannot handle it.
-
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Received chunk end message without a chunk start message. Cannot process message, msgId: ({(dto.MsgId ?? "")}).");
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk end message.");
 
-                    return;
+                    return 0;
                 }
-            }
-            else if(messagetype == nameof(ChunkCancelDTO).ToLower())
-            {
-                // The far end has sent us a cancel message.
-                // We need to teardown any receiver for the message.
 
+                LargeMsgReceiver lmr;
+                lock (this._receiverslock)
+                {
+                    if (!this._largemsgreceivers.TryGetValue(dto.TransferId, out lmr))
+                    {
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                            $"Received chunk end for unknown transfer ({dto.TransferId}).");
+
+                        return 0;
+                    }
+
+                    // The transfer is complete or dead either way: its state leaves the registry now...
+                    this._largemsgreceivers.Remove(dto.TransferId);
+                }
+
+                byte frametype;
+                byte[] body;
+                var res = lmr.AcceptChunkEnd(out frametype, out body);
+                if (res != 1)
+                {
+                    // Incomplete transfers are discarded, never dispatched...
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        $"Discarded incomplete chunked transfer ({dto.TransferId}): result {res.ToString()}.");
+
+                    return 0;
+                }
+
+                // Re-inject the reassembled message at the top of normal processing, marked as reassembled
+                //  so nested chunk messages are rejected...
+                return this.Process_ReassembledMessage(frametype, body);
+            }
+            else if (messagetype == nameof(ChunkCancelDTO).ToLower())
+            {
+                // The far end abandoned a transfer: tear down its state immediately...
                 ChunkCancelDTO dto;
                 try
                 {
                     dto = Newtonsoft.Json.JsonConvert.DeserializeObject<ChunkCancelDTO>(data);
-                    if(dto == null)
-                    {
-                        // Failed to deserialize chunk cancel message.
-                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                            $"Failed to deserialize chunk cancel message.");
+                }
+                catch (Exception)
+                {
+                    dto = null;
+                }
+                if (dto == null || string.IsNullOrEmpty(dto.TransferId))
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                        "Failed to deserialize chunk cancel message.");
 
-                        return;
+                    return 0;
+                }
+
+                lock (this._receiverslock)
+                {
+                    this._largemsgreceivers.Remove(dto.TransferId);
+                }
+
+                return 1;
+            }
+
+            // Unknown chunking message type...
+            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingControl)} - " +
+                $"Received unknown chunking message type: ({(messagetype ?? "")}).");
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Accepts a binary chunk-segment message: locates the transfer's receiver by the header's transfer id,
+        ///     and accumulates the payload slice at the declared offset.
+        /// A rejected segment (out-of-order, over-declared) abandons the transfer.
+        /// Returns 1 handled, 0 disregarded.
+        /// </summary>
+        /// <param name="header">The segment's routing header, carrying transfer id and offset props.</param>
+        /// <param name="payload">The segment's payload slice.</param>
+        /// <returns></returns>
+        private int Process_ChunkSegment(BinaryMessageHeader header, byte[] payload)
+        {
+            // Recover the transfer id and offset from the header props...
+            string transferid = "";
+            long offset = -1;
+            try
+            {
+                if (header.Props != null)
+                {
+                    foreach (var p in header.Props)
+                    {
+                        if (p == null)
+                            continue;
+                        if (p.StartsWith(ChunkingConstants.CONST_Prop_TransferId))
+                            transferid = p.Substring(ChunkingConstants.CONST_Prop_TransferId.Length);
+                        else if (p.StartsWith(ChunkingConstants.CONST_Prop_Offset))
+                            long.TryParse(p.Substring(ChunkingConstants.CONST_Prop_Offset.Length), out offset);
                     }
                 }
-                catch(Exception e)
-                {
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                        $"Exception occurred while attempting to deserialize chunk cancel message.");
+            }
+            catch (Exception) { }
 
-                    return;
+            if (string.IsNullOrEmpty(transferid) || offset < 0)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                    "Received chunk segment with missing transfer id or offset.");
+
+                return 0;
+            }
+
+            LargeMsgReceiver lmr;
+            lock (this._receiverslock)
+            {
+                if (!this._largemsgreceivers.TryGetValue(transferid, out lmr))
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                        $"Received chunk segment for unknown transfer ({transferid}).");
+
+                    return 0;
+                }
+            }
+
+            var res = lmr.AcceptSegment(offset, payload);
+            if (res != 1)
+            {
+                // A rejected segment abandons the whole transfer: remove its state...
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ChunkSegment)} - " +
+                    $"Rejected chunk segment at offset ({offset.ToString()}) for transfer ({transferid}): result {res.ToString()}. Transfer abandoned.");
+
+                lock (this._receiverslock)
+                {
+                    this._largemsgreceivers.Remove(transferid);
                 }
 
-                // Remove the receiver...
-                this._largemsgreceivers.Remove(dto.MsgId);
+                return 0;
             }
-            else
-            {
-                // Unknown chunking message type.
-                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(ProcessChunkingMessage)} - " +
-                    $"Received unknown chunking message type: ({(messagetype ?? "")}).");
 
-                return;
+            return 1;
+        }
+
+        /// <summary>
+        /// Re-injects a reassembled message into normal processing as its original frame type.
+        /// A reassembled body that itself parses to chunking messages is a protocol error (nesting is not
+        ///     legal), and is rejected here rather than recursing.
+        /// Returns 1 handled, 0 disregarded.
+        /// </summary>
+        /// <param name="frametype">The original message's frame type.</param>
+        /// <param name="body">The reassembled body bytes.</param>
+        /// <returns></returns>
+        private int Process_ReassembledMessage(byte frametype, byte[] body)
+        {
+            try
+            {
+                if (frametype == FrameTypes.Json)
+                {
+                    var rawmsg = Encoding.UTF8.GetString(body);
+
+                    // Guard against nested chunking...
+                    var me = Newtonsoft.Json.JsonConvert.DeserializeObject<MessageEnvelope>(rawmsg);
+                    if (me == null)
+                    {
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                            "Reassembled message was not a message envelope.");
+
+                        return 0;
+                    }
+
+                    var mt = (me.MessageType ?? "").ToLower();
+                    if (mt == nameof(ChunkStartDTO).ToLower() || mt == nameof(ChunkEndDTO).ToLower() ||
+                        mt == nameof(ChunkCancelDTO).ToLower())
+                    {
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                            "Reassembled message contained nested chunking messages. Protocol error; message discarded.");
+
+                        return 0;
+                    }
+
+                    return this.Process_ReceivedJsonMessage_from_Client(rawmsg);
+                }
+
+                if (frametype == FrameTypes.Binary)
+                {
+                    // Guard against nested chunking: a reassembled binary body must not be a chunk segment...
+                    BinaryMessageHeader header;
+                    byte[] payload;
+                    if (BinaryMessageHeader.TryParseBody(body, out header, out payload) == 1)
+                    {
+                        var mt = (header.MessageType ?? "").ToLower();
+                        if (mt == ChunkingConstants.CONST_ChunkSegment_MessageType)
+                        {
+                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                                "Reassembled message contained a nested chunk segment. Protocol error; message discarded.");
+
+                            return 0;
+                        }
+                    }
+
+                    return this.Process_ReceivedBinaryMessage_from_Client(body);
+                }
+
+                return 0;
+            }
+            catch (Exception e)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
+                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReassembledMessage)} - " +
+                    "Exception occurred while processing reassembled message.");
+
+                return 0;
             }
         }
 
         /// <summary>
         /// Removes any large message receivers that haven't been updated in a while.
+        /// Runs on the connection loop's tick; accesses the registry under its lock, so a segment arriving
+        ///     mid-prune cannot corrupt the collection.
         /// </summary>
         private void PruneStaleLargeMessageReceivers()
         {
-            if(this._largemsgreceivers == null)
-                this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
-
-            if (this._largemsgreceivers.Count == 0)
-                return;
-
             // Get the current time...
             var ctime = DateTime.UtcNow;
 
-            List<string> entriestodelete = new List<string>();
-
-            // Loop through each receiver...
-            foreach(var r in this._largemsgreceivers)
+            lock (this._receiverslock)
             {
-                if (r.Value == null)
+                if (this._largemsgreceivers.Count == 0)
+                    return;
+
+                List<string> entriestodelete = new List<string>();
+
+                // Loop through each receiver...
+                foreach (var r in this._largemsgreceivers)
                 {
-                    entriestodelete.Add(r.Key);
-                    continue;
+                    if (r.Value == null)
+                    {
+                        entriestodelete.Add(r.Key);
+                        continue;
+                    }
+
+                    // Calculate when the receiver expires...
+                    var etime = r.Value.LastReceivedTimeUTC.AddSeconds(this._cfg_ReceiverTimeout);
+
+                    // See if it expired...
+                    if (etime.CompareTo(ctime) < 0)
+                    {
+                        // The receiver has expired.
+                        entriestodelete.Add(r.Key);
+                    }
                 }
 
-                // Calculate when the entry expires...
-                if(!r.Value.LastReceivedTimeUTC.HasValue)
-                    continue;
-
-                // Calculate when the receiver expires...
-                var etime = r.Value.LastReceivedTimeUTC.Value.AddSeconds(this._cfg_ReceiverTimeout);
-
-                // See if it expired...
-                if(etime.CompareTo(ctime) < 0)
-                {
-                    // The receiver has expired.
-                    entriestodelete.Add(r.Key);
-                }
+                // Delete entries...
+                foreach (var d in entriestodelete)
+                    this._largemsgreceivers.Remove(d);
             }
-
-            // Delete entries...
-            foreach(var d in entriestodelete)
-                this._largemsgreceivers.Remove(d);
         }
-
         #endregion
 
 
@@ -2616,7 +2887,7 @@ namespace OGA.TCP.Server
                 }
 
                 // Check that the TCP/WSLibVersion is in an allowed range for this WSendpoint
-                if(libver < 1 || libver > 2)
+                if(libver < 1 || libver > 3)
                 {
                     // TCP/WSLib Version is not supported by this WSEndpoint.
                     // So, we must abort the connection.
@@ -2629,11 +2900,11 @@ namespace OGA.TCP.Server
                 }
 
                 // Do WSLibVersion=2 property checks...
-                if(libver > 1)
+                if(libver == 2)
                 {
-                    // WSLib Version is at least a V2.
-                    // We must enforce AppId and AppVersion property presence.
-                    // And, we don't allow the AppId to change.
+                    // WSLib Version is a V2.
+                    // The defining feature of a V2 registration is its mandatory client application properties.
+                    // (V3 changed the wire framing, not the registration contract, so its app-identity properties are optional.)
 
                     // Enforce mandatory AppId and AppVersion properties...
                     {
@@ -2657,29 +2928,33 @@ namespace OGA.TCP.Server
                             return -10;
                         }
                     }
-                    // If here, all manadatory TCP/WSLibVersion>=2 properties are present.
+                    // If here, all manadatory TCP/WSLibVersion=2 properties are present.
+                }
 
-                    // Check if the client ever sends us an AppId that is different than the first one...
-                    if(!string.IsNullOrEmpty(this.ClientInfo.AppId))
+                // We don't allow the AppId to change, once given.
+                // This applies to any registration that supplies one, regardless of version.
+                if(!string.IsNullOrEmpty(appid) && !string.IsNullOrEmpty(this.ClientInfo.AppId))
+                {
+                    if(this.ClientInfo.AppId != appid)
                     {
-                        if(this.ClientInfo.AppId != appid)
-                        {
-                            // Our AppId has been set before, and the client is telling us a new value.
-                            // We will regard this as an error, and close the connection.
+                        // Our AppId has been set before, and the client is telling us a new value.
+                        // We will regard this as an error, and close the connection.
 
-                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                                "Client sent a registration DTO, with a different AppId than earlier. We must close the client connection.");
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                            "Client sent a registration DTO, with a different AppId than earlier. We must close the client connection.");
 
-                            return -10;
-                        }
+                        return -10;
                     }
                 }
 
                 // Several client properties should have been received, via Props array.
                 // We will retrieve them, here...
-                this.ClientInfo.AppId = appid ?? "";
-                this.ClientInfo.AppVersion = appver ?? "";
+                // App identity props are optional for V3 clients, so a re-registration that omits them must not erase previously-recorded values...
+                if(!string.IsNullOrEmpty(appid))
+                    this.ClientInfo.AppId = appid;
+                if(!string.IsNullOrEmpty(appver))
+                    this.ClientInfo.AppVersion = appver;
                 this.ClientInfo.Language = language ?? "";
                 this.ClientInfo.LibVersion = wslibver;
                 this.ClientInfo.RuntimeId = runtimeid ?? "";

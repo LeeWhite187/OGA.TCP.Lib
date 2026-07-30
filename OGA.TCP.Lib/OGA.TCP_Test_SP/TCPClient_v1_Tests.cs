@@ -449,8 +449,8 @@ namespace OGA.TCP_Test_SP
                 WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Pid == cp.Pid, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
-                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == "1", 1000);
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == LibVersions.DEFAULT_CONST_WSLIBVERSION, 1000);
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
 
 
@@ -480,7 +480,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -581,8 +581,8 @@ namespace OGA.TCP_Test_SP
                 WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.Pid == cp.Pid, 1000);
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Pid != cp.Pid)
                     Assert.Fail("Wrong Value");
-                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == "1", 1000);
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                WaitforCondition(() => _wsl.ServerSide_TCPEndpoint?.ClientInfo.LibVersion == LibVersions.DEFAULT_CONST_WSLIBVERSION, 1000);
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
 
 
@@ -610,7 +610,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -712,7 +712,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -760,7 +760,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -868,7 +868,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail("Wrong Value");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -926,7 +926,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify registration defaults for the V1 client...
-                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != "1")
+                if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint?.ClientInfo?.LibVersion ?? "")}'");
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.Language != "en-us")
                     Assert.Fail("Wrong Value");
@@ -2597,7 +2597,7 @@ namespace OGA.TCP_Test_SP
 
 
                     // Verify the message type and data...
-                    if(serverreceivedmessagetype != nameof(LargeMessage))
+                    if(serverreceivedmessagetype != nameof(LargeMessage).ToLower())
                         Assert.Fail("Wrong Value");
                     var severmessagehash = GetHashString(serverreceivedmessagedata);
                     if(hashstring != severmessagehash)
@@ -2628,7 +2628,7 @@ namespace OGA.TCP_Test_SP
 
 
                     // Verify the message type and data...
-                    if(clientreceivedmessagetype != nameof(LargeMessage))
+                    if(clientreceivedmessagetype != nameof(LargeMessage).ToLower())
                         Assert.Fail("Wrong Value");
                     var clientmessagehash = GetHashString(clientreceivedmessagedata);
                     if(hashstring != clientmessagehash)
@@ -2791,7 +2791,7 @@ namespace OGA.TCP_Test_SP
 
                         // Verify the message type...
                         var smt = serverreceivedtype[mid];
-                        if (smt != nameof(LargeMessage))
+                        if (smt != nameof(LargeMessage).ToLower())
                             Assert.Fail("Wrong Value");
 
                         // Verify the message data...
@@ -2842,7 +2842,7 @@ namespace OGA.TCP_Test_SP
 
                         // Verify the message type...
                         var smt = clientreceivedtype[mid];
-                        if (smt != nameof(LargeMessage))
+                        if (smt != nameof(LargeMessage).ToLower())
                             Assert.Fail("Wrong Value");
 
                         // Verify the message data...

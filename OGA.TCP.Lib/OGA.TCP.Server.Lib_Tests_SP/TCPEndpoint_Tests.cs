@@ -5050,70 +5050,50 @@ namespace OGA.TCP_Test_SP
         #region Send Helper Methods
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
-        /// No need for any try-catch, as the call to this method is safely wrapped.
+        /// Test-side frame sender: wraps the given bytes in the v3 five-byte preamble as a json frame.
+        /// Kept with the legacy signature so existing call sites remain untouched.
         /// </summary>
         /// <param name="data"></param>
         /// <returns></returns>
         protected async Task<int> RawTransportSend(NetworkStream stream, byte[] data)
         {
-			int Result = 0;
-			int bytes_pushed_into_buffer = 0;
-			byte[] frame;
+            return await this.RawTransportSend(stream, FrameTypes.Json, data);
+        }
 
-			// Handle the special case that the caller send us an empty message.
-			// This is usually a zer-bypte ping message, and we will send it as a zero-length and empty data section.
-			if(data.Length == 0)
-			{
-				// We retrieved a zero-length message that we need to send.
+        /// <summary>
+        /// Test-side frame sender: prepends the five-byte preamble (4-byte little-endian body length, then the
+        ///     frame-type byte) and pushes preamble plus body as one network write.
+        /// A zero-length body produces a preamble-only frame (the wire-level keepalive).
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="frametype"></param>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        protected async Task<int> RawTransportSend(NetworkStream stream, byte frametype, byte[] data)
+        {
+            int bodylength = data?.Length ?? 0;
+            int bytes_pushed_into_buffer = bodylength + 5;
+            byte[] frame = new byte[bytes_pushed_into_buffer];
 
-				// Create a frame of just the header size.
-				bytes_pushed_into_buffer = cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+            // Serialize the body length into the first four bytes...
+            int Result = cCustom_Serializer.Serialize_Integer32(bodylength, ref frame, 0);
+            if (Result < 0)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    "Error occurred while forming the message frame.");
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(0, ref frame, 0);
-				if (Result < 0)
-				{
-					OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-						"Error occurred while forming the empty message.");
+                return -2;
+            }
 
-					return -2;
-				}
-				// We serialized the empty message.
-			}
-			else
-			{
-				// We received a positive length message.
-				// Process it as normal.
+            // Stamp the frame type as the fifth byte...
+            frame[4] = frametype;
 
-				// Compose the raw buffer that will be pushed down the network stack.
-				// We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
-				// We push both the size and the data into a single buffer so it's a single network call.
-				// Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				bytes_pushed_into_buffer = data.Length + cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+            // Copy over the body, when present...
+            if (bodylength > 0)
+                Array.Copy(data, 0, frame, 5, bodylength);
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(data.Length, ref frame, 0);
-				if (Result < 0)
-				{
-					OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-						"Error occurred while forming the message frame.");
-
-					return -2;
-				}
-				// We serialized the message size.
-
-			}
-
-			// Copy over the data.
-			Array.Copy(data, 0, frame, 4, data.Length);
-
-			// We have a message in the buffer that can be pushed to the wire.
-
-			// Push the buffer to the wire.
-			var res = this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
+            // Push the buffer to the wire.
+            var res = this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
             if (res >= 0)
                 return 1;
             else
@@ -5694,8 +5674,12 @@ namespace OGA.TCP_Test_SP
 
             return 1;
         }
-        private int CALLBACK_OnRawMessageReceived(Endpoint_Abstract ws, string rawstring)
+        private int CALLBACK_OnRawMessageReceived(Endpoint_Abstract ws, byte frametype, byte[] raw)
         {
+            // The raw tap now hands us the frame type and body bytes.
+            // These tests exchange json (text) frames, so we decode for the string-based assertions.
+            var rawstring = Encoding.UTF8.GetString(raw);
+
             var ff = rawstring.Length;
 
             this.Received_RawMessage_Size = ff;
@@ -5743,8 +5727,10 @@ namespace OGA.TCP_Test_SP
             {
                 // Start the receive loop...
                 clientrcvloop = new cReceiveLoop(newcws);
-                clientrcvloop.OnMessage_Received = (mep, json) =>
+                clientrcvloop.OnMessage_Received = (mep, frametype, body) =>
                 {
+                    // These tests exchange json frames; decode the body for envelope hydration...
+                    var json = Encoding.UTF8.GetString(body);
                     var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<MessageEnvelope>(json);
 
                     // Stuff the message into a receive buffer...
@@ -5757,7 +5743,7 @@ namespace OGA.TCP_Test_SP
                 // Register a callback that will close the receiver if the cts is cancelled...
                 _receive_cts.Token.Register(() =>
                 {
-                    var res = clientrcvloop.CloseDown();
+                    clientrcvloop.CloseDown();
                 });
 
                 return 1;

@@ -298,17 +298,14 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
 
                 // Close it down...
-                if (rl.CloseDown() != 1)
-                {
-                    // Failed to close receive loop.
-                    Assert.Fail("Failed to close receive loop.");
-                }
+                // CloseDown is idempotent and returns nothing; a local closedown cannot fail.
+                rl.CloseDown();
             }
             finally
             {
@@ -409,7 +406,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -424,7 +421,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -484,7 +481,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -499,7 +496,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -561,7 +558,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is not started...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -576,7 +573,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -593,7 +590,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop state didn't change...
                 if(rl.State != eLoop_ConnectionStatus.Initialized)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -666,7 +663,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -742,7 +739,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -848,7 +845,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -958,7 +955,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1063,7 +1060,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1169,7 +1166,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1301,7 +1298,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1434,7 +1431,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1523,7 +1520,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1653,7 +1650,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1809,7 +1806,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -1975,7 +1972,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2130,7 +2127,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2286,7 +2283,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2465,7 +2462,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2644,7 +2641,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2786,7 +2783,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -2994,7 +2991,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3139,7 +3136,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3185,7 +3182,7 @@ namespace OGA.TCP_Test_SP
                     // We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
                     // We push both the size and the data into a single buffer so it's a single network call.
                     // Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				    bytes_pushed_into_buffer = bytes.Length + cCustom_Serializer.size_of_Int32;
+				    bytes_pushed_into_buffer = bytes.Length + 5;
 				    frame = new byte[bytes_pushed_into_buffer];
 
 
@@ -3196,8 +3193,11 @@ namespace OGA.TCP_Test_SP
                     if (serializesize != 4)
                         Assert.Fail("Failed to serialize size of the frame.");
 
+                    // Stamp the frame type as the fifth byte (v3 preamble)...
+                    frame[4] = FrameTypes.Json;
+
 			        // Copy over the data.
-			        Array.Copy(bytes, 0, frame, 4, bytes.Length);
+			        Array.Copy(bytes, 0, frame, 5, bytes.Length);
 
                     // Send it over the wire...
                     await cth.Clientside_Connection.GetStream().WriteAsync(frame, 0, frame.Length);
@@ -3322,7 +3322,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3338,18 +3338,22 @@ namespace OGA.TCP_Test_SP
 
 
                 // Send a zero-length message as a ping...
+                // Under the v3 framing, this is a preamble-only frame: length zero plus a frame-type byte.
                 MessageEnvelope me = null;
                 {
 			        int bytes_pushed_into_buffer = 0;
 			        byte[] frame;
 
-				    bytes_pushed_into_buffer = cCustom_Serializer.size_of_Int32;
+				    bytes_pushed_into_buffer = 5;
 				    frame = new byte[bytes_pushed_into_buffer];
 
                     // Add in the frame length at its beginning.
                     int serializesize = cCustom_Serializer.Serialize_Integer32(0, ref frame, 0);
                     if (serializesize != 4)
                         Assert.Fail("Failed to serialize size of the frame.");
+
+                    // Stamp the frame type as the fifth byte...
+                    frame[4] = FrameTypes.Json;
 
                     // Send it over the wire...
                     await cth.Clientside_Connection.GetStream().WriteAsync(frame, 0, frame.Length);
@@ -3361,7 +3365,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver is open...
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
 
                 // Wait for message received...
@@ -3447,7 +3451,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3494,7 +3498,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3569,7 +3573,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3612,7 +3616,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 1)
                     Assert.Fail("Wrong Value");
@@ -3648,7 +3652,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 2)
                     Assert.Fail("Wrong Value");
@@ -3685,7 +3689,7 @@ namespace OGA.TCP_Test_SP
                 if(rl.State != eLoop_ConnectionStatus.Open)
                     Assert.Fail("Wrong Value");
 
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 3)
                     Assert.Fail("Wrong Value");
@@ -3769,7 +3773,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3813,7 +3817,7 @@ namespace OGA.TCP_Test_SP
                     // We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
                     // We push both the size and the data into a single buffer so it's a single network call.
                     // Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				    bytes_pushed_into_buffer = bytes.Length + cCustom_Serializer.size_of_Int32;
+				    bytes_pushed_into_buffer = bytes.Length + 5;
 				    frame = new byte[bytes_pushed_into_buffer];
 
 
@@ -3824,8 +3828,11 @@ namespace OGA.TCP_Test_SP
                     if (serializesize != 4)
                         Assert.Fail("Failed to serialize size of the frame.");
 
+                    // Stamp the frame type as the fifth byte (v3 preamble)...
+                    frame[4] = FrameTypes.Json;
+
 			        // Copy over the data.
-			        Array.Copy(bytes, 0, frame, 4, bytes.Length);
+			        Array.Copy(bytes, 0, frame, 5, bytes.Length);
 
                     // Send it over the wire...
                     await cth.Clientside_Connection.GetStream().WriteAsync(frame, 0, frame.Length);
@@ -3878,7 +3885,7 @@ namespace OGA.TCP_Test_SP
 
 
                 // Verify the last received timestamp matches what we expect it to be...
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, expected_lastmessagetime, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, expected_lastmessagetime, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3953,7 +3960,7 @@ namespace OGA.TCP_Test_SP
                 // Verify the receiver loop is started...
                 if(rl.State != eLoop_ConnectionStatus.Newly_Opened)
                     Assert.Fail("Wrong Value");
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -3999,7 +4006,7 @@ namespace OGA.TCP_Test_SP
                     // We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
                     // We push both the size and the data into a single buffer so it's a single network call.
                     // Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				    bytes_pushed_into_buffer = bytes.Length + cCustom_Serializer.size_of_Int32;
+				    bytes_pushed_into_buffer = bytes.Length + 5;
 				    frame = new byte[bytes_pushed_into_buffer];
 
 
@@ -4010,8 +4017,11 @@ namespace OGA.TCP_Test_SP
                     if (serializesize != 4)
                         Assert.Fail("Failed to serialize size of the frame.");
 
+                    // Stamp the frame type as the fifth byte (v3 preamble)...
+                    frame[4] = FrameTypes.Json;
+
 			        // Copy over the data.
-			        Array.Copy(bytes, 0, frame, 4, bytes.Length);
+			        Array.Copy(bytes, 0, frame, 5, bytes.Length);
 
                     // Send it over the wire...
                     await cth.Clientside_Connection.GetStream().WriteAsync(frame, 0, frame.Length);
@@ -4033,7 +4043,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
 
                 // Verify the last received timestamp matches what we expect it to be...
-                if(!this.AreDatesClose(rl.Last_Received_TimestampUTC, DateTime.UtcNow, 1))
+                if(!this.AreDatesClose(rl.Metrics.Last_Received_Message_Time, DateTime.UtcNow, 1))
                     Assert.Fail("Wrong Value");
                 if(rl.Metrics.Received_Message_Count != 0)
                     Assert.Fail("Wrong Value");
@@ -4107,12 +4117,17 @@ namespace OGA.TCP_Test_SP
         private void Reset_MessageCallbackData()
         {
             this.receivedmessage_listing = new Dictionary<int, string>();
+            this.receivedframetype_listing = new Dictionary<int, byte>();
         }
         Dictionary<int, string> receivedmessage_listing = new Dictionary<int, string>();
-        private void CALLBACK_Message_Received(cReceiveLoop mep, string rawmsg)
+        Dictionary<int, byte> receivedframetype_listing = new Dictionary<int, byte>();
+        private void CALLBACK_Message_Received(cReceiveLoop mep, byte frametype, byte[] body)
         {
             // A message was received.
+            // Json bodies are recorded decoded, so existing string assertions keep working.
+            var rawmsg = frametype == FrameTypes.Json ? Encoding.UTF8.GetString(body) : Convert.ToBase64String(body);
             receivedmessage_listing.Add(receivedmessage_listing.Keys.Count + 1, rawmsg);
+            receivedframetype_listing.Add(receivedframetype_listing.Keys.Count + 1, frametype);
         }
 
         private void Reset_LostConnectionData()
@@ -4132,70 +4147,50 @@ namespace OGA.TCP_Test_SP
         #region Send Helper Methods
 
         /// <summary>
-        /// Override this method with the transport-specific means to send the given array.
-        /// No need for any try-catch, as the call to this method is safely wrapped.
+        /// Test-side frame sender: wraps the given bytes in the v3 five-byte preamble as a json frame.
+        /// Kept with the legacy signature so existing call sites remain untouched.
         /// </summary>
         /// <param name="data"></param>
         /// <returns></returns>
         protected async Task<int> RawTransportSend(NetworkStream stream, byte[] data)
         {
-			int Result = 0;
-			int bytes_pushed_into_buffer = 0;
-			byte[] frame;
+            return await this.RawTransportSend(stream, FrameTypes.Json, data);
+        }
 
-			// Handle the special case that the caller send us an empty message.
-			// This is usually a zer-bypte ping message, and we will send it as a zero-length and empty data section.
-			if(data.Length == 0)
-			{
-				// We retrieved a zero-length message that we need to send.
+        /// <summary>
+        /// Test-side frame sender: prepends the five-byte preamble (4-byte little-endian body length, then the
+        ///     frame-type byte) and pushes preamble plus body as one network write.
+        /// A zero-length body produces a preamble-only frame (the wire-level keepalive).
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="frametype"></param>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        protected async Task<int> RawTransportSend(NetworkStream stream, byte frametype, byte[] data)
+        {
+            int bodylength = data?.Length ?? 0;
+            int bytes_pushed_into_buffer = bodylength + 5;
+            byte[] frame = new byte[bytes_pushed_into_buffer];
 
-				// Create a frame of just the header size.
-				bytes_pushed_into_buffer = cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+            // Serialize the body length into the first four bytes...
+            int Result = cCustom_Serializer.Serialize_Integer32(bodylength, ref frame, 0);
+            if (Result < 0)
+            {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                    "Error occurred while forming the message frame.");
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(0, ref frame, 0);
-				if (Result < 0)
-				{
-					OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-						"Error occurred while forming the empty message.");
+                return -2;
+            }
 
-					return -2;
-				}
-				// We serialized the empty message.
-			}
-			else
-			{
-				// We received a positive length message.
-				// Process it as normal.
+            // Stamp the frame type as the fifth byte...
+            frame[4] = frametype;
 
-				// Compose the raw buffer that will be pushed down the network stack.
-				// We do this because we must send the data as well as a length, prepending it, so the receiving end can know how much data is in the message.
-				// We push both the size and the data into a single buffer so it's a single network call.
-				// Two array copies (size and data into a single buffer) and one network write are faster than two network writes (for separate size and data).
-				bytes_pushed_into_buffer = data.Length + cCustom_Serializer.size_of_Int32;
-				frame = new byte[bytes_pushed_into_buffer];
+            // Copy over the body, when present...
+            if (bodylength > 0)
+                Array.Copy(data, 0, frame, 5, bodylength);
 
-				// Serialize the size.
-				Result = cCustom_Serializer.Serialize_Integer32(data.Length, ref frame, 0);
-				if (Result < 0)
-				{
-					OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
-						"Error occurred while forming the message frame.");
-
-					return -2;
-				}
-				// We serialized the message size.
-
-			}
-
-			// Copy over the data.
-			Array.Copy(data, 0, frame, 4, data.Length);
-
-			// We have a message in the buffer that can be pushed to the wire.
-
-			// Push the buffer to the wire.
-			return this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
+            // Push the buffer to the wire.
+            return this.Push_Buffer_to_Wire(stream, frame, 0, bytes_pushed_into_buffer);
         }
 
 		/// <summary>
