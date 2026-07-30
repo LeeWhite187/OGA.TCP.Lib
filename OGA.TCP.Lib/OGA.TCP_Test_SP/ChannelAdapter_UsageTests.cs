@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OGA.TCP.ClientAdapters;
+using OGA.TCP.Channels;
 using OGA.TCP.Messages;
 using OGA.TCP.Server;
 using OGA.TCP.Server.Model;
@@ -261,8 +261,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var cname = "";
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(cname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(cname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != -2)
                     Assert.Fail("Wrong Value");
@@ -323,8 +322,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var channelname = Guid.NewGuid().ToString();
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(channelname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(channelname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != 1)
                     Assert.Fail("Wrong Value");
@@ -391,8 +389,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var channelname = Guid.NewGuid().ToString();
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(channelname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(channelname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != 1)
                     Assert.Fail("Wrong Value");
@@ -458,8 +455,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var channelname = Guid.NewGuid().ToString();
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(channelname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(channelname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != 1)
                     Assert.Fail("Wrong Value");
@@ -467,8 +463,7 @@ namespace OGA.TCP_Test_SP
 
                 // Attempt to add another adapter with the same name...
                 var channelname2 = Guid.NewGuid().ToString();
-                var somemessagetypename2 = "";
-                var ca2 = new ChannelAdapter_CustomType(channelname2, callback, somemessagetypename2, logger);
+                var ca2 = new ChannelAdapter_CustomType(channelname2, callback, logger);
                 var resca2 = client.Remove_ChannelHandler(Guid.NewGuid().ToString());
                 if(resca2 != -1)
                     Assert.Fail("Wrong Value");
@@ -609,8 +604,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var channelname = Guid.NewGuid().ToString();
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(channelname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(channelname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != 1)
                     Assert.Fail("Wrong Value");
@@ -729,8 +723,7 @@ namespace OGA.TCP_Test_SP
 
                 // Add a channel adapter with a blank channel name...
                 var channelname = Guid.NewGuid().ToString();
-                var somemessagetypename = "";
-                var ca = new ChannelAdapter_CustomType(channelname, callback, somemessagetypename, logger);
+                var ca = new ChannelAdapter_CustomType(channelname, callback, logger);
                 var resca = client.Add_ChannelAdapter(ca);
                 if(resca != 1)
                     Assert.Fail("Wrong Value");

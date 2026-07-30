@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using OGA.TCP.Chunking.DTO;
 using OGA.TCP.Chunking.Helpers;
-using OGA.TCP.ClientAdapters;
+using OGA.TCP.Channels;
 using OGA.TCP.Messages;
 using OGA.TCP.Shared;
 using System;
@@ -21,14 +21,24 @@ namespace OGA.TCP.SessionLayer
     /// This abstract class gets derived for each transport type.
     /// Your implementation will need to provide a delegate-based or adapter-based method of dispatching channel-assigned messages.
     /// </summary>
-    abstract public class Client_v1_Abstract : IDisposable
+    abstract public class Client_v1_Abstract : IDisposable, IMessagingHost
     {
         #region Private Fields
 
+        /// <summary>
+        /// Logger instance. Optional; supplied at construction, and nulled at dispose.
+        /// </summary>
         protected NLog.ILogger Logger;
 
+        /// <summary>
+        /// Class name used for logging.
+        /// </summary>
         protected string _classname;
 
+        /// <summary>
+        /// Number of instances that have been created since the process started.
+        /// Used to assign each instance a diagnostic InstanceId.
+        /// </summary>
         static protected int _instance_counter;
 
         /// <summary>
@@ -37,6 +47,10 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected int _cfg_keepAliveInterval;
 
+        /// <summary>
+        /// Keepalive handshake state: 0 = no ping in flight; 1 = a ping was sent and its pong is awaited.
+        /// Set when a ping is sent; cleared by the receive path when a pong arrives, and on each new connection attempt.
+        /// </summary>
         protected int _keepAliveStatus;
 
         /// <summary>
@@ -46,14 +60,42 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected DateTime _lastPingSentTimeUtc;
 
+        /// <summary>
+        /// Source of outgoing envelope message ids.
+        /// Static, so ids are unique across every client instance in the process; incremented via Interlocked.
+        /// Message ids are diagnostic and correlational; nothing orders or dedupes by them.
+        /// </summary>
         static protected int _last_messageid = 0;
 
+        /// <summary>
+        /// Cancellation source governing the connection loop's lifetime.
+        /// Created by Start_Async; cancelled first during Stop_Async, so the loop cannot mistake teardown for connection loss.
+        /// </summary>
         protected CancellationTokenSource _cts;
 
+        /// <summary>
+        /// Set once Dispose has run. Guards against double-disposal, and fails sends and starts on a disposed instance.
+        /// </summary>
         protected bool disposedValue;
 
+        /// <summary>
+        /// Lifecycle state of the instance: 0 = created (never started), 1 = started, 2 = stopped.
+        /// Instances are single-use: Start_Async only succeeds from the created state, and refuses after a stop or dispose.
+        /// A consumer wanting a new session constructs a new instance.
+        /// Transitions use Interlocked so a concurrent double-start cannot run two connection loops against one client.
+        /// </summary>
+        private int _lifecyclestate = 0;
+
+        /// <summary>
+        /// Cancellation source governing the receive machinery of the current connection.
+        /// Recycled on each connection attempt, and cancelled during teardown.
+        /// </summary>
         protected CancellationTokenSource _receive_cts;
 
+        /// <summary>
+        /// Diagnostic counter of every entry into the connection-lost dispatch logic,
+        ///     regardless of whether the (single-fire) delegate actually fired.
+        /// </summary>
         protected int connlost_truecounter;
 
         /// <summary>
@@ -61,6 +103,12 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected SemaphoreSlim _write_semaphore = new SemaphoreSlim(1, 1);
 
+        /// <summary>
+        /// Indicates when the public send methods are permitted to send outgoing messages.
+        /// Set once the connection is established, post-connection work is complete, and (when configured to wait)
+        ///     a validated registration reply has been received.
+        /// Cleared on every failure, closure, and stop, so sends fail soft (return 0) instead of writing to a dead transport.
+        /// </summary>
         protected bool _allowsend;
 
         /// <summary>
@@ -94,6 +142,9 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected Dictionary<string, LargeMsgReceiver> _largemsgreceivers;
 
+        /// <summary>
+        /// Backing store for Cfg_ReceiverTimeout: seconds a large-message receiver can sit idle before it is pruned.
+        /// </summary>
         protected int _cfg_ReceiverTimeout;
 
         #endregion
@@ -310,12 +361,18 @@ namespace OGA.TCP.SessionLayer
         /// Total number of connection attempts of the instance, regardless of success or failure.
         /// </summary>
         public int ConnAttempt_TotalCounter { get => _connattempt_totalcounter; }
+        /// <summary>
+        /// Backing store for ConnAttempt_TotalCounter. Volatile: written by the connection loop, read by consumers.
+        /// </summary>
         protected volatile int _connattempt_totalcounter;
 
         /// <summary>
         /// Total number of received messages since opening.
         /// </summary>
         public int ReceivedMessage_Counter { get => _receivedmessage_counter; }
+        /// <summary>
+        /// Backing store for ReceivedMessage_Counter. Volatile: written by the receive path, read by consumers.
+        /// </summary>
         protected volatile int _receivedmessage_counter;
 
         /// <summary>
@@ -340,12 +397,24 @@ namespace OGA.TCP.SessionLayer
         #region Public Delegates
 
         /// <summary>
-        /// The channel adapters listing.
-        /// Received messages are forwarded to an instance in this collection based on the message channel.
+        /// The channel dispatcher.
+        /// Owns the channel-adapter registry, routing, kind enforcement, and delivery of received messages.
+        /// Shared substrate with the server-side endpoint class, so routing behavior is one implementation for both sides.
         /// </summary>
-        protected Dictionary<string, IChannelAdapter> _ChannelMessageHandlers;
+        protected ChannelDispatcher _dispatcher;
 
+        /// <summary>
+        /// Delegate signature for the client's channel handlers and its no-channel message fallback.
+        /// Return 1 if handled, 0 if not handled, negatives for errors.
+        /// </summary>
+        /// <param name="mep">The client instance that received the message.</param>
+        /// <param name="messagetype">Lowercased message type name from the envelope.</param>
+        /// <param name="msg">The message payload json.</param>
+        /// <returns></returns>
         public delegate int DelMessageReceived(Client_v1_Abstract mep, string messagetype, string msg);
+        /// <summary>
+        /// Consumer's no-channel message handler. Assigned via OnMessageReceived; nulled on stop.
+        /// </summary>
         protected DelMessageReceived _delOnMessageReceived;
         /// <summary>
         /// Add a callback, here, to capture raw messages, without channel handling.
@@ -361,7 +430,19 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Delegate signature for the raw-message tap.
+        /// Assigning a handler makes the client a dumb pipe: the handler receives every message exclusively,
+        ///     and all internal processing (keepalive replies, registration handling, dispatch) is bypassed.
+        /// Intended for testing and protocol tooling, not normal applications.
+        /// </summary>
+        /// <param name="mep">The client instance that received the message.</param>
+        /// <param name="rawstring">The raw received message string.</param>
+        /// <returns></returns>
         public delegate int DelRawMessageReceived(Client_v1_Abstract mep, string rawstring);
+        /// <summary>
+        /// Consumer's raw-message tap. Assigned via OnRawMessageReceived; nulled on stop.
+        /// </summary>
         protected DelRawMessageReceived _delOnRawMessageReceived;
         /// <summary>
         /// Normally, this is not used as messages are exchanged as typed classes.
@@ -375,7 +456,15 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Delegate signature for connection-loss notification.
+        /// Fires at most once per established connection's loss; a consumer-initiated stop does not fire it.
+        /// </summary>
+        /// <param name="mep">The client instance whose connection was lost.</param>
         public delegate void DelConnectionLost(Client_v1_Abstract mep);
+        /// <summary>
+        /// Consumer's connection-lost handler. Assigned via OnConnectionLost; nulled on stop.
+        /// </summary>
         protected DelConnectionLost _delConnectionLost;
         /// <summary>
         /// Add a callback, here, to watch for lost connection events.
@@ -389,7 +478,15 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Delegate signature for connection status-change notification.
+        /// </summary>
+        /// <param name="mep">The client instance whose status changed.</param>
+        /// <param name="statusupdate">Human-readable description of the state transition.</param>
         public delegate void dStatus_Change(Client_v1_Abstract mep, string statusupdate);
+        /// <summary>
+        /// Consumer's status-change handler. Assigned via OnStatus_Change; nulled on stop.
+        /// </summary>
         protected dStatus_Change _del_Status_Change;
         /// <summary>
         /// Assign a handler to this delegate to receive status changes.
@@ -402,7 +499,17 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Delegate signature for received binary frames without channel routing.
+        /// Return 1 if handled, 0 if not handled, negatives for errors (fatal when Cfg_BinaryFrameHandling_IsFatal is set).
+        /// </summary>
+        /// <param name="ws">The client instance that received the frame.</param>
+        /// <param name="msg">The raw received bytes.</param>
+        /// <returns></returns>
         public delegate int DelBinaryFrameReceived(Client_v1_Abstract ws, byte[] msg);
+        /// <summary>
+        /// Consumer's no-channel binary handler. Assigned via OnBinaryFrameReceived; nulled on stop.
+        /// </summary>
         protected DelBinaryFrameReceived _delOnBinaryFrameReceived;
         /// <summary>
         /// Add a callback, here, to capture binary frame messages.
@@ -454,7 +561,9 @@ namespace OGA.TCP.SessionLayer
             this._lastPingSentTimeUtc = DateTime.UnixEpoch;
 #endif
 
-            _ChannelMessageHandlers = new Dictionary<string, IChannelAdapter>();
+            // Stand up the channel dispatcher, and wire our no-channel fallback into it...
+            this._dispatcher = new ChannelDispatcher(this.InstanceId, this.Logger);
+            this._dispatcher.NoChannelJsonHandler = this.Handle_NoChannelMessage;
 
             this._largemsgreceivers = new Dictionary<string, LargeMsgReceiver>();
 
@@ -474,9 +583,14 @@ namespace OGA.TCP.SessionLayer
             {
                 if (disposing)
                 {
-                    // TODO: dispose managed state (managed objects)
-
-                    Stop_Async().GetAwaiter();
+                    // Stop the client, and block until teardown completes.
+                    // Dispose must not return while the connection loop or receive machinery can still
+                    //  run against this instance, so we synchronously wait out the async stop.
+                    try
+                    {
+                        Stop_Async().GetAwaiter().GetResult();
+                    }
+                    catch (Exception) { }
 
                     this.Logger = null;
                 }
@@ -531,6 +645,20 @@ namespace OGA.TCP.SessionLayer
                     return -1;
                 }
 
+                // Instances are single-use.
+                // Verify we are in the never-started state, and atomically claim the started state.
+                // This refuses a start after a stop or dispose, and also refuses a concurrent double-start,
+                //  which would otherwise run two connection loops against this one client.
+                if (System.Threading.Interlocked.CompareExchange(ref this._lifecyclestate, 1, 0) != 0)
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Start_Async)} - " +
+                        $"{(this.TransportShortName ?? "socket")} client instance was already started or stopped. " +
+                        $"Instances are single-use: construct a new instance for a new session.");
+
+                    return -1;
+                }
+
                 // Clear the allow sending flag, to prevent any outgoing messages...
                 this._allowsend = false;
 
@@ -577,14 +705,36 @@ namespace OGA.TCP.SessionLayer
                 $"{_classname}:{this.InstanceId.ToString()}::{nameof(Stop_Async)} - " +
                 $"Attempting to stop {(this.TransportShortName?.ToLower() ?? "socket")} client...");
 
+            // Mark the instance as stopped.
+            // Stop is terminal: instances are single-use, and Start_Async refuses once we've left the created state.
+            System.Threading.Interlocked.Exchange(ref this._lifecyclestate, 2);
+
             // Clear the allow sending flag, to prevent any outgoing messages...
             this._allowsend = false;
+
+            // Disarm the connection-lost delegate before tearing anything down.
+            // A consumer-initiated stop is not a connection loss, so the lost event must not fire
+            //  as the connection loop observes the closing transport.
+            lock (this.lclock)
+            {
+                this._connectionclosuredelegate_armed = false;
+            }
+
+            // Cancel the connection loop before touching the transport.
+            // Cancelling first closes the window in which the loop could observe the dropped transport
+            //  as a connection loss and launch a reconnect (with re-registration) after we were told to stop.
+            // Disposal of the token source stays below, after the loop has had time to observe the cancel.
+            try
+            {
+                this._cts?.Cancel();
+            }
+            catch (Exception) { }
 
             // Clear out any large message receivers...
             this._largemsgreceivers.Clear();
 
             // Disconnect any message handlers...
-            this.Close_ChannelAdapters();
+            this._dispatcher.CloseAll();
             this._delOnMessageReceived = null;
             this._delOnRawMessageReceived = null;
             this._delOnBinaryFrameReceived = null;
@@ -667,22 +817,11 @@ namespace OGA.TCP.SessionLayer
                 return -1;
             }
 
-            // Validate the adapter...
-            if (string.IsNullOrEmpty(adapter.ChannelId))
-            {
-                // Invalid channel name.
-                return -2;
-            }
-
-            // Make sure the channel is empty...
-            if (this._ChannelMessageHandlers.ContainsKey(adapter.ChannelId))
-            {
-                // The channel is already assigned.
-                return -1;
-            }
-
-            // Add it to the adapters listing...
-            this._ChannelMessageHandlers.Add(adapter.ChannelId, adapter);
+            // Add it to the dispatcher's registry...
+            // The dispatcher validates the channel name and refuses duplicates, and is safe to call while traffic flows.
+            var res = this._dispatcher.Add(adapter);
+            if (res != 1)
+                return res;
 
             // Give the channel adapter a reference to this client.
             // Doing so, allows a channel adapter to provide its own send methods supporting their own types.
@@ -693,6 +832,7 @@ namespace OGA.TCP.SessionLayer
 
         /// <summary>
         /// Call this method to add a message handler for a string-named channel.
+        /// The handler is wrapped in a json-kind delegate adapter for you.
         /// </summary>
         /// <param name="channel"></param>
         /// <param name="handler"></param>
@@ -700,7 +840,10 @@ namespace OGA.TCP.SessionLayer
         public int Add_ChannelHandler(string channel, DelMessageReceived handler)
         {
             // Create a delegate adapter...
-            var da = new ChannelAdapter_DelegateType(channel, handler, "", this.Logger);
+            // The closure captures this client instance, preserving the handler's typed first parameter.
+            var da = new ChannelAdapter_DelegateType(channel,
+                (host, messagetype, jsondata, corelationid) => handler(this, messagetype, jsondata),
+                this.Logger);
 
             // Add it to the adapters listing...
             var res = this.Add_ChannelAdapter(da);
@@ -713,28 +856,8 @@ namespace OGA.TCP.SessionLayer
         /// <returns></returns>
         public int Remove_ChannelHandler(string channel)
         {
-            // Attempt to close the adapter...
-            IChannelAdapter ca = null;
-            try
-            {
-                ca = this._ChannelMessageHandlers[channel];
-            }
-            catch (Exception e)
-            {
-                // Not found.
-                return -1;
-            }
-
-            if (ca == null)
-                return 1;
-
-            // Close the adapter...
-            ca.Close();
-
-            // Remove the adapter from our listing...
-            this._ChannelMessageHandlers.Remove(channel);
-
-            return 1;
+            // Remove the adapter from the dispatcher (which closes it after removal)...
+            return this._dispatcher.Remove(channel);
         }
 
         /// <summary>
@@ -742,19 +865,7 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected void Close_ChannelAdapters()
         {
-            while (this._ChannelMessageHandlers.Count != 0)
-            {
-                try
-                {
-                    // Close the adapter...
-                    var ch = this._ChannelMessageHandlers.ElementAt(0);
-                    ch.Value.Close();
-
-                    // Remove it from the listing...
-                    this._ChannelMessageHandlers.Remove(ch.Key);
-                }
-                catch (Exception) { }
-            }
+            this._dispatcher.CloseAll();
         }
 
         /// <summary>
@@ -2804,8 +2915,26 @@ namespace OGA.TCP.SessionLayer
                 // Not a chunking message type.
                 // We will dispatch it as normal.
 
+                // Recover any correlation id from the envelope props, so dispatch can carry it to handlers...
+                string cid = "";
+                try
+                {
+                    if (me.Props != null)
+                    {
+                        foreach (var p in me.Props)
+                        {
+                            if (p != null && p.StartsWith("corelationid="))
+                            {
+                                cid = p.Substring(13);
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception) { }
+
                 // We will let subscribers of our received delegate do deserialization...
-                DispatchReceivedMessage(mt, me.Data, me.Channel, me.Scope);
+                DispatchReceivedMessage(mt, me.Data, me.Channel, me.Scope, cid);
 
                 //// Deserialize the message to the correct type...
                 //if (mt == nameof(ChatMessageDTO).ToLower())
@@ -3397,74 +3526,50 @@ namespace OGA.TCP.SessionLayer
         /// <param name="jsondata"></param>
         /// <param name="channel"></param>
         /// <param name="scope"></param>
-        protected int DispatchReceivedMessage(string messagetype, string jsondata, string channel = "", string scope = "")
+        protected int DispatchReceivedMessage(string messagetype, string jsondata, string channel = "", string scope = "", string corelationid = "")
         {
-            try
+            // Route through the shared dispatcher: channel lookup, kind enforcement, delivery, and the
+            //  no-channel fallback all live there, as one implementation shared with the server side.
+            return this._dispatcher.DispatchJson(this, channel, messagetype, jsondata, corelationid);
+        }
+
+        /// <summary>
+        /// No-channel fallback, wired into the dispatcher at construction.
+        /// Forwards channel-less messages to the consumer's OnMessageReceived delegate, preserving its typed signature.
+        /// </summary>
+        /// <param name="host">The endpoint that received the message (this instance).</param>
+        /// <param name="messagetype">Lowercased message type name from the envelope.</param>
+        /// <param name="jsondata">The message payload json.</param>
+        /// <param name="corelationid">Correlation id carried with the message, or empty.</param>
+        /// <returns></returns>
+        private int Handle_NoChannelMessage(IMessagingHost host, string messagetype, string jsondata, string corelationid)
+        {
+            var d = this._delOnMessageReceived;
+            if (d != null)
             {
-                if (string.IsNullOrEmpty(channel))
-                {
-                    // No channel is set.
-
-                    // Send the message to the generic handler...
-                    if (_delOnMessageReceived != null)
-                    {
-                        var res = _delOnMessageReceived(this, messagetype, jsondata);
-
-                        return res;
-                    }
-
-                    this.Logger?.Error(
-                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +
-                        $"Default message handler is not defined. Message type is: {messagetype}.");
-
-                    return 0;
-                }
-                else
-                {
-                    // A channel is defined for the message.
-                    // We will attempt to route it.
-
-                    IChannelAdapter ca = null;
-
-                    // Get the handler from our adapter list...
-                    if (!this._ChannelMessageHandlers.TryGetValue(channel, out ca))
-                    {
-                        // We don't have a subscribed handler matching the channel name.
-
-                        this.Logger?.Error(
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +
-                            $"Received message from channel ({channel}), but no handler is defined. Message type is: {messagetype}.");
-
-                        return -1;
-                    }
-                    // If here, we have a handler for the message.
-
-                    // Dispatch the message to the handler...
-                    try
-                    {
-                        var res = ca.AcceptIncomingMessage(this, messagetype, jsondata);
-                        return res;
-                    }
-                    catch(Exception e)
-                    {
-                        this.Logger?.Error(e,
-                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +
-                            $"Exception occurred during message dispatch. Exception Message = {e.Message}");
-
-                        return -10;
-                    }
-                }
-
-                return 1;
+                return d(this, messagetype, jsondata);
             }
-            catch (Exception e)
-            {
-                this.Logger?.Error(e,
-                    $"{_classname}:{this.InstanceId.ToString()}::{nameof(DispatchReceivedMessage)} - " +
-                    $"Exception occurred while dispatching received message to a delegate. Exception Message = {e.Message}");
 
-                return -10;
-            }
+            this.Logger?.Error(
+                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Handle_NoChannelMessage)} - " +
+                $"Default message handler is not defined. Message type is: {messagetype}.");
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Sends a serializable object to the connected server as a json message.
+        /// This is the IMessagingHost send surface used by channel adapters; it forwards to SendMessage_to_Endpoint.
+        /// Returns 1 on success, 0 if the session is not ready to send, negatives on error.
+        /// </summary>
+        /// <param name="payload">Object instance to serialize and send.</param>
+        /// <param name="channel">Optional channel name the message is routed to on the far side.</param>
+        /// <param name="scope">Optional scope value.</param>
+        /// <param name="corelationid">Optional correlation id, carried in the message properties for tracing.</param>
+        /// <returns></returns>
+        public async Task<int> SendMessage_toPeer(object payload, string channel = "", string scope = "", string corelationid = "")
+        {
+            return await this.SendMessage_to_Endpoint(payload, channel, scope, corelationid);
         }
 
         /// <summary>
@@ -3543,10 +3648,19 @@ namespace OGA.TCP.SessionLayer
 
         #region Status Change Methods
 
+        /// <summary>
+        /// Transitions the endpoint-level State, publishing the change to the status-change delegate.
+        /// </summary>
+        /// <param name="newstate">The state to transition to.</param>
         protected void UpdateState(eEndpoint_ConnectionStatus newstate)
         {
             UpdateState(newstate, true);
         }
+        /// <summary>
+        /// Transitions the endpoint-level State, optionally publishing the change to the status-change delegate.
+        /// </summary>
+        /// <param name="newstate">The state to transition to.</param>
+        /// <param name="publish_change">Set false when the owner already knows the state change and no notification is wanted.</param>
         protected void UpdateState(eEndpoint_ConnectionStatus newstate, bool publish_change)
         {
             string state_change_string = "";
@@ -3586,6 +3700,10 @@ namespace OGA.TCP.SessionLayer
 				catch (Exception) { }
 			}
         }
+        /// <summary>
+        /// Promotes the endpoint-level State from Newly_Opened to Open, on the first successful traffic.
+        /// A no-op in any other state.
+        /// </summary>
         protected void PromoteStatus_from_NewlyOpen_to_Open()
         {
             if (this.State == eEndpoint_ConnectionStatus.Newly_Opened)

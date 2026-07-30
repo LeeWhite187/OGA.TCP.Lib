@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using NLog;
 using OGA.TCP.Messages;
 using OGA.TCP.Shared;
@@ -49,6 +49,10 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         protected int tcpconnection_port;
 
+        /// <summary>
+        /// Live backing store for the connection's send-side metrics.
+        /// The public Metrics property composes this with the receive loop's counters into a snapshot copy.
+        /// </summary>
         protected cEndpoint_Metrics _metrics;
 
         #endregion
@@ -124,6 +128,12 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Returns a point-in-time copy of the connection's metrics.
+        /// The returned instance is a snapshot: mutating it has no effect on the live counters.
+        /// Safe to read before the first connection is established; a baseline (empty) snapshot is returned
+        ///     until the receive machinery exists.
+        /// </summary>
         public cEndpoint_Metrics Metrics
         {
             get
@@ -132,12 +142,18 @@ namespace OGA.TCP.SessionLayer
                 cEndpoint_Metrics met = new cEndpoint_Metrics();
                 met.CopyFrom(this._metrics);
 
-                var rcvmet = this._receiveLoop.Metrics;
+                // Fold in the receive loop's counters, if a connection has been made...
+                // Before the first connection, no receive loop exists yet, and the baseline copy above is the answer.
+                var rl = this._receiveLoop;
+                if (rl != null)
+                {
+                    var rcvmet = rl.Metrics;
 
-                met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
-                met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
-                met.Received_Message_Count = rcvmet.Received_Message_Count;
-                met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                    met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
+                    met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
+                    met.Received_Message_Count = rcvmet.Received_Message_Count;
+                    met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                }
 
                 return met;
             }
@@ -602,7 +618,9 @@ namespace OGA.TCP.SessionLayer
                 this.PromoteStatus_from_NewlyOpen_to_Open();
 
                 // Increment the write message counter.
-                this.Metrics.Sent_Message_Count++;
+                // This must land on the backing field: the Metrics property hands out snapshot copies.
+                this._metrics.Sent_Message_Count++;
+                this._metrics.Last_Sent_Message_Time = DateTime.UtcNow;
 
                 this.Logger?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +
@@ -688,6 +706,13 @@ namespace OGA.TCP.SessionLayer
             return 1;
         }
 
+        /// <summary>
+        /// Receive-loop status callback: maps the loop's connection states onto the endpoint-level State,
+        ///     and performs the common closure work for terminal loop states.
+        /// Runs on the receive loop's callback thread.
+        /// </summary>
+        /// <param name="rcloop">The receive loop reporting the change.</param>
+        /// <param name="statusupdate">Human-readable description of the loop's state transition.</param>
         protected void CALLBACK_Receiver_Status_Change(cReceiveLoop rcloop, string statusupdate)
         {
             this.Logger?.Info(
@@ -730,7 +755,7 @@ namespace OGA.TCP.SessionLayer
                 // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
                 try
                 {
-                    this.CloseandDisposeTransport().GetAwaiter();
+                    this.CloseandDisposeTransport().GetAwaiter().GetResult();
                 }
                 catch (Exception) { }
                 try
@@ -775,6 +800,12 @@ namespace OGA.TCP.SessionLayer
             }
         }
 
+        /// <summary>
+        /// Receive-loop failure callback: marks the connection errored, dispatches the connection-lost event,
+        ///     and tears down the transport. The connection loop then drives reconnection.
+        /// Runs on the receive loop's callback thread.
+        /// </summary>
+        /// <param name="mep">The receive loop reporting the failure.</param>
         protected void CALLBACK_Receiver_Conn_Went_Bad(cReceiveLoop mep)
         {
             // Clear the send flag, to prevent outgoing messages...
@@ -795,7 +826,7 @@ namespace OGA.TCP.SessionLayer
             // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
             try
             {
-                this.CloseandDisposeTransport().GetAwaiter();
+                this.CloseandDisposeTransport().GetAwaiter().GetResult();
             }
             catch (Exception) { }
             try
@@ -805,6 +836,13 @@ namespace OGA.TCP.SessionLayer
             catch (Exception) { }
         }
 
+        /// <summary>
+        /// Receive-loop message callback: stamps the receive timestamp and counters, then forwards the
+        ///     raw message into the session layer's processing pipeline.
+        /// Runs on the receive loop's callback thread.
+        /// </summary>
+        /// <param name="mep">The receive loop that received the message.</param>
+        /// <param name="rawmsg">The raw received message string.</param>
         protected void CALLBACK_Receiver_Message_Received(cReceiveLoop mep, string rawmsg)
         {
             // Update our received timestamp...
@@ -846,7 +884,7 @@ namespace OGA.TCP.SessionLayer
                 // Wrap in a try-catch to ensure the override doesn't thrown and unwind us...
                 try
                 {
-                    this.CloseandDisposeTransport().GetAwaiter();
+                    this.CloseandDisposeTransport().GetAwaiter().GetResult();
                 }
                 catch (Exception) { }
                 try

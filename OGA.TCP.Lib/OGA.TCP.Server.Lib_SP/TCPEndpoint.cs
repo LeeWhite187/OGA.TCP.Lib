@@ -35,6 +35,10 @@ namespace OGA.TCP.Server
         /// </summary>
         private cReceiveLoop _receiveLoop;
 
+        /// <summary>
+        /// Live backing store for the connection's send-side metrics.
+        /// The public Metrics property composes this with the receive loop's counters into a snapshot copy.
+        /// </summary>
         protected cEndpoint_Metrics _metrics;
 
         #endregion
@@ -101,6 +105,11 @@ namespace OGA.TCP.Server
             }
         }
 
+        /// <summary>
+        /// Returns a point-in-time copy of the connection's metrics.
+        /// The returned instance is a snapshot: mutating it has no effect on the live counters.
+        /// Safe to read before the receive machinery is stood up; a baseline (empty) snapshot is returned until then.
+        /// </summary>
         public cEndpoint_Metrics Metrics
         {
             get
@@ -109,12 +118,18 @@ namespace OGA.TCP.Server
                 cEndpoint_Metrics met = new cEndpoint_Metrics();
                 met.CopyFrom(this._metrics);
 
-                var rcvmet = this._receiveLoop.Metrics;
+                // Fold in the receive loop's counters, if the receive machinery exists...
+                // Before the connection is stood up, no receive loop exists yet, and the baseline copy above is the answer.
+                var rl = this._receiveLoop;
+                if (rl != null)
+                {
+                    var rcvmet = rl.Metrics;
 
-                met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
-                met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
-                met.Received_Message_Count = rcvmet.Received_Message_Count;
-                met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                    met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
+                    met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
+                    met.Received_Message_Count = rcvmet.Received_Message_Count;
+                    met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                }
 
                 return met;
             }
@@ -351,7 +366,9 @@ namespace OGA.TCP.Server
 				this.PromoteStatus_from_NewlyOpen_to_Open();
 
 				// Increment the write message counter.
-				this.Metrics.Sent_Message_Count++;
+				// This must land on the backing field: the Metrics property hands out snapshot copies.
+				this._metrics.Sent_Message_Count++;
+				this._metrics.Last_Sent_Message_Time = DateTime.UtcNow;
 
 				OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Push_Buffer_to_Wire)} - " +

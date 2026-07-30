@@ -11,6 +11,12 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)cBuffer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)cEndpoint_Metrics.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\ChannelAdapter_abstract.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\ChannelAdapter_DelegateType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\ChannelDispatcher.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\eChannelKind.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\IChannelAdapter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Channels\IMessagingHost.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkCancelDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkRequestDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkAckDTO.cs" />

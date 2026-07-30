@@ -1441,7 +1441,8 @@ namespace OGA.TCP
 
 			// Increment the read message counter.
 			this._metrics.Received_Message_Count++;
-			this._metrics.Last_Received_Message_Time = System.DateTime.Now;
+			// NOTE: UTC, matching every other timestamp in the metrics set.
+			this._metrics.Last_Received_Message_Time = System.DateTime.UtcNow;
 
 			this.Logger?.Trace(
 				$"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_Received_MessageBuffer)} - " +
