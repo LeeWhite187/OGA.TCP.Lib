@@ -652,6 +652,12 @@ namespace OGA.TCP_Test_SP
             if (!_wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
                 Assert.Fail("Registration Failed");
 
+            // The server marks the client registered before the client has processed the registration
+            // reply that opens its send gate — wait for the client side to be ready to send as well...
+            WaitforCondition(() => client.AllowSend, 3000);
+            if (!client.AllowSend)
+                Assert.Fail("Client send gate did not open");
+
             return client;
         }
 
