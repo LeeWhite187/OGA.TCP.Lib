@@ -812,6 +812,8 @@ Two related defects in the client lifecycle:
 - `Client_v1_Abstract.cs:479` calls `Stop_Async().GetAwaiter()` without `GetResult()`, so `Dispose` returns immediately while teardown continues on another thread — and `Logger` is nulled underneath it. The same fire-and-forget pattern appears at `TCPClient_v1_Abstract.cs:733`, `:798`, `:849` (benign only because the TCP override completes synchronously) and in the server at `Endpoint_Abstract.cs:371`, `:1040`.
 - `Stop_Async` closes the transport *first* and cancels `_cts` last, after ~200 ms of delays (`:574-656`). In that window the connection loop can observe `!IsConnected`, treat it as connection loss, and start a full reconnect — including re-registration with the server — after the consumer called Stop. Candidate fix: cancel `_cts` before closing the transport.
 
+Status: implemented in Release 1 (commit 15519fa) — Stop cancels the loop first and disarms the connection-lost delegate; Dispose blocks until teardown completes on both session classes; the fire-and-forget transport closes now wait. Verified by the lifecycle test suite; closes on release.
+
 ### OI-25 — Non-thread-safe dictionaries on hot paths ⚠ NEEDS YOUR REVIEW
 
 Three plain `Dictionary` instances are mutated and enumerated from different threads with no synchronization:
@@ -819,7 +821,7 @@ Three plain `Dictionary` instances are mutated and enumerated from different thr
 - `_ChannelMessageHandlers` (client): written by `Add_ChannelAdapter`/`Remove_ChannelHandler`/`Close_ChannelAdapters` (`Client_v1_Abstract.cs:685`, `:735`, `:745`), read by dispatch on the receive thread (`:3430`). Registering a channel adapter at runtime while traffic flows can throw or corrupt the table — and runtime channel registration is an advertised feature (UR-02).
 - `_largemsgreceivers` on both sides: mutated on the receive thread, enumerated by the prune on the connection-loop thread (`Client_v1_Abstract.cs:2973`/`:3142`; `Endpoint_Abstract.cs:2131`/`:2304`). A chunk arriving during a prune throws inside the loop, killing the prune pass (client) or tearing down the connection (server).
 
-Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. This item stays open as the defect record until those ship.
+Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. Status: the channel-handler half is implemented in Release 1 (commit 15519fa), with a concurrency test in the dispatcher suite; the receiver-dictionary half lands with the Release 2 chunking rebuild.
 
 ### OI-26 — Server can leak connection slots indefinitely ⚠ NEEDS YOUR REVIEW
 
@@ -857,7 +859,9 @@ Independent of how widely it is used (OI-11), the codec has real defects: the em
 
 ### OI-33 — Metrics and telemetry defects
 
-`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. Owner decision: reading `Metrics` before a first connection SHALL return a baseline (empty) metrics instance rather than throwing; the fix lands with the Release 1 metrics work. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence (`Endpoint_Abstract.cs:1323`, `:1835`, `:2862`), so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
+`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. Owner decision: reading `Metrics` before a first connection SHALL return a baseline (empty) metrics instance rather than throwing. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence, so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
+
+Status: all four defects implemented/fixed in Release 1 (commit 15519fa); closes on release.
 
 ### OI-34 — Unbounded task spawning on ping and loopback paths
 
@@ -877,7 +881,7 @@ Collected low-severity items, each small and independent:
 
 - `cEndpoint_Ping_Tracking` is confirmed dead — zero references repository-wide outside the shared-project include. It is public API, so removal is a minor breaking change; decide keep-or-remove. (If revived it needs fixes: a 20 ms coercion of its delay setters, a copy/paste log message in `Disable()`, an unknown-state branch that returns `None` instead of `CloseConnection`, and local-time timestamps.)
 - The `res == -1` fatal-recycle path in `TCPClient_v1_Abstract.cs:829-859` is unreachable: `Process_ReceivedMessage` maps every negative internal-message result to `0` (`Client_v1_Abstract.cs:2752-2763`), so a garbled registration reply is only logged.
-- `Close_ChannelAdapters` (`Client_v1_Abstract.cs:745-757`) removes the adapter *after* calling its `Close()`; a consumer adapter that throws from `Close()` leaves the collection unchanged and the loop refetches the same element forever — an infinite loop inside `Dispose`.
+- `Close_ChannelAdapters` (`Client_v1_Abstract.cs:745-757`) removes the adapter *after* calling its `Close()`; a consumer adapter that throws from `Close()` leaves the collection unchanged and the loop refetches the same element forever — an infinite loop inside `Dispose`. (Resolved in Release 1: the dispatcher's `CloseAll` empties the registry before closing, and a throwing `Close` is contained — covered by a dispatcher test.)
 - `Start_Async` has no already-started guard (`:541-552`); a second call orphans the first `CancellationTokenSource` and runs two connection loops against one client. (Resolved by KD-10's viability check.)
 - `Stop_Async` nulls all consumer delegates and closes all channel adapters (`:586-590`, `:647-649`), so a Stop-then-Start cycle silently loses every handler the consumer registered. (Resolved by KD-10: Start-after-Stop is refused, making the clearing consistent with an enforced single-use contract.)
 - A failed ping *send* returns success (`:1832-1841`), so only pong timeout recycles the connection.
@@ -920,7 +924,7 @@ Plan for a published library (nuget package) of the common elements that both th
 
 ### OI-38 — Client test suite is bound to one environment
 
-`TCPClient_v1_Tests` and its sibling client test classes bind the hardcoded LAN address `192.168.70.103`, so the suite only runs on the owner's test machine. The `KeepAlive_Tests` class added with OI-02 uses loopback instead and runs anywhere. Consider moving the existing suites to loopback (or a configurable host) so tests are runnable on any dev machine and in any future automated environment. Low risk — test-only change — but it touches a large number of test methods, so it is worth doing deliberately rather than alongside a functional fix.
+`TCPClient_v1_Tests` and its sibling client test classes bind the hardcoded LAN address `192.168.70.103`, so the suite only runs on the owner's test machine. The server suite is likewise environment-bound: `TCPEndpoint_Tests` connects to the same address (`TCPEndpoint_Tests.cs:391`), so 53 of its 72 tests fail off-environment on connect timeouts (verified identical before and after the Release 1 changes — the binding, not the code, is the cause). Tooling note: the two old-style test csprojs (NET48, NET452) build only under full MSBuild/Visual Studio — the dotnet CLI does not resolve `PackageReference` assets for non-SDK projects. The `KeepAlive_Tests` class added with OI-02 uses loopback instead and runs anywhere. Consider moving the existing suites to loopback (or a configurable host) so tests are runnable on any dev machine and in any future automated environment. Low risk — test-only change — but it touches a large number of test methods, so it is worth doing deliberately rather than alongside a functional fix.
 
 ---
 
