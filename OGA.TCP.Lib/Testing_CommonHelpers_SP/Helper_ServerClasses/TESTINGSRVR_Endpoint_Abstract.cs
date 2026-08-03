@@ -2969,33 +2969,40 @@ namespace OGA.TCP.Server
                     TESTINGSRVR_ClientInfo.LogDelta(oldvals, this.ClientInfo));
 
                 // We want to send the client their registration reply before we register their connection for other clients to find.
-                // But, both actions may stall our receive loop.
-                // So, we will execute them on an alternate thread.
-                Task.Run( async () =>
+                // The reply is sent inline (blocking this rare registration path), so a successful
+                //  registration means the client HAS been told: a failed reply send fails the registration,
+                //  and the connection recycles immediately instead of leaving a half-registered connection
+                //  the client would abandon on its reply timeout anyway (owner decision, OI-30).
+                // The blocking wait is safe here: the receive path runs on threadpool threads with no
+                //  synchronization context, and registration is a rare, bounded event.
+                var res1 = SendRegistrationReply(this.ClientInfo, oldvals.ConnectionId).GetAwaiter().GetResult();
+                if(res1 != 1)
                 {
-                    // Send a registration reply back to the client...
-                    var res1 = await SendRegistrationReply(this.ClientInfo, oldvals.ConnectionId);
-                    if(res1 != 1)
-                    {
-                        // The reply send call failed.
-                        // We don't really care if the registration reply message fails or not.
-                        // But, we will, for completeness, here, only dispatch the connection registered event if the reply was sent.
+                    // The reply send call failed.
+                    // The client never learned its registration completed, so it will sit out its reply
+                    //  timeout and recycle regardless. We fail the registration now, so the recycle is
+                    //  immediate and the failure is visible in the log.
 
-                        // Skip calling the dispatch method...
-                        return;
-                    }
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                        "Failed to send the registration reply to the client. Failing the registration so the connection recycles.");
 
-                    // We have sent the client a registration reply message.
-                    // One purpose of this message is to notify the client of the ConnectionId we call it, server-side.
-                    // The client will accept this server-side ConnectionId as its ConnectionId.
-                    // We need to do the same, here...
-                    // We store the server-side Connection in 'WSId'.
-                    // We will copy that into the ConnectionId of our ClientInfo...
-                    this.ClientInfo.ConnectionId = this.WSId;
+                    return -10;
+                }
 
-                    // Send out an event that the client has registered his connection, so he can accept traffic on the websocket.
-                    DispatchConnectionRegistered(oldvals, newvals);
-                });
+                // We have sent the client a registration reply message.
+                // One purpose of this message is to notify the client of the ConnectionId we call it, server-side.
+                // The client will accept this server-side ConnectionId as its ConnectionId.
+                // We need to do the same, here...
+                // We store the server-side Connection in 'WSId'.
+                // We will copy that into the ConnectionId of our ClientInfo...
+                this.ClientInfo.ConnectionId = this.WSId;
+
+                // Send out an event that the client has registered his connection, so he can accept traffic on the socket.
+                // The manager callback stays posted to a task, so a slow consumer handler cannot stall the
+                //  receive path — but it now observes fully-updated registration state, closing the
+                //  re-registration race OI-30 described.
+                _ = Task.Run(() => DispatchConnectionRegistered(oldvals, newvals));
 
                 return 1;
             }
