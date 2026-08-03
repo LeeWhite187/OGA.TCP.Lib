@@ -43,14 +43,14 @@ namespace OGA.TCP.Messages
         {
             StringBuilder b = new StringBuilder();
 
-            b.AppendLine("MsgId = " + this.MsgId ?? "");
+            b.AppendLine("MsgId = " + (this.MsgId ?? ""));
             b.AppendLine("SentTimeUTC = " + this.SentTimeUTC.ToString("O"));
-            b.AppendLine("Message_Type = " + this.MsgId ?? "");
+            b.AppendLine("Message_Type = " + (this.MessageType ?? ""));
 
-            b.AppendLine("Data = " + this.Data ?? "");
-            b.AppendLine("Scope = " + this.Scope ?? "");
-            b.AppendLine("Channel = " + this.Channel ?? "");
-            b.AppendLine("ReplyTo = " + this.ReplyTo ?? "");
+            b.AppendLine("Data = " + (this.Data ?? ""));
+            b.AppendLine("Scope = " + (this.Scope ?? ""));
+            b.AppendLine("Channel = " + (this.Channel ?? ""));
+            b.AppendLine("ReplyTo = " + (this.ReplyTo ?? ""));
 
             if(Props == null)
             {

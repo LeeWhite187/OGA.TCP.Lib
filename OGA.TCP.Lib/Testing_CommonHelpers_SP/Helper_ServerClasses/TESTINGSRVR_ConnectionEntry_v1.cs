@@ -134,19 +134,19 @@ namespace OGA.TCP.Server.Model
         public string ToLogString()
         {
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.AppendLine("ConnectionId = " + ConnectionId ?? "");
+            stringBuilder.AppendLine("ConnectionId = " + (ConnectionId ?? ""));
             stringBuilder.AppendLine("UserId = " + UserId.ToString());
-            stringBuilder.AppendLine("DeviceId = " + DeviceId ?? "");
+            stringBuilder.AppendLine("DeviceId = " + (DeviceId ?? ""));
             stringBuilder.AppendLine("Pid = " + Pid.ToString());
             stringBuilder.AppendLine("ConnectionTimeUTC = " + ConnectionTimeUTC.ToString("O"));
-            stringBuilder.AppendLine("Hostname = " + Hostname ?? "");
+            stringBuilder.AppendLine("Hostname = " + (Hostname ?? ""));
             stringBuilder.AppendLine("Host_Port = " + Host_Port.ToString());
-            stringBuilder.AppendLine("AppId = " + AppId ?? "");
-            stringBuilder.AppendLine("RuntimeId = " + RuntimeId ?? "");
-            stringBuilder.AppendLine("AppVersion = " + AppVersion ?? "");
-            stringBuilder.AppendLine("Region = " + Region ?? "");
-            stringBuilder.AppendLine("Language = " + Language ?? "");
-            stringBuilder.AppendLine("LibVersion = " + LibVersion ?? "");
+            stringBuilder.AppendLine("AppId = " + (AppId ?? ""));
+            stringBuilder.AppendLine("RuntimeId = " + (RuntimeId ?? ""));
+            stringBuilder.AppendLine("AppVersion = " + (AppVersion ?? ""));
+            stringBuilder.AppendLine("Region = " + (Region ?? ""));
+            stringBuilder.AppendLine("Language = " + (Language ?? ""));
+            stringBuilder.AppendLine("LibVersion = " + (LibVersion ?? ""));
             return stringBuilder.ToString();
         }
     }

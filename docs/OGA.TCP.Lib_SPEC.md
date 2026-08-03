@@ -676,6 +676,8 @@ Status: closed (owner, 2026-08-03). Items 1, 2, 3, and 5 shipped in commit 8b8df
 
 `MessageEnvelope.ToLogString()` prints `MsgId` on the `Message_Type` line (copy/paste slip), and every `"label = " + value ?? ""` line null-coalesces the already-non-null concatenation result rather than the value (operator precedence). Log-only impact; recommendation: fix the field reference and parenthesize the coalesces.
 
+Status: implemented (owner-approved, 2026-08-03), including the same-pattern siblings OI-37 flagged: `ClientInfo.ToLogString` (where the precedence bug also swallowed each line's closing quote), both `ConnectionEntry_v1` copies, and the `corelationid` prop-composition sites; the chunking DTOs' `ToLogString` methods no longer exist post-rebuild. Log-output-only change. Closes on release.
+
 ### OI-04 — async void chunk processing
 
 `ProcessChunkingMessage` is `async void` on both client and server sides. Exceptions thrown in it are unobservable by callers and can crash the process; completion cannot be awaited. The review pass identified concrete reachable paths: a duplicate `ChunkStart` (or the un-removed receiver of OI-19) makes `Dictionary.Add` throw at `Client_v1_Abstract.cs:2973`, and the client dispatches the reassembled message inline at `:3082`, so a consumer handler's exception escapes into the async-void machinery. Both are remotely triggerable. Correctness also currently depends on the `AcceptChunk*` calls completing synchronously — introducing a real `await` in them would let frame N+1 be processed before frame N, which the receiver's strict in-order offset check would then reject. Candidate fix: `async Task` with an explicitly observed continuation, or restructure the call site.
@@ -911,7 +913,7 @@ Collected low-severity items, each small and independent:
 - A failed ping *send* returns success (`:1832-1841`), so only pong timeout recycles the connection.
 - `ExpBackoff_wJitter` clamps `JitterHeight` above 1.0 to **0** rather than 1.0 (`:31-37`), silently disabling jitter for a caller asking for maximum; its `maxRetries` constructor argument is stored but never enforced; and `Delay()` returns success even when cancelled.
 - `_instance_counter++` in `cReceiveLoop.cs:161` is not atomic despite the field being `volatile`, so concurrent accepts can share an InstanceId in logs.
-- Log-string precedence bugs of the same shape as OI-03 exist in `ClientInfo.ToLogString` and the chunking DTOs' `ToLogString`.
+- Log-string precedence bugs of the same shape as OI-03 exist in `ClientInfo.ToLogString` and the chunking DTOs' `ToLogString`. (Resolved with OI-03's sweep; the chunking DTOs' `ToLogString` methods were removed by the KD-05 rebuild.)
 - `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.

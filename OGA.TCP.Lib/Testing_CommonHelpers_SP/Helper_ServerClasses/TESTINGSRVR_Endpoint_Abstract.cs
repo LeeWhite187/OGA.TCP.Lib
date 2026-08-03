@@ -1278,7 +1278,7 @@ namespace OGA.TCP.Server
             me.Channel = channel;
             me.Scope = scope;
             me.MessageType = objecttype;
-            me.Props = new string[] { "corelationid=" + corelationid ?? "" };
+            me.Props = new string[] { "corelationid=" + (corelationid ?? "") };
 
             // Encode the envelope, so the size decision is byte-true...
             var jsonmsg = JsonConvert.SerializeObject(me);

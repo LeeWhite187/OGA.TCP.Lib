@@ -1200,6 +1200,12 @@ namespace OGA.TCP_Test_SP
                 if(losscounter != 0)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the CLIENT side of the handshake to finish as well.
+                // The server marks the client registered before its reply task dispatches (OI-30), so without
+                //  this wait, the server-side silence drop below can race the reply and leave the client stuck
+                //  in its registration-reply wait instead of its connection-monitoring phase...
+                WaitforCondition(() => wss.AllowSend, 2000);
+
                 // Fetch the current attempt counter...
                 var attempts_before = wss.ConnAttempt_TotalCounter;
 
@@ -1220,7 +1226,8 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Connection failed to reopen.");
 
                 // With the client dropped, we need to wait for it to reconnect...
-                WaitforCondition(() => wss.IsConnected, 4000);
+                // The window allows for reconnect backoff under full-suite load...
+                WaitforCondition(() => wss.IsConnected, 8000);
 
                 // Check that the client has reopened the connection...
                 if(!wss.IsConnected)

@@ -167,20 +167,20 @@ namespace OGA.TCP.Server.Model
             StringBuilder b = new StringBuilder();
 
             b.AppendLine("UserId = '" + this.UserId.ToString() + "';");
-            b.AppendLine("ConnectionId = '" + this.ConnectionId ?? "" + "';");
-            b.AppendLine("DeviceId = '" + this.DeviceId ?? "" + "';");
+            b.AppendLine("ConnectionId = '" + (this.ConnectionId ?? "") + "';");
+            b.AppendLine("DeviceId = '" + (this.DeviceId ?? "") + "';");
 
-            b.AppendLine("Pid = '" + this.Pid ?? "" + "';");
+            b.AppendLine("Pid = '" + this.Pid.ToString() + "';");
 
             b.AppendLine("AuthLevel = '" + this.AuthLevel.ToString() + "';");
-            b.AppendLine("ClientIP = '" + this.ClientIP ?? "" + "';");
+            b.AppendLine("ClientIP = '" + (this.ClientIP ?? "") + "';");
             b.AppendLine("ConnectionTimeUTC = '" + this.ConnectionTimeUTC.ToString("O") + "';");
 
-            b.AppendLine("AppId = '" + this.AppId ?? "" + "';");
-            b.AppendLine("RuntimeId = '" + this.RuntimeId ?? "" + "';");
-            b.AppendLine("AppVersion = '" + this.AppVersion ?? "" + "';");
-            b.AppendLine("Language = '" + this.Language ?? "" + "';");
-            b.AppendLine("LibVersion = '" + this.LibVersion ?? "" + "';");
+            b.AppendLine("AppId = '" + (this.AppId ?? "") + "';");
+            b.AppendLine("RuntimeId = '" + (this.RuntimeId ?? "") + "';");
+            b.AppendLine("AppVersion = '" + (this.AppVersion ?? "") + "';");
+            b.AppendLine("Language = '" + (this.Language ?? "") + "';");
+            b.AppendLine("LibVersion = '" + (this.LibVersion ?? "") + "';");
 
             b.AppendLine("UnRegisteredAge = '" + this.UnRegisteredAge.ToString() + "';");
             b.AppendLine("IsRegistered = '" + this.IsRegistered.ToString() + "';");
