@@ -58,6 +58,12 @@ namespace OGA.TCP.Server
         protected volatile int _receivedmessage_counter;
 
         /// <summary>
+        /// Coalescing gate for pong replies: 1 while a pong send is queued or in flight.
+        /// A ping arriving while set spawns nothing — the in-flight pong answers it (OI-34).
+        /// </summary>
+        private int _pongpending;
+
+        /// <summary>
         /// List of large message receivers, keyed by messageid.
         /// </summary>
         protected Dictionary<string, LargeMsgReceiver> _largemsgreceivers;
@@ -2073,8 +2079,16 @@ namespace OGA.TCP.Server
                     // But, we will clear the echo scope, so the client doesn't reply back with it...
                     me.Scope = "";
 
-                    // Echo the message back to the client...
-                    Task.Run(() => Send_MessageEnvelope_toClient_Async(me));
+                    // Echo the message back to the client, inline on the receive path (OI-34).
+                    // Loopback is strictly a troubleshooting/test mode (owner decision): the echo rides this
+                    //  thread, giving natural backpressure and guaranteed echo ordering.
+                    var resecho = Send_MessageEnvelope_toClient_Async(me).GetAwaiter().GetResult();
+                    if (resecho != 1)
+                    {
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage_from_Client)} - " +
+                            "Failed to echo loopback-scoped message back to the client.");
+                    }
 
                     return 1;
                 }
@@ -2122,9 +2136,15 @@ namespace OGA.TCP.Server
                 {
                     // The client registered to have all messages echo'd back.
 
-                    // Echo the message back to the client as is...
+                    // Echo the message back to the client as is, inline on the receive path (OI-34).
                     // No need to clear the scope, with this, as the echo request was set during connection registration.
-                    Task.Run(() => Send_MessageEnvelope_toClient_Async(me));
+                    var resecho = Send_MessageEnvelope_toClient_Async(me).GetAwaiter().GetResult();
+                    if (resecho != 1)
+                    {
+                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage_from_Client)} - " +
+                            "Failed to echo message back to the loopback-registered client.");
+                    }
 
                     return 1;
                 }
@@ -2557,16 +2577,30 @@ namespace OGA.TCP.Server
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
                     $"Sending ping reply to {(this.TransportLongName ?? "socket")} client...");
 
-                // Send a pong reply...
-                Task.Run(async () =>
+                // Send a pong reply, coalescing with any pong already queued (OI-34)...
+                if (System.Threading.Interlocked.CompareExchange(ref this._pongpending, 1, 0) == 0)
                 {
-                    // Wrap the send method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
-                    try
+                    Task.Run(async () =>
                     {
-                        await this.SendPong_toClient_Async();
-                    }
-                    catch(Exception e) { }
-                });
+                        // Wrap the send method in a try-catch to ensure it never throws and unwinds to the Task Scheduler base.
+                        try
+                        {
+                            await this.SendPong_toClient_Async();
+                        }
+                        catch(Exception e) { }
+                        finally
+                        {
+                            System.Threading.Interlocked.Exchange(ref this._pongpending, 0);
+                        }
+                    });
+                }
+                else
+                {
+                    // A pong is already queued or in flight; it answers this ping as well.
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                        "Ping received while a pong is already in flight; coalescing.");
+                }
 
                 return 1;
             }

@@ -5150,6 +5150,148 @@ namespace OGA.TCP_Test_SP
             }
         }
 
+        // Test 26a -   Open a connection.
+        //              Flood the server with pings, faster than replies can drain.
+        //              Verify the connection stays healthy and pong replies arrive (OI-34: the pong path
+        //              is coalesced, so a ping flood cannot accumulate unbounded queued sends).
+        [TestMethod]
+        public async Task Test_26a()
+        {
+            Simple_TCPListener.DoSomethingWith_ConnectionRegistration = true;
+            Simple_TCPListener.Keepalive_Timeout = 20;
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
+            Simple_TCPListener.AllowQuietClients = true;
+
+            TcpClient tcp = null;
+            try
+            {
+                // Create a client socket, and attempt connection...
+                tcp = new TcpClient();
+                await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
+
+                // Start the receiver loop, so we can get messages from the server connection...
+                if(await this.StartReceiveLoop(tcp) != 1)
+                    Assert.Fail("Failed to start receiver loop.");
+
+                // Wait for the receiver loop and server endpoint to be active...
+                System.Threading.Thread.Sleep(500);
+
+                // Flood pings at the server, back to back...
+                for (int i = 0; i < 30; i++)
+                {
+                    var res = await SendPingMessage(tcp);
+                    if (res != 1)
+                        Assert.Fail("Failed to send ping.");
+                }
+
+                // Give the server time to answer...
+                System.Threading.Thread.Sleep(2000);
+
+                // Collect what came back...
+                Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+
+                // At least one pong must have arrived (coalescing may answer many pings with one pong)...
+                var pongcount = msglist.Where(m => (m.MessageType ?? "").ToLower() == "pong").Count();
+                if (pongcount < 1)
+                    Assert.Fail("No pong replies arrived.");
+
+                // And the connection survived the flood on both ends...
+                if (!this._wsl.ServerSide_TCPEndpoint.IsConnected)
+                    Assert.Fail("Server endpoint should have survived the ping flood.");
+                if (!tcp.Connected)
+                    Assert.Fail("Client connection should have survived the ping flood.");
+            }
+            finally
+            {
+                try
+                {
+                    tcp?.Dispose();
+                }
+                catch (Exception) { }
+                tcp = null;
+            }
+        }
+
+        // Test 26b -   Open a connection and register for loopback-all.
+        //              Send a burst of distinct messages.
+        //              Verify every echo arrives, in order (OI-34: echoes ride the receive path inline,
+        //              giving backpressure and guaranteed ordering).
+        [TestMethod]
+        public async Task Test_26b()
+        {
+            Simple_TCPListener.DoSomethingWith_ConnectionRegistration = true;
+            Simple_TCPListener.Keepalive_Timeout = 20;
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
+            Simple_TCPListener.AllowQuietClients = true;
+
+            TcpClient tcp = null;
+            try
+            {
+                // Create a client socket, and attempt connection...
+                tcp = new TcpClient();
+                await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
+
+                // Start the receiver loop, so we can get messages from the server connection...
+                if(await this.StartReceiveLoop(tcp) != 1)
+                    Assert.Fail("Failed to start receiver loop.");
+
+                // Wait for the receiver loop and server endpoint to be active...
+                System.Threading.Thread.Sleep(500);
+
+                // Register for loopback of all messages...
+                var crd = clientproperties.Create_Random_WSLibV2_ClientData();
+                var res1 = await SendLoopbackAllMessage(tcp, crd);
+                if (res1 != 1)
+                    Assert.Fail("Failed to send loopback registration.");
+
+                // Wait for the registration reply, then clear the received buffer...
+                WaitforCondition(() => this.receivedmsgs.Count >= 1, 2000);
+                System.Threading.Thread.Sleep(200);
+                Get_ReceivedMessages(out var _);
+
+                // Send a burst of distinct messages...
+                int burst = 20;
+                for (int i = 0; i < burst; i++)
+                {
+                    var me = new MessageEnvelope();
+                    me.MsgId = i.ToString();
+                    me.SentTimeUTC = DateTime.UtcNow;
+                    me.MessageType = "TestMessage";
+                    me.Data = i.ToString();
+
+                    var msgjson = Newtonsoft.Json.JsonConvert.SerializeObject(me);
+                    var bytes = Encoding.UTF8.GetBytes(msgjson);
+                    var res = await RawTransportSend(tcp.GetStream(), bytes);
+                    if (res != 1)
+                        Assert.Fail("Failed to send burst message.");
+                }
+
+                // Wait for every echo...
+                WaitforCondition(() => this.receivedmsgs.Count >= burst, 5000);
+
+                // Collect the echoes...
+                Get_ReceivedMessages(out List<MessageEnvelope> msglist);
+                if (msglist.Count != burst)
+                    Assert.Fail($"Expected {burst.ToString()} echoes; received {msglist.Count.ToString()}.");
+
+                // Verify they arrived in send order...
+                for (int i = 0; i < burst; i++)
+                {
+                    if (msglist[i].Data != i.ToString())
+                        Assert.Fail($"Echo order mismatch at position {i.ToString()}.");
+                }
+            }
+            finally
+            {
+                try
+                {
+                    tcp?.Dispose();
+                }
+                catch (Exception) { }
+                tcp = null;
+            }
+        }
+
         #endregion
 
 
