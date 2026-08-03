@@ -938,6 +938,8 @@ Status note: the v3 entry was written at Release 2 while the Bookstack migration
 
 The WebSocket library (OGA.WSClient_Base) maintains its own `WSLibVersions.cs` documenting versions and capabilities for the WebSocket transport; both libraries currently stand at version 2. When the WebSocket library adopts the shared dual-frame elements (OI-40), its `WSLibVersions.cs` SHALL gain the corresponding version-3 entry documenting the adopted capabilities (binary message body layout, rebuilt chunking, limits), mirroring the TCP library's `LibVersions.cs` v3 entry from KD-07. Recorded so the propagation is not forgotten; owner executes it in the WebSocket library's own repository at that phase.
 
+Carried from OI-48: when editing that file, also apply the constants-before-default declaration ordering (version constants declared above any default field that references them) — the harmonized copy likely shares the TCP file's latent static-initializer-order null, which becomes live the moment any code consumes the default.
+
 ### OI-41 — Negotiated size limits and capability exchange at registration
 
 Under KD-06, the size limits are local policy: each side enforces its own receive limits, and a sender exceeding the receiver's `MaxTransferSize` discovers it via the transfer-time Cancel rather than up front. The owner's suggestion, deferred to a later phase: exchange limits at registration so the two ends operate on the more constrained set — the client announcing its receive limits in its registration props, the server announcing its own in the reply's currently-empty `Props`, and each sender honoring the peer's receive limits so oversize sends fail fast at the call site instead of mid-transfer. This dovetails with the version-guard/capability-announcement question (OI-39): the registration reply's `Props` is the natural single mechanism for the server to declare limits, supported frame types, and other capabilities. Held until the dual-frame work is functioning; when taken up, decide what is announced, what is enforced versus advisory, and how config asymmetry (send vs. receive limits) is expressed.
@@ -954,13 +956,9 @@ Plan for a published library (nuget package) of the common elements that both th
 
 Resolution: environmental to the review VM only — its 4.5.2 targeting pack was never fully installed (doc files present, no reference DLLs). The owner's Jenkins build VM and dev PC both carry full 4.5.2 support and compile and run these tests there; the sources themselves are proven 4.5.2-compatible (the SDK-style NET452 library target and the shared test sources under the old-style NET48 csproj both build clean). No change needed.
 
-### OI-48 — Discuss in isolation: the LibVersions default-field finding ⚠ NEEDS YOUR REVIEW
+### OI-48 — (Closed)
 
-Clarification first, because the finding was easy to misread: **no live client ever failed registration from this.** The defect was latent and consumed by nothing until this session. `LibVersions.cs` declared `DEFAULT_CONST_WSLIBVERSION = CONST_LibVersion_2` *above* the `CONST_LibVersion_2` declaration; C# static field initializers run in declaration order, so `DEFAULT_CONST_WSLIBVERSION` has always initialized to null at runtime. It never mattered, because the shipped v1/v2 code never read it on the registration path — `Client_v1_Abstract`'s constructor assigned `LibVersion = CONST_LibVersion_1` directly, and v2 clients set their version in their derived constructors. Your registration/connection-id establishment worked, works, and was never in question.
-
-The Release 2 change made the constructor consume the default (`LibVersion = DEFAULT_CONST_WSLIBVERSION`) so the base client announces the current version — and that is the moment the latent null surfaced: the in-session test runs (only) saw clients announce an empty version and fail the base method's version gate. Fixed by reordering the declarations (constants first, default last), with a comment explaining the initializer-order trap.
-
-To discuss: whether `WSLibVersions.cs` in the WebSocket library has the same latent declaration-order pattern (harmless today for the same reason, but the same trap for any future code that consumes its default), and whether to backport the reordering as cheap insurance ahead of OI-42's v3 propagation.
+Resolution: the latent static-initializer-order null in `LibVersions.cs` never affected shipped code (nothing read the default field until Release 2's constructor change) and is fixed by declaration reordering with an explanatory comment. Owner reviewed and closed. Suggested follow-up carried by OI-42: apply the same constants-before-default ordering to the WebSocket library's `WSLibVersions.cs` when its v3 entry is added.
 
 ### OI-49 — Discuss in isolation: the receive-loop rewrite's contract regressions ⚠ NEEDS YOUR REVIEW
 
