@@ -950,13 +950,9 @@ Plan for a published library (nuget package) of the common elements that both th
 
 ### OI-38 — (Closed)
 
-### OI-47 — Investigate the .NET Framework 4.5.2 build/test trouble ⚠ NEEDS YOUR REVIEW
+### OI-47 — (Closed)
 
-The old-style `OGA.TCP.Lib_NET452_Test` csproj cannot build on the current dev VM. Symptoms: MSB3644 ("reference assemblies for .NETFramework,Version=v4.5.2 were not found") under VS 18 Community's MSBuild, and with a `FrameworkPathOverride` workaround, CSC then fails on a missing `mscorlib.dll` — the installed 4.5.2 reference-assembly folder exists (124 items) but is incomplete. So the 4.5.2 targeting pack on this VM is broken or was never fully installed (plausibly because newer VS installers no longer offer the 4.5.2 developer pack).
-
-Important scoping: this does not indicate a source problem. The SDK-style `OGA.TCP.Lib_NET452` library target builds clean via the dotnet CLI (SDK projects resolve .NET Framework reference assemblies from NuGet rather than the machine), and the identical shared test sources compile under the old-style NET48 test csproj. Also noted while diagnosing: the two old-style test csprojs define only the plain `Debug`/`Release` configurations, not the `DebugWin` configuration the SDK projects use.
-
-To investigate together: (a) whether the 4.5.2 developer pack can be (re)installed on this VM, or whether the old-style test csproj should reference the `Microsoft.NETFramework.ReferenceAssemblies.net452` package so it builds on any machine; (b) whether the Linux Jenkins build of the NET452 test solution (mono msbuild) is affected at all — it resolves reference assemblies differently and may be fine; (c) whether the NET452 test suite has actually been run anywhere recently, to establish its true baseline.
+Resolution: environmental to the review VM only — its 4.5.2 targeting pack was never fully installed (doc files present, no reference DLLs). The owner's Jenkins build VM and dev PC both carry full 4.5.2 support and compile and run these tests there; the sources themselves are proven 4.5.2-compatible (the SDK-style NET452 library target and the shared test sources under the old-style NET48 csproj both build clean). No change needed.
 
 ### OI-48 — Discuss in isolation: the LibVersions default-field finding ⚠ NEEDS YOUR REVIEW
 
