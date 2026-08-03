@@ -966,7 +966,7 @@ Discussion held and resolved (2026-08-03). The three Release 2 receive-loop rewr
 
 **What remains — the owner's carry-over to the WebSocket library session:** the behavioral fact confirmed during the fix. Cancelling a pending socket read via `CancellationToken` **aborts the underlying connection** — the runtime cannot un-ask for bytes, so it kills the socket to unblock the read. `ClientWebSocket.ReceiveAsync` has the same semantics: cancelling a pending receive puts the WebSocket into the `Aborted` state, unusable thereafter (including for a graceful Close handshake). Evaluation to perform in OGA.WSClient_Base: find any path that cancels a pending `ReceiveAsync` and then expects to keep using, or gracefully close, that same WebSocket — e.g. a pause-receiving path, or a close sequence that cancels the receive before sending the Close frame. If every such cancellation is already followed by full connection teardown, the behavior is invisible and nothing needs changing; otherwise the path needs the TCP loop's posture (leave the receive pending, signal shutdown out-of-band, let the owner tear down the transport).
 
-### OI-50 — Discuss in isolation: v3 registration semantics in the base classes ⚠ NEEDS YOUR REVIEW
+### OI-50 — v3 registration semantics in the base classes (decided; implemented)
 
 Nothing about v1 or v2 handling changed — both behave exactly as before, which is why the WebSocket library's v1/v2 flow is unaffected and this library's mirror of it keeps working. What Release 2 added is how the **base classes** handle version 3, and two judgment calls inside that are the discussion:
 
