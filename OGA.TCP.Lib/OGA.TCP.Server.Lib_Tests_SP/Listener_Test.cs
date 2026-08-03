@@ -415,6 +415,102 @@ namespace OGA.TCP_Test_SP
             }
         }
 
+        //  Verify the listener survives aborted inbound connections (OI-27)...
+        //  Test_1_1_9  Create instance and start it.
+        //              Abortively close several raw connections against it (RST-style, linger zero).
+        //              Verify the listener is still Active.
+        //              Connect a normal client.
+        //              Verify the listener publishes it.
+        [TestMethod]
+        public void Test_1_1_9()
+        {
+            OGA.TCP.Server.cListener l1 = null;
+            try
+            {
+                var received = new List<TcpClient>();
+                var receivedlock = new object();
+
+                l1 = new OGA.TCP.Server.cListener();
+                l1.Listening_IP = System.Net.IPAddress.Parse("0.0.0.0");
+                l1.Listening_Port = 1379;
+                l1.OnNew_Client_Connection = (listref, newclient) =>
+                {
+                    lock (receivedlock)
+                    {
+                        received.Add(newclient);
+                    }
+                };
+
+                int res = l1.Start_Listener();
+                if (res != 1)
+                    Assert.Fail("Failed to start Listener");
+
+                // Throw several abortive connections at the listener: connect, then reset (linger zero
+                //  makes Close send RST instead of FIN) — the behavior of a flaky client or port scanner...
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        var raw = new TcpClient();
+                        raw.Connect("127.0.0.1", 1379);
+                        raw.LingerState = new LingerOption(true, 0);
+                        raw.Close();
+                    }
+                    catch (Exception) { }
+                }
+
+                // Give the accept loop time to chew through them...
+                System.Threading.Thread.Sleep(1000);
+
+                // The listener must still be accepting...
+                if (l1.State != TCP.Server.eListenerState.Active)
+                    Assert.Fail("Listener did not survive aborted connections.");
+
+                // A normal client must still get through...
+                TcpClient good = null;
+                try
+                {
+                    good = new TcpClient();
+                    good.Connect("127.0.0.1", 1379);
+
+                    System.DateTime expiry = System.DateTime.Now.AddMilliseconds(5000);
+                    bool gotit = false;
+                    while (System.DateTime.Now.CompareTo(expiry) < 0)
+                    {
+                        lock (receivedlock)
+                        {
+                            if (received.Count >= 1)
+                            {
+                                gotit = true;
+                                break;
+                            }
+                        }
+
+                        System.Threading.Thread.Sleep(50);
+                    }
+
+                    if (!gotit)
+                        Assert.Fail("Listener failed to publish a connection after surviving aborts.");
+                }
+                finally
+                {
+                    try
+                    {
+                        good?.Close();
+                    }
+                    catch (Exception) { }
+                }
+            }
+            finally
+            {
+                try
+                {
+                    l1.Dispose();
+                }
+                catch (Exception e) { }
+            }
+        }
+
         //  Verify a disposed instance cannot be started...
         //  Test_1_1_8  Create instance.
         //              Add new connection callback.

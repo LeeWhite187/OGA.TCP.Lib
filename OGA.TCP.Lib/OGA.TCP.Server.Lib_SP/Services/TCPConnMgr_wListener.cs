@@ -209,12 +209,27 @@ namespace OGA.TCP.Server
                 this._listener.OnStatus_Change = this.ListenerCALLBACK_OnStatus_Change;
                 this._listener.Listening_IP = System.Net.IPAddress.Parse(this.ListeningAddress);
                 this._listener.Listening_Port = this.ListeningPort;
-                this._listener.Start_Listener();
+
+                // A failed listener startup (e.g. port already in use) must fail the manager's startup
+                //  visibly, not report success while listening on nothing (OI-27)...
+                var res = this._listener.Start_Listener();
+                if (res != 1)
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
+                        $"{nameof(TCPConnMgr_wListener)}:-::{nameof(StartListener)} - " +
+                        $"Listener failed to start (result {res.ToString()}) on {(this.ListeningAddress ?? "")}:{this.ListeningPort.ToString()}.");
+
+                    return res;
+                }
 
                 return 1;
             }
             catch (Exception ex)
             {
+                OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(ex,
+                    $"{nameof(TCPConnMgr_wListener)}:-::{nameof(StartListener)} - " +
+                    "Exception occurred while starting the listener.");
+
                 return -2;
             }
         }

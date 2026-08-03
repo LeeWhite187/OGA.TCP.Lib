@@ -284,6 +284,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client1.LibVersion, 2000);
+                ce1 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1.LibVersion != client1.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
@@ -436,6 +439,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client1.LibVersion, 2000);
+                ce1 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1.LibVersion != client1.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
@@ -523,6 +529,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce2.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client2.LibVersion, 2000);
+                ce2 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)
@@ -664,6 +673,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client1.LibVersion, 2000);
+                ce1 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1.LibVersion != client1.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
@@ -750,6 +762,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce2.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client2.LibVersion, 2000);
+                ce2 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)
@@ -897,6 +912,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce1.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client1.LibVersion, 2000);
+                ce1 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client1.DeviceId).FirstOrDefault();
                 if(ce1.LibVersion != client1.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce1.UserId != client1.UserId)
@@ -982,6 +1000,9 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong Value");
                 if(ce2.Host_Port != cm.ListeningPort)
                     Assert.Fail("Wrong Value");
+                // The manager's entry is refreshed by the registration-dispatch task; allow for its scheduling...
+                WaitforCondition(() => (cm.QRYGet_CurrentConnections()?.Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault()?.LibVersion ?? "") == client2.LibVersion, 2000);
+                ce2 = cm.QRYGet_CurrentConnections().Where(n => n.DeviceId == client2.DeviceId).FirstOrDefault();
                 if(ce2.LibVersion != client2.LibVersion)
                     Assert.Fail("Wrong Value");
                 if(ce2.UserId != client2.UserId)

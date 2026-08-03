@@ -55,6 +55,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// Send would stall forever if the network is cut off during a send, so we need a timeout (in milliseconds).
+        /// Floored at 1000 ms.
         /// </summary>
         public int SendTimeout
         {
@@ -63,9 +64,28 @@ namespace OGA.TCP.Server
             {
                 if (value < 1000)
                     _sendtimeout = 1000;
-                _sendtimeout = value;
+                else
+                    _sendtimeout = value;
             }
         }
+
+        /// <summary>
+        /// Pending-connection queue depth handed to the listening socket at startup.
+        /// Connections beyond this queue are refused by the OS until accepts drain it.
+        /// Floored at 1. Set before Start_Listener; changes after startup have no effect.
+        /// </summary>
+        public int Backlog
+        {
+            get => this._backlog;
+            set
+            {
+                if (value < 1)
+                    _backlog = 1;
+                else
+                    _backlog = value;
+            }
+        }
+        private int _backlog = 10;
 
         /// <summary>
         /// Number of created connections by this listener.
@@ -535,30 +555,31 @@ namespace OGA.TCP.Server
                 listener = (System.Net.Sockets.TcpListener)ar.AsyncState;
 
                 // Declare a client reference and get the passed back client instance.
-                client = listener.EndAcceptTcpClient(ar);
+                // The end-accept is guarded on its own: a SocketException here belongs to the ONE inbound
+                //  connection being accepted (e.g. a client that reset between connect and accept — routine
+                //  on real networks), NOT to the listener socket. Such a failure discards that connection
+                //  and falls through to re-arm the accept, so one bad handshake can never permanently stop
+                //  the server from accepting connections (OI-27).
+                try
+                {
+                    client = listener.EndAcceptTcpClient(ar);
+                }
+                catch (System.Net.Sockets.SocketException se)
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Warn(
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
+                        $"An inbound connection aborted during accept (SocketErrorCode={se.SocketErrorCode.ToString()}). Discarding it and continuing to accept.");
 
-                // Verify the client connection exists...
+                    client = null;
+                }
+
+                // Check what the accept produced...
                 if(client == null)
                 {
-                    // The received connection is null.
-                    // We will regard this as a listener closure.
-
-                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
-                        "Accept callback received null listener. Not accepting further connections.");
-
-                    // We won't rearm the listener.
-
-                    // Close the listener.
-                    this.CloseDown_Listener();
-
-                    return;
+                    // The inbound connection aborted during accept.
+                    // Nothing to publish; we will fall through and re-arm the accept for the next connection.
                 }
-                // Client connection exists.
-                // We will attempt to process it.
-
-                // Ensure the client is connected...
-                if(!client.Connected)
+                else if(!client.Connected)
                 {
                     // The client reports it is not connected.
                     // We will not pass along unconnected clients.
@@ -725,22 +746,19 @@ namespace OGA.TCP.Server
                 if(this.disposedValue)
                 {
                     // Our listener is already disposed.
-                    // This means the callback we are in, has returned, and can be discarded.
-                    // Also. The dispose method would have already called, this.CloseDown_Listener().
-                    // So, we don't need to do that.
-                    // We can simply return.
+                    // We cannot activate a disposed listener.
 
                     // Log a message here.
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
-                        "Accept callback returned after listener is disposed.");
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Activate_Listener)} - " +
+                        "Activation attempted after listener is disposed.");
 
                     return -1;
                 }
 
                 // Log a message here.
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Activate_Listener)} - " +
                     "Creating new listener.");
 
                 // Create an endpoint instance that we will pass to the socket listener.
@@ -752,15 +770,15 @@ namespace OGA.TCP.Server
                 listener.Server.NoDelay = NoDelay;
                 listener.Server.SendTimeout = _sendtimeout;
 
-                // Set a connection queue size of 10.
-                listener.Start(10);
+                // Start with the configured pending-connection queue depth...
+                listener.Start(this._backlog);
 
                 // Set the configured tcp listener as our listener.
                 this._listener_ref = listener;
 
                 // Log a message here.
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Activate_Listener)} - " +
                     "Listener is active.");
 
                 // Set the listener to the active state.
@@ -777,12 +795,15 @@ namespace OGA.TCP.Server
                 // Exception caught.
                 // was probably from an already used port, invalid port number, or unparseable IP address.
 
-                if(e.Message.StartsWith("Only one usage of each socket address"))
+                // Port-in-use is detected by the socket error code, not the exception message text,
+                //  so the check is locale-independent (OI-27)...
+                var se = e as System.Net.Sockets.SocketException;
+                if(se != null && se.SocketErrorCode == System.Net.Sockets.SocketError.AddressAlreadyInUse)
                 {
                     // A listener is already on the same port/address.
 
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(Activate_Listener)} - " +
                         "A Listener is already on the same port and socket. Cannot open second listener instance.");
 
                     // Set the listener to the error state.
@@ -793,7 +814,7 @@ namespace OGA.TCP.Server
 
                 // Log a message here.
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(e,
-                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Accept_Callback)} - " +
+                    $"{_classname}:{_instance_counter.ToString()}::{nameof(Activate_Listener)} - " +
                     "Encountered an exception trying to activate the listener instance.");
 
                 // Set the listener to the error state.

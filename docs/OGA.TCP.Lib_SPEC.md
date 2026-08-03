@@ -857,6 +857,8 @@ Together: a silent client that opted out of keepalive holds its slot, its endpoi
 
 `cListener.Accept_Callback` responds to a `SocketException` by calling `CloseDown_Listener()` without re-arming (`:677-704`). `EndAcceptTcpClient` throws `SocketException` for a single aborted inbound connection — a client sending RST between connect and accept, which is routine — so one bad handshake permanently stops the server from accepting connections. Compounding it: the listener is single-use (`Start_Listener` requires `Initialized` state and `CloseDown_Listener` nulls the delegates), and `TCPConnMgr_wListener.cs:212` discards `Start_Listener`'s return value, so a failed bind (port in use) is reported to the host as a successful startup. Also: the backlog is hardcoded to 10, and port-in-use is detected by matching an English exception-message prefix (`:780`) rather than `SocketError.AddressAlreadyInUse`.
 
+Status: implemented (owner-approved, 2026-08-03). The end-accept is individually guarded: a `SocketException` there belongs to the one aborted inbound connection, which is discarded while the accept re-arms — one bad handshake can no longer stop the server (anchored by a listener test that RST-aborts five connections and verifies the listener still publishes the next good one). `TCPConnMgr_wListener.StartListener` now propagates `Start_Listener`'s result, so a failed bind fails the manager's startup visibly. Port-in-use is detected by `SocketError.AddressAlreadyInUse` (locale-independent). The backlog is a configurable `Backlog` property defaulting to the historical 10. In passing: the `SendTimeout` floor's missing `else` (an OI-37 sub-item) and the copy/paste `nameof` in `Activate_Listener`'s log lines were fixed. Closes on release.
+
 ### OI-28 — Endpoint can run orphaned from its connection manager
 
 `TCPConnMgr_wListener.cs:269-295` wraps `AddConnection` in a swallow-all catch and then starts the endpoint regardless. If `AddConnection` throws (or is overridden to throw), the endpoint runs, registers, and serves traffic while absent from `_connections` — invisible to queries and counts, never closed by `CloseDown()`, with its delegates unwired.
@@ -916,7 +918,7 @@ Collected low-severity items, each small and independent:
 - `ExpBackoff_wJitter` clamps `JitterHeight` above 1.0 to **0** rather than 1.0 (`:31-37`), silently disabling jitter for a caller asking for maximum; its `maxRetries` constructor argument is stored but never enforced; and `Delay()` returns success even when cancelled.
 - `_instance_counter++` in `cReceiveLoop.cs:161` is not atomic despite the field being `volatile`, so concurrent accepts can share an InstanceId in logs.
 - Log-string precedence bugs of the same shape as OI-03 exist in `ClientInfo.ToLogString` and the chunking DTOs' `ToLogString`. (Resolved with OI-03's sweep; the chunking DTOs' `ToLogString` methods were removed by the KD-05 rebuild.)
-- `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`).
+- `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`). (Resolved with OI-27's listener hardening.)
 - Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`).
 - Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
 
