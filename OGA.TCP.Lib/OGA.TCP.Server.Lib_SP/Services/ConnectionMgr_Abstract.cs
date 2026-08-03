@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OGA.TCP.Server.Services
@@ -41,6 +42,12 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         protected bool _allowNewConnections;
 
+        /// <summary>
+        /// Lifetime token of the maintenance loop that runs the connection purges.
+        /// Created at Startup; cancelled first during CloseDown.
+        /// </summary>
+        private CancellationTokenSource _maintenance_cts;
+
         #endregion
 
 
@@ -74,6 +81,57 @@ namespace OGA.TCP.Server.Services
         /// Clear it if we are breakpointing other things, and the stoppage may trigger connection closure.
         /// </summary>
         public bool We_Require_Clients_to_Be_Chatty { get; set; }
+
+        /// <summary>
+        /// Enables the periodic connection purges (unregistered-overage and lost connections) that the
+        ///     maintenance loop runs every Cfg_ConnectionPurgeInterval seconds.
+        /// Set for normal operation (the default). Clear it during testing, so connections survive while
+        ///     breakpointed or while a scenario deliberately parks a connection in an abnormal state.
+        /// The purges also still run once at CloseDown regardless of this flag.
+        /// </summary>
+        public bool Cfg_Enable_ConnectionPurging { get; set; } = true;
+
+        /// <summary>
+        /// Seconds between maintenance-loop passes of the connection purges. Floored at 1.
+        /// </summary>
+        public int Cfg_ConnectionPurgeInterval
+        {
+            get => this._purgeinterval;
+            set
+            {
+                if (value < 1)
+                    this._purgeinterval = 1;
+                else
+                    this._purgeinterval = value;
+            }
+        }
+        private int _purgeinterval = 30;
+
+        /// <summary>
+        /// Seconds an unregistered connection may live before the purge collects it.
+        /// A client must complete registration before its connection gets this old.
+        /// </summary>
+        public int Cfg_UnregisteredConnectionTTL
+        {
+            get => this._unregisteredConnectionTTL;
+            set
+            {
+                if (value < 1)
+                    this._unregisteredConnectionTTL = 1;
+                else
+                    this._unregisteredConnectionTTL = value;
+            }
+        }
+
+        /// <summary>
+        /// When set (the default), a client's registration prop 'keepalive:off' is honored, exempting that
+        ///     connection from the server's silence check.
+        /// Clear it for deployments where keepalives must flow regardless of client preference — e.g.
+        ///     conversations that traverse firewalls or NAT devices whose idle-connection reaping must be
+        ///     preempted by traffic.
+        /// Applied to each connection at accept time (Cfg_Allow_KeepAliveExemption on the endpoint).
+        /// </summary>
+        public bool Allow_KeepAliveExemption { get; set; } = true;
 
 
         /// <summary>
@@ -127,6 +185,17 @@ namespace OGA.TCP.Server.Services
         /// </summary>
         public void CloseDown()
         {
+            // Stop the maintenance loop first, so no purge pass races the closedown...
+            try
+            {
+                this._maintenance_cts?.Cancel();
+            } catch(Exception) { }
+            try
+            {
+                this._maintenance_cts?.Dispose();
+            } catch(Exception) { }
+            this._maintenance_cts = null;
+
             // Wrap in a try-catch to ensure any override doesn't throw and unwind us..
             try
             {
@@ -198,7 +267,63 @@ namespace OGA.TCP.Server.Services
                 return -2;
             }
 
+            // Start the maintenance loop that keeps the connection registry collected (OI-26).
+            // Without it, the purges only ever ran at closedown, so dead and never-registered
+            //  connections held their slots for the life of the process.
+            this.Start_MaintenanceLoop();
+
             return 1;
+        }
+
+        /// <summary>
+        /// Spawns the maintenance loop: a periodic pass of the connection purges
+        ///     (unregistered-overage and lost connections), gated by Cfg_Enable_ConnectionPurging.
+        /// Called at Startup; the loop lives until CloseDown cancels it.
+        /// </summary>
+        private void Start_MaintenanceLoop()
+        {
+            // Replace any prior loop (a restarted manager gets a fresh one)...
+            try
+            {
+                this._maintenance_cts?.Cancel();
+            } catch(Exception) { }
+            try
+            {
+                this._maintenance_cts?.Dispose();
+            } catch(Exception) { }
+
+            this._maintenance_cts = new CancellationTokenSource();
+            var token = this._maintenance_cts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        await Task.Delay(this._purgeinterval * 1000, token);
+
+                        // The testing gate: purges can be suspended so connections survive while
+                        //  breakpointed or deliberately parked in an abnormal state...
+                        if (!this.Cfg_Enable_ConnectionPurging)
+                            continue;
+
+                        // Each purge is internally exception-guarded; the loop must survive regardless...
+                        try
+                        {
+                            this.Purge_OldUnregisteredConnections();
+                        } catch(Exception) { }
+                        try
+                        {
+                            this.Purge_LostConnections();
+                        } catch(Exception) { }
+                    }
+                }
+                catch(Exception)
+                {
+                    // Cancellation of the delay lands here: the loop is done.
+                }
+            });
         }
 
         /// <summary>
@@ -262,6 +387,7 @@ namespace OGA.TCP.Server.Services
                 newconn.OnMessageReceived = Handle_ReceivedNoChannelMessage_fromClient;
 
                 newconn.Cfg_We_Require_Clients_to_Be_Chatty = this.We_Require_Clients_to_Be_Chatty;
+                newconn.Cfg_Allow_KeepAliveExemption = this.Allow_KeepAliveExemption;
 
                 return 1;
             }

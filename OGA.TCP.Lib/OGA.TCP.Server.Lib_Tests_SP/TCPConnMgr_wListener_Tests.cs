@@ -1287,6 +1287,121 @@ namespace OGA.TCP_Test_SP
             }
         }
 
+        // Verify the maintenance loop collects never-registered connections (OI-26)...
+        //  Test_1_3_1  Create a manager with a short unregistered TTL and purge interval.
+        //              Connect a raw client that never registers.
+        //              Verify the manager lists it, then verify the purge collects it.
+        [TestMethod]
+        public async Task Test_1_3_1()
+        {
+            TCPConnMgr_wListener cm = null;
+            System.Net.Sockets.TcpClient raw = null;
+            try
+            {
+                cm = new TCPConnMgr_wListener();
+                cm.ListeningPort = 5000;
+                cm.ListeningAddress = "localhost";
+                cm.Cfg_UnregisteredConnectionTTL = 2;
+                cm.Cfg_ConnectionPurgeInterval = 1;
+
+                // Start the instance...
+                var res = cm.Startup();
+                if(res != 1)
+                    Assert.Fail("Wrong Value");
+
+                // Connect a raw socket that will never register...
+                raw = new System.Net.Sockets.TcpClient();
+                await raw.ConnectAsync("127.0.0.1", 5000);
+
+                // Wait for the manager to list the unregistered connection...
+                WaitforCondition(() => cm.UnRegisteredConnectionCount == 1, 3000);
+                if(cm.UnRegisteredConnectionCount != 1)
+                    Assert.Fail("Manager should list the unregistered connection.");
+
+                // Wait for the maintenance loop to collect it (TTL 2s + interval 1s, with margin)...
+                WaitforCondition(() => cm.UnRegisteredConnectionCount == 0, 10000);
+                if(cm.UnRegisteredConnectionCount != 0)
+                    Assert.Fail("The purge should have collected the never-registered connection.");
+            }
+            finally
+            {
+                try
+                {
+                    raw?.Dispose();
+                }
+                catch (Exception e) { }
+                try
+                {
+                    cm?.CloseDown();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        // Verify the purge gate suspends collection for testing (OI-26)...
+        //  Test_1_3_2  Create a manager with a short unregistered TTL and purge interval, purging disabled.
+        //              Connect a raw client that never registers.
+        //              Verify the connection survives well past its TTL.
+        //              Re-enable purging and verify the connection is then collected.
+        [TestMethod]
+        public async Task Test_1_3_2()
+        {
+            TCPConnMgr_wListener cm = null;
+            System.Net.Sockets.TcpClient raw = null;
+            try
+            {
+                cm = new TCPConnMgr_wListener();
+                cm.ListeningPort = 5000;
+                cm.ListeningAddress = "localhost";
+                cm.Cfg_UnregisteredConnectionTTL = 1;
+                cm.Cfg_ConnectionPurgeInterval = 1;
+
+                // The testing gate: purges suspended...
+                cm.Cfg_Enable_ConnectionPurging = false;
+
+                // Start the instance...
+                var res = cm.Startup();
+                if(res != 1)
+                    Assert.Fail("Wrong Value");
+
+                // Connect a raw socket that will never register...
+                raw = new System.Net.Sockets.TcpClient();
+                await raw.ConnectAsync("127.0.0.1", 5000);
+
+                // Wait for the manager to list the unregistered connection...
+                WaitforCondition(() => cm.UnRegisteredConnectionCount == 1, 3000);
+                if(cm.UnRegisteredConnectionCount != 1)
+                    Assert.Fail("Manager should list the unregistered connection.");
+
+                // Sit well past the TTL and several purge intervals...
+                System.Threading.Thread.Sleep(4000);
+
+                // The connection must have survived, since purging is suspended...
+                if(cm.UnRegisteredConnectionCount != 1)
+                    Assert.Fail("The connection should have survived while purging is disabled.");
+
+                // Re-enable purging, and the loop should collect it...
+                cm.Cfg_Enable_ConnectionPurging = true;
+
+                WaitforCondition(() => cm.UnRegisteredConnectionCount == 0, 10000);
+                if(cm.UnRegisteredConnectionCount != 0)
+                    Assert.Fail("The purge should have collected the connection after re-enable.");
+            }
+            finally
+            {
+                try
+                {
+                    raw?.Dispose();
+                }
+                catch (Exception e) { }
+                try
+                {
+                    cm?.CloseDown();
+                }
+                catch (Exception e) { }
+            }
+        }
+
         #endregion
 
 

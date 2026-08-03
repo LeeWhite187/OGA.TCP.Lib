@@ -853,6 +853,13 @@ Three findings compound into a resource leak on the server:
 
 Together: a silent client that opted out of keepalive holds its slot, its endpoint task, and its dictionary entry for the life of the process. Deciding whether the reapers should be scheduled (and whether clients may disable keepalive at all) is an owner call.
 
+Status: implemented (owner decisions, 2026-08-03). Three parts:
+1. **The reapers now run.** `ConnectionMgr_Abstract` gains a maintenance loop (started at `Startup`, cancelled first at `CloseDown`) that runs both purges every `Cfg_ConnectionPurgeInterval` seconds (default 30). `Cfg_Enable_ConnectionPurging` (default true) suspends the passes for testing, per the owner — so connections survive while breakpointed or deliberately parked; the closedown purges still run regardless. `Cfg_UnregisteredConnectionTTL` exposes the formerly-internal TTL. Anchored by tests: a never-registering connection is collected; with the gate off it survives past TTL and is collected after re-enable.
+2. **Closed notification is guaranteed.** The owner's deliberate teardown order was reviewed and preserved: `Stop_Async` still closes the transport, grants the closure-frame grace windows, and clears delegates last. The only change: `DispatchConnectionClosed()` (fire-once guarded) is now invoked just before the delegate clearing, converting the previously timing-dependent manager notification into a guaranteed one at the same point in the order.
+3. **Keepalive exemption is policy-gated.** The client's `keepalive:off` request (the owner's testing affordance) remains honored by default; `Cfg_Allow_KeepAliveExemption` on the endpoint (propagated from the manager's `Allow_KeepAliveExemption` at accept) lets a server require keepalives regardless — for chatty-by-assumption or firewall-traversing deployments. Refusal is logged and silently enforced (the dead-client timeout simply applies; older clients have no refusal vocabulary), and the registration itself still succeeds. Covered by honored-and-refused test pairs.
+
+Closes on release. The WebSocket-library backport of this pattern is tracked by OI-51.
+
 ### OI-27 — Listener fragility ⚠ NEEDS YOUR REVIEW
 
 `cListener.Accept_Callback` responds to a `SocketException` by calling `CloseDown_Listener()` without re-arming (`:677-704`). `EndAcceptTcpClient` throws `SocketException` for a single aborted inbound connection — a client sending RST between connect and accept, which is routine — so one bad handshake permanently stops the server from accepting connections. Compounding it: the listener is single-use (`Start_Listener` requires `Initialized` state and `CloseDown_Listener` nulls the delegates), and `TCPConnMgr_wListener.cs:212` discards `Start_Listener`'s return value, so a failed bind (port in use) is reported to the host as a successful startup. Also: the backlog is hardcoded to 10, and port-in-use is detected by matching an English exception-message prefix (`:780`) rather than `SocketError.AddressAlreadyInUse`.
@@ -967,6 +974,18 @@ Resolution: environmental to the review VM only — its 4.5.2 targeting pack was
 ### OI-48 — (Closed)
 
 Resolution: the latent static-initializer-order null in `LibVersions.cs` never affected shipped code (nothing read the default field until Release 2's constructor change) and is fixed by declaration reordering with an explanatory comment. Owner reviewed and closed. Suggested follow-up carried by OI-42: apply the same constants-before-default ordering to the WebSocket library's `WSLibVersions.cs` when its v3 entry is added.
+
+### OI-51 — Backport the connection-manager housekeeping pattern to the WebSocket library (owner carry-over)
+
+The OI-26 fixes are transport-agnostic manager/endpoint logic that the WebSocket library likely shares by
+code-copy lineage, so the same latent leaks likely exist there. What to mirror in OGA.WSClient_Base's
+connection-manager and endpoint classes:
+
+1. **Schedule the purges.** A maintenance loop started at manager `Startup` and cancelled first at `CloseDown`, running the unregistered-overage and lost-connection purges each `Cfg_ConnectionPurgeInterval` (default 30 s), gated by `Cfg_Enable_ConnectionPurging` (default true; clear for testing). Without it, purges only run at closedown, and dead or never-registered connections hold their slots for the life of the process.
+2. **Guarantee the closed notification.** In the endpoint's `Stop_Async`, invoke the (fire-once guarded) connection-closed dispatch immediately *before* the delegate clearing at the end of teardown — preserving the deliberate order (transport closure and closure-frame grace windows first), but making the manager notification guaranteed instead of dependent on the connection loop's scheduling.
+3. **Policy-gate the keepalive exemption.** `Cfg_Allow_KeepAliveExemption` on the endpoint (default true, propagated from a manager-level property at accept): when cleared, a client's `keepalive:off` registration prop is logged and silently enforced — registration succeeds, and the normal dead-client timeout continues to apply.
+
+The TCP-side implementations (this repository, OI-26's status entry) are the reference; each carries an OI-26 comment marker at the change site.
 
 ### OI-49 — Evaluate receive-cancellation behavior in the WebSocket library (owner carry-over)
 

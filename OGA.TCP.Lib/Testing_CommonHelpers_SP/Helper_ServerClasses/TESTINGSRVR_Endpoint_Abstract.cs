@@ -234,6 +234,14 @@ namespace OGA.TCP.Server
         public bool Cfg_Disable_KeepAlive { get; set; }
 
         /// <summary>
+        /// When set (the default), a client's registration prop 'keepalive:off' is honored, exempting the
+        ///     connection from the server's silence check.
+        /// Clear it to refuse the exemption: the request is logged and silently enforced — the normal
+        ///     dead-client timeout continues to apply (OI-26).
+        /// </summary>
+        public bool Cfg_Allow_KeepAliveExemption { get; set; } = true;
+
+        /// <summary>
         /// Total number of received messages since opening.
         /// </summary>
         public int ReceivedMessage_Counter { get => _receivedmessage_counter; }
@@ -559,6 +567,12 @@ namespace OGA.TCP.Server
                     this.DereferenceTransport();
                 }
                 catch (Exception) { }
+
+                // Guarantee the closed notification before the delegates unload (OI-26).
+                // The teardown order above is deliberate: closure frames get their grace windows, and the
+                //  connection loop usually dispatches closure itself while they elapse. This call (fire-once
+                //  guarded) covers the case where the loop did not get scheduled in time.
+                this.DispatchConnectionClosed();
 
                 // Clear any delegates...
                 this._delConnectionClosed = null;
@@ -2769,8 +2783,17 @@ namespace OGA.TCP.Server
                                     // The client connection wants to disable keepalives.
                                     // We will set a property of the socket, so we know to not require them.
 
+                                    // Honor the request only when server policy allows the exemption (OI-26)...
+                                    if(!this.Cfg_Allow_KeepAliveExemption)
+                                    {
+                                        // Policy refuses the exemption: log it, and silently enforce —
+                                        //  the normal dead-client timeout continues to apply.
+                                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                                            "Client asked for no keepalives this session; refused by server policy (Cfg_Allow_KeepAliveExemption). Keepalive remains required.");
+                                    }
                                     // Create a log message if we are disabling keepalives...
-                                    if(this.Cfg_Disable_KeepAlive == false)
+                                    else if(this.Cfg_Disable_KeepAlive == false)
                                     {
                                         OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
                                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +

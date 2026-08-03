@@ -5044,6 +5044,112 @@ namespace OGA.TCP_Test_SP
             }
         }
 
+        // Test 25a -   Open a connection.
+        //              Register with the keepalive:off prop, with the server's exemption policy at its
+        //              default (allowed).
+        //              Verify the endpoint honored the request (Cfg_Disable_KeepAlive set).
+        [TestMethod]
+        public async Task Test_25a()
+        {
+            Simple_TCPListener.DoSomethingWith_ConnectionRegistration = true;
+            Simple_TCPListener.Keepalive_Timeout = 20;
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
+            Simple_TCPListener.AllowQuietClients = true;
+
+            TcpClient tcp = null;
+            try
+            {
+                // Create a client socket, and attempt connection...
+                tcp = new TcpClient();
+                await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
+
+                // Wait for the server-side endpoint to spin up...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint != null, 2000);
+
+                // Create some client registration data...
+                var crd = clientproperties.Create_Random_WSLibV2_ClientData();
+
+                // Send a registration asking for no keepalives...
+                var res1 = await SendDisableKeepaliveMessage(tcp, crd);
+                if(res1 != 1)
+                    Assert.Fail("Failed to send message.");
+
+                // Wait for the registration to land...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered, 2000);
+
+                // With the default policy, the exemption is honored...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint.Cfg_Disable_KeepAlive, 1000);
+                if(!this._wsl.ServerSide_TCPEndpoint.Cfg_Disable_KeepAlive)
+                    Assert.Fail("Keepalive exemption should have been honored.");
+            }
+            finally
+            {
+                try
+                {
+                    tcp?.Dispose();
+                }
+                catch (Exception) { }
+                tcp = null;
+            }
+        }
+
+        // Test 25b -   Open a connection.
+        //              Refuse keepalive exemptions on the endpoint (Cfg_Allow_KeepAliveExemption = false).
+        //              Register with the keepalive:off prop.
+        //              Verify the endpoint refused the request (Cfg_Disable_KeepAlive stays clear), so the
+        //              normal dead-client timeout continues to apply (OI-26).
+        [TestMethod]
+        public async Task Test_25b()
+        {
+            Simple_TCPListener.DoSomethingWith_ConnectionRegistration = true;
+            Simple_TCPListener.Keepalive_Timeout = 20;
+            Simple_TCPListener.WeRequireClients_tobe_Chatty = false;
+            Simple_TCPListener.AllowQuietClients = true;
+
+            TcpClient tcp = null;
+            try
+            {
+                // Create a client socket, and attempt connection...
+                tcp = new TcpClient();
+                await tcp.ConnectAsync(this.tcphost, this.tcpport, CancellationToken.None);
+
+                // Wait for the server-side endpoint to spin up...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint != null, 2000);
+
+                // Refuse keepalive exemptions for this endpoint...
+                this._wsl.ServerSide_TCPEndpoint.Cfg_Allow_KeepAliveExemption = false;
+
+                // Create some client registration data...
+                var crd = clientproperties.Create_Random_WSLibV2_ClientData();
+
+                // Send a registration asking for no keepalives...
+                var res1 = await SendDisableKeepaliveMessage(tcp, crd);
+                if(res1 != 1)
+                    Assert.Fail("Failed to send message.");
+
+                // Wait for the registration to land...
+                WaitforCondition(() => this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered, 2000);
+
+                // Give the refusal path a moment, then verify the exemption was NOT granted...
+                System.Threading.Thread.Sleep(500);
+                if(this._wsl.ServerSide_TCPEndpoint.Cfg_Disable_KeepAlive)
+                    Assert.Fail("Keepalive exemption should have been refused by policy.");
+
+                // And the registration itself succeeded (refusal is silent-enforce, not a rejection)...
+                if(!this._wsl.ServerSide_TCPEndpoint.ClientInfo.IsRegistered)
+                    Assert.Fail("Registration should have succeeded.");
+            }
+            finally
+            {
+                try
+                {
+                    tcp?.Dispose();
+                }
+                catch (Exception) { }
+                tcp = null;
+            }
+        }
+
         #endregion
 
 
