@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using OGA.Common.Process;
 using OGA.TCP.Channels;
 using OGA.TCP.Chunking;
@@ -2989,158 +2989,133 @@ namespace OGA.TCP.Server
                 this.ClientInfo.ConnectionId = dto.ConnectionId;
 
                 // These two properties are included in the v1 client type.
-                // Default the process pid to unset, if not given...
-                string pid = "";
-                // Default the RuntimeId to unset, if not given...
-                string runtimeid = "";
+                // These locals start null, meaning "not present in this registration".
+                // Recognized props overwrite them; omitted props are back-filled from the recorded
+                //  ClientInfo values below, so a re-registration that omits a prop preserves what the
+                //  connection already declared instead of wiping or downgrading it (OI-29).
+                string pid = null;
+                string runtimeid = null;
 
                 // These four properties were added for TCP/WSLib V2, so the cloud has more context of how to treat outgoing messages to a client.
                 // They are submitted, by clients, in the Props array of a connection registration.
-                string appid = "";
-                string appver = "";
-                // Default the language to english, if not given...
-                string language = "en-us";
-                // Default the ws lib version to 1, if not given...
-                string wslibver = "1";
+                string appid = null;
+                string appver = null;
+                string language = null;
+                string wslibver = null;
 
                 // Process any properties of the connection request...
+                // Property elements are of the form: "key":"value".
+                // Fragments are parsed by PropString (values keep their colons; escaping is honored),
+                //  and keys are matched by exact, case-insensitive equality — never by substring — so
+                //  keys cannot hijack one another and branch order does not matter (OI-29).
                 try
                 {
-                    if(dto.Props == null)
+                    if(dto.Props != null)
                     {
-                        // No properties.
-                    }
-                    else if(dto.Props.Length == 0)
-                    {
-                        // No properties.
-                    }
-                    else
-                    {
-                        // At least one property is defined.
-                        // Property elements are of the form:
-                        //  "key": "value"
-
                         foreach(var v in dto.Props)
                         {
                             // Skip empty properties...
                             if (string.IsNullOrEmpty(v))
                                 continue;
 
-#if (NET452 || NET48)
-                            var parts = v.Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
-#else
-                            var parts = v.Split(':', StringSplitOptions.RemoveEmptyEntries);
-#endif
-                            if(parts.Length > 1)
+                            string key;
+                            string val;
+                            if (!PropString.TryParse(v, out key, out val))
+                                continue;
+
+                            if (string.Equals(key, "loopback", StringComparison.OrdinalIgnoreCase))
                             {
-                                // Have a key-value pair.
-
-                                if (parts[0].ToLower().Contains("loopback"))
+                                if(val.ToLower() == "rawmsg")
                                 {
-                                    // Read the value...
-                                    var val = parts[1].Replace("\"", "");
+                                    // The client connection wants all messages to be echoed back to him.
+                                    // We will set a property of the socket, so we know to do this.
 
-                                    if(val.ToLower() == "rawmsg")
+                                    // "loopback": "rawmsg"
+
+                                    // Create a log message if we are turning this on...
+                                    if(this.Cfg_Connection_LoopBack_All == false)
                                     {
-                                        // The client connection wants all messages to be echoed back to him.
-                                        // We will set a property of the socket, so we know to do this.
+                                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                                            "Client has asked for all messages to be echoed back to it.");
 
-                                        // "loopback": "rawmsg"
-
-                                        // Create a log message if we are turning this on...
-                                        if(this.Cfg_Connection_LoopBack_All == false)
-                                        {
-                                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                                                "Client has asked for all messages to be echoed back to it.");
-
-                                            this.Cfg_Connection_LoopBack_All = true;
-                                        }
-                                    }
-                                    else if(val.ToLower() == "off")
-                                    {
-                                        // The client connection wants to turn off WSHost-level message echo.
-                                        // We will clear the property of the socket, so we know to stop doing this.
-
-                                        // "loopback": "off"
-
-                                        // Create a log message if we are switching this off...
-                                        if(this.Cfg_Connection_LoopBack_All == true)
-                                        {
-                                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                                                "Client has asked to turn off WSHost-level loopback of all messages.");
-
-                                            this.Cfg_Connection_LoopBack_All = false;
-                                        }
+                                        this.Cfg_Connection_LoopBack_All = true;
                                     }
                                 }
-                                else if (parts[0].ToLower().Contains("keepalive"))
+                                else if(val.ToLower() == "off")
                                 {
-                                    // Read the value...
-                                    var val = parts[1].Replace("\"", "");
+                                    // The client connection wants to turn off WSHost-level message echo.
+                                    // We will clear the property of the socket, so we know to stop doing this.
 
-                                    if(val.ToLower() == "off")
+                                    // "loopback": "off"
+
+                                    // Create a log message if we are switching this off...
+                                    if(this.Cfg_Connection_LoopBack_All == true)
                                     {
-                                        // The client connection wants to disable keepalives.
-                                        // We will set a property of the socket, so we know to not require them.
+                                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                                            "Client has asked to turn off WSHost-level loopback of all messages.");
 
-                                        // Create a log message if we are disabling keepalives...
-                                        if(this.Cfg_Disable_KeepAlive == false)
-                                        {
-                                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                                                "Client has asked for no keepalives this session.");
-
-                                            this.Cfg_Disable_KeepAlive = true;
-                                        }
-                                    }
-                                    else if(val.ToLower() == "on")
-                                    {
-                                        // The client connection wants to enable keepalives.
-                                        // We will set a property of the socket, so we know to require them.
-
-                                        // Create a log message if we are enabling keepalives...
-                                        if(this.Cfg_Disable_KeepAlive == true)
-                                        {
-                                            OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
-                                                $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                                                "Client has asked to require keepalives for this session.");
-
-                                            this.Cfg_Disable_KeepAlive = false;
-                                        }
+                                        this.Cfg_Connection_LoopBack_All = false;
                                     }
                                 }
-                                else if (parts[0].ToLower().Contains("appid"))
+                            }
+                            else if (string.Equals(key, "keepalive", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if(val.ToLower() == "off")
                                 {
-                                    // Read the value...
-                                    appid = parts[1].Replace("\"", "");
+                                    // The client connection wants to disable keepalives.
+                                    // We will set a property of the socket, so we know to not require them.
+
+                                    // Create a log message if we are disabling keepalives...
+                                    if(this.Cfg_Disable_KeepAlive == false)
+                                    {
+                                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                                            "Client has asked for no keepalives this session.");
+
+                                        this.Cfg_Disable_KeepAlive = true;
+                                    }
                                 }
-                                else if (parts[0].ToLower().Contains("runtimeid"))
+                                else if(val.ToLower() == "on")
                                 {
-                                    // Read the value...
-                                    runtimeid = parts[1].Replace("\"", "");
+                                    // The client connection wants to enable keepalives.
+                                    // We will set a property of the socket, so we know to require them.
+
+                                    // Create a log message if we are enabling keepalives...
+                                    if(this.Cfg_Disable_KeepAlive == true)
+                                    {
+                                        OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
+                                            $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
+                                            "Client has asked to require keepalives for this session.");
+
+                                        this.Cfg_Disable_KeepAlive = false;
+                                    }
                                 }
-                                else if (parts[0].ToLower().Contains("pid"))
-                                {
-                                    // Read the value...
-                                    pid = parts[1].Replace("\"", "");
-                                }
-                                else if (parts[0].ToLower().Contains("appver"))
-                                {
-                                    // Read the value...
-                                    appver = parts[1].Replace("\"", "");
-                                }
-                                else if (parts[0].ToLower().Contains("language"))
-                                {
-                                    // Read the value...
-                                    language = parts[1].Replace("\"", "");
-                                }
-                                else if (parts[0].ToLower().Contains(this.PropName_ClientLibVer))
-                                {
-                                    // Read the value...
-                                    wslibver = parts[1].Replace("\"", "");
-                                }
+                            }
+                            else if (string.Equals(key, "appid", StringComparison.OrdinalIgnoreCase))
+                            {
+                                appid = val;
+                            }
+                            else if (string.Equals(key, "appver", StringComparison.OrdinalIgnoreCase))
+                            {
+                                appver = val;
+                            }
+                            else if (string.Equals(key, "language", StringComparison.OrdinalIgnoreCase))
+                            {
+                                language = val;
+                            }
+                            else if (string.Equals(key, "runtimeid", StringComparison.OrdinalIgnoreCase))
+                            {
+                                runtimeid = val;
+                            }
+                            else if (string.Equals(key, "pid", StringComparison.OrdinalIgnoreCase))
+                            {
+                                pid = val;
+                            }
+                            else if (string.Equals(key, this.PropName_ClientLibVer, StringComparison.OrdinalIgnoreCase))
+                            {
+                                wslibver = val;
                             }
                         }
                     }
@@ -3150,8 +3125,23 @@ namespace OGA.TCP.Server
                     // Unable to parse the connection registration property block.
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
-                        "Client asked for all messages to be echoed to him.");
+                        "Failed to parse the connection registration property block.");
                 }
+
+                // Back-fill props not present in this registration from the recorded values, so a
+                //  re-registration that omits a prop preserves what the connection already declared.
+                // First-registration defaults apply when nothing is recorded yet: language defaults to
+                //  english, and a version-less registration is a V1 client...
+                if (appid == null)
+                    appid = this.ClientInfo.AppId ?? "";
+                if (appver == null)
+                    appver = this.ClientInfo.AppVersion ?? "";
+                if (runtimeid == null)
+                    runtimeid = this.ClientInfo.RuntimeId ?? "";
+                if (language == null)
+                    language = string.IsNullOrEmpty(this.ClientInfo.Language) ? "en-us" : this.ClientInfo.Language;
+                if (wslibver == null)
+                    wslibver = string.IsNullOrEmpty(this.ClientInfo.LibVersion) ? "1" : this.ClientInfo.LibVersion;
 
 
                 // Check that the client has a valid TCP/WSLibVersion...
@@ -3249,14 +3239,13 @@ namespace OGA.TCP.Server
 
                 // Several client properties should have been received, via Props array.
                 // We will retrieve them, here...
-                // App identity props are optional for V3 clients, so a re-registration that omits them must not erase previously-recorded values...
-                if(!string.IsNullOrEmpty(appid))
-                    this.ClientInfo.AppId = appid;
-                if(!string.IsNullOrEmpty(appver))
-                    this.ClientInfo.AppVersion = appver;
-                this.ClientInfo.Language = language ?? "";
+                // Locals for omitted props were back-filled from the recorded values above, so these
+                //  assignments cannot wipe or downgrade previously-recorded identity (OI-29)...
+                this.ClientInfo.AppId = appid;
+                this.ClientInfo.AppVersion = appver;
+                this.ClientInfo.Language = language;
                 this.ClientInfo.LibVersion = wslibver;
-                this.ClientInfo.RuntimeId = runtimeid ?? "";
+                this.ClientInfo.RuntimeId = runtimeid;
 
                 // Accept the process pid if given...
                 if(!string.IsNullOrEmpty(pid))

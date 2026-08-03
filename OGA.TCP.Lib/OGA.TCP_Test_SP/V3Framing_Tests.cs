@@ -44,6 +44,9 @@ namespace OGA.TCP_Test_SP
         //  Test_3_6_1  A legacy (pre-v3) framed message hits the reserved 0x7B frame-type detector: the
         //              receive loop reports error and fires the went-bad delegate.
         //  Test_3_6_2  An unknown frame-type byte is fatal: the receive loop reports error.
+
+        // Registration prop robustness (OI-29)...
+        //  Test_3_7_1  A registration prop value containing colons and quotes survives the trip intact.
     */
 
     [DoNotParallelize]
@@ -617,14 +620,49 @@ namespace OGA.TCP_Test_SP
         #endregion
 
 
+        #region Registration Prop Robustness
+
+        //  Test_3_7_1  A registration prop value containing colons and quotes survives the trip intact.
+        //              The historical prop handling truncated values at the first colon and produced
+        //              malformed fragments for quotes (OI-29); the PropString composer/parser fixes both.
+        [TestMethod]
+        public async Task Test_3_7_1()
+        {
+            TCPClient_v1_Impl client = null;
+            try
+            {
+                // A RuntimeId that exercises colons and an embedded quote...
+                var hostileruntimeid = "node:4222/\"beta\":9";
+
+                client = await this.Connect_Client_and_WaitforRegistration((cl) =>
+                {
+                    cl.RuntimeId = hostileruntimeid;
+                });
+
+                // Verify the server recorded the value character-identical...
+                if (!string.Equals(_wsl.ServerSide_TCPEndpoint.ClientInfo.RuntimeId, hostileruntimeid, StringComparison.Ordinal))
+                    Assert.Fail("RuntimeId did not survive registration intact.");
+            }
+            finally
+            {
+                client?.Dispose();
+            }
+        }
+
+        #endregion
+
+
         #region Helper Methods
 
         /// <summary>
         /// Stands up a default (v3) client, connects it to the test listener, and waits for its
         ///     registration to land server-side.
+        /// An optional configuration callback runs before the client starts, so a test can adjust
+        ///     identity values from the defaults.
         /// </summary>
+        /// <param name="configure">Optional pre-start configuration hook.</param>
         /// <returns></returns>
-        private async Task<TCPClient_v1_Impl> Connect_Client_and_WaitforRegistration()
+        private async Task<TCPClient_v1_Impl> Connect_Client_and_WaitforRegistration(Action<TCPClient_v1_Impl> configure = null)
         {
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
 
@@ -641,6 +679,9 @@ namespace OGA.TCP_Test_SP
             client.AppId = cp.AppId;
             client.AppVersion = cp.AppVersion;
             client.Cfg_Disable_KeepAlive = true;
+
+            // Let the test adjust the client before it starts...
+            configure?.Invoke(client);
 
             var res = await client.Start_Async();
             if (res != 1)

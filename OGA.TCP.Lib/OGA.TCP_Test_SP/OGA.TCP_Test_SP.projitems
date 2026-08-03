@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)HelperClasses\ChannelAdapter_CustomType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PropString_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ReceiveLoop_Test.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPClient_Implementations\TCPClient_v1_ConnectedDelegate.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPClient_Implementations\TCPClient_v1_InjectibleNetworkState.cs" />

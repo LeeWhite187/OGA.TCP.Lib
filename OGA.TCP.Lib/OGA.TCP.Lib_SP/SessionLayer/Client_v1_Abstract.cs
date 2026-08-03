@@ -2188,6 +2188,9 @@ namespace OGA.TCP.SessionLayer
                 rmsg.UserId = this.UserId;
                 rmsg.DeviceId = this.DeviceId;
 
+                // Prop fragments are composed through PropString, so values are properly escaped;
+                //  for the plain values below, the output is byte-identical to the historical
+                //  hand-concatenation (OI-29).
                 List<string> props = new List<string>();
 
                 // Announce our TCP/WSLibVersion if we are past version 1...
@@ -2195,53 +2198,53 @@ namespace OGA.TCP.SessionLayer
                 if (this.LibVersion != LibVersions.CONST_LibVersion_1)
                 {
                     // Set a property announcing our library version...
-                    props.Add("\"" + this.PropName_ClientLibVer + "\":\"" + this.LibVersion + "\"");
+                    props.Add(PropString.Compose(this.PropName_ClientLibVer, this.LibVersion));
 
                     // Carry the v2 app-identity contract: appid and appver are mandatory (verified above),
                     //  and the language is announced when populated (the server defaults it otherwise)...
-                    props.Add("\"appid\":\"" + this.AppId + "\"");
-                    props.Add("\"appver\":\"" + this.AppVersion + "\"");
+                    props.Add(PropString.Compose("appid", this.AppId));
+                    props.Add(PropString.Compose("appver", this.AppVersion));
                     if (!string.IsNullOrEmpty(this.Language))
-                        props.Add("\"language\":\"" + this.Language + "\"");
+                        props.Add(PropString.Compose("language", this.Language));
                 }
 
                 // Set the loopback echo flag is needed...
                 if (this.Register_with_Loopback_AllMessages)
                 {
                     // Set a property for loopback of raw messages...
-                    props.Add("\"loopback\":\"rawmsg\"");
+                    props.Add(PropString.Compose("loopback", "rawmsg"));
                 }
                 else
                 {
                     // Loopback is not needed.
                     // Have the WShost remove the loopback flag if it's set...
-                    props.Add("\"loopback\":\"off\"");
+                    props.Add(PropString.Compose("loopback", "off"));
                 }
 
                 // Set the disable keepalive if needed...
                 if (this.Cfg_Disable_KeepAlive)
                 {
                     // Set a property to turn off keepalives...
-                    props.Add("\"keepalive\":\"off\"");
+                    props.Add(PropString.Compose("keepalive", "off"));
                 }
                 else
                 {
                     // Set a property to turn on keepalives...
-                    props.Add("\"keepalive\":\"on\"");
+                    props.Add(PropString.Compose("keepalive", "on"));
                 }
 
                 // Set a process pid if defined...
                 if (this.Pid > 0)
                 {
                     // Set a property for the process pid...
-                    props.Add("\"pid\":\"" + this.Pid.ToString() + "\"");
+                    props.Add(PropString.Compose("pid", this.Pid.ToString()));
                 }
 
                 // Set a RuntimeId if defined...
                 if (!string.IsNullOrEmpty(this.RuntimeId))
                 {
                     // Set a property for the process RuntimeId...
-                    props.Add("\"runtimeid\":\"" + this.RuntimeId + "\"");
+                    props.Add(PropString.Compose("runtimeid", this.RuntimeId));
                 }
 
                 rmsg.Props = props.ToArray();
