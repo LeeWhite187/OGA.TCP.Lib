@@ -670,7 +670,7 @@ Additionally, the `FrameTypes` registry permanently reserves value **123 (0x7B, 
 4. Corresponding delay-coordination guidance in the consumer implementation guide (OI-16).
 5. A unit test for the client-side pong-timeout path. Existing keepalive tests in `TCPClient_v1_Tests.cs` cover the server-side dead-client timeout and keepalive-disable request only; no test exercises the client's pong-timeout branch. The new test rigs an endpoint to swallow pings and asserts the client declares the connection lost within the configured window (this test fails against current code, anchoring the regression).
 
-Status: items 1, 2, 3, and 5 are implemented in commit 8b8df28, which has been pushed and is in the automated build. The regression test fails against the prior logic and passes with the fix. Item 4 is carried by OI-16. Remaining before closure: owner confirmation that the release build published successfully and the full test suites pass in the owner's test environment (the client suite binds an environment-specific address and cannot run elsewhere).
+Status: closed (owner, 2026-08-03). Items 1, 2, 3, and 5 shipped in commit 8b8df28 (pushed, released); item 4 landed with the implementation guide. The regression test anchors the fix. The owner will verify in-environment behavior after the current update train lands; no further tracking here.
 
 ### OI-03 — MessageEnvelope.ToLogString defects ⚠ NEEDS YOUR REVIEW
 
@@ -765,9 +765,9 @@ A pause capability — stopping a client while retaining its delegate/adapter gr
 
 Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empty classes with no senders or handlers. `ChunkCancelDTO` is different — it **is** sent (by `LargeMsgSender` on cancellation or mid-sequence send failure) but is not intercepted on either receive side, so it reaches consumer dispatch as a bogus application message and its handler branches are dead (see OI-19). KD-05 wires Cancel into the rebuilt protocol and keeps Ack/Request out of it (reliable ordered transports need neither). Remaining decision: whether the two excluded DTOs stay as reserved surface or are deleted.
 
-### OI-16 — Author the consumer implementation guide
+### OI-16 — (Closed)
 
-Produce the consumer-facing usage documentation from `references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md`, covering client setup (`TCPClient_v1_Impl`), server setup (`TCPConnMgr_wListener` + `TCPEndpoint`), channel adapters, configuration knobs for failure-mode timing — including guidance on coordinating the delay intervals (keepalive interval, pong reply window, connection-loop tick; see OI-02) and the size limits (frame, chunk payload, transfer; see KD-06, including the local-policy posture that limit mismatches surface as transfer-time cancels) — and chunking/keepalive behavior a consumer should understand. Status: the guide is authored (`docs/OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`, anchored to spec Revision 2, describing the LibVersion 3 build) and awaits owner review; it doubles as a fidelity signal against the design during implementation. Remaining in this item: the repository README SHALL gain a high-level overview of the library (both nuspecs point their `releaseNotes` at the README, and both packages embed it as their package readme, so it carries the packages' front-page description).
+Resolution: the consumer implementation guide is authored (`docs/OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`) and kept current with the v3 build; the owner will review it after the library updates land, without tracking here. The one piece carried out of this item: the repository README still needs its high-level library overview (both nuspecs point `releaseNotes` at the README and embed it as the package readme) — executed as part of the release-train wrap-up.
 
 ### OI-17 — (Closed by §13)
 
