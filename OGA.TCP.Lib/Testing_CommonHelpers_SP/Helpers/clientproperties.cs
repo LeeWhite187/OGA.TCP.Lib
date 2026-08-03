@@ -60,6 +60,25 @@ namespace WSEndpoint_Tests.HelperClasses
             return v;
         }
 
+        static public clientproperties Create_Random_WSLibV3_ClientData()
+        {
+            // V3 carries the V2 registration contract: app identity is mandatory.
+            // Language is left empty so the server applies its default ("en-us"), which the
+            //  registration-default assertions rely on.
+            var v = new clientproperties();
+            v.WSLibVersion = 3;
+            v.AppVersion = "aver-" + Guid.NewGuid().ToString();
+            v.AppId = "aid-" + Guid.NewGuid().ToString();
+            v.Language = "";
+            v.UserId = Guid.NewGuid();
+            v.DeviceId = "did-" + Guid.NewGuid().ToString();
+            v.ConnectionId = "cid-" + Guid.NewGuid().ToString();
+            v.RuntimeId = "rid-" + Guid.NewGuid().ToString();
+            v.Pid = OGA.Testing.Helpers.RandomValueGenerators.CreateRandomInt();
+
+            return v;
+        }
+
         public void CopyFrom(clientproperties crd)
         {
             this.WSLibVersion = crd.WSLibVersion;

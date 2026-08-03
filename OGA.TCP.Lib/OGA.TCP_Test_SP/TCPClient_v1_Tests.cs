@@ -384,7 +384,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -399,6 +399,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // Make sure the client won't timeout...
                 client.Cfg_Disable_KeepAlive = true;
@@ -517,7 +519,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -529,6 +531,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Make sure the client won't timeout...
@@ -651,7 +655,7 @@ namespace OGA.TCP_Test_SP
                 int losscounter = 0;
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -667,6 +671,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Make sure the client won't timeout...
@@ -811,7 +817,7 @@ namespace OGA.TCP_Test_SP
                 int losscounter = 0;
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -827,6 +833,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Make sure the client won't timeout...
@@ -885,6 +893,12 @@ namespace OGA.TCP_Test_SP
                 // Verify the counter is zero...
                 if(losscounter != 0)
                     Assert.Fail("Wrong Value");
+
+                // Wait for the CLIENT side of the handshake to finish as well.
+                // The server marks the client registered before its reply task dispatches (OI-30), so without
+                //  this wait, the server stop below can race ahead of the reply and leave the client stuck in
+                //  its registration-reply wait instead of its connection-monitoring phase...
+                WaitforCondition(() => wss.AllowSend, 2000);
 
                 // Fetch the current attempt counter...
                 var attempts_before = wss.ConnAttempt_TotalCounter;
@@ -968,7 +982,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -986,6 +1000,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Start the web socket client...
                 var res = await wss.Start_Async();
@@ -1053,7 +1069,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1065,6 +1081,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Start the web socket client...
                 var res = await wss.Start_Async();
@@ -1135,7 +1153,7 @@ namespace OGA.TCP_Test_SP
                 int losscounter = 0;
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1153,6 +1171,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1262,7 +1282,7 @@ namespace OGA.TCP_Test_SP
                 string channelname = Guid.NewGuid().ToString();
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1280,6 +1300,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1355,7 +1377,7 @@ namespace OGA.TCP_Test_SP
                 string channelname = Guid.NewGuid().ToString();
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1376,6 +1398,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1444,7 +1468,7 @@ namespace OGA.TCP_Test_SP
                 string channelname = Guid.NewGuid().ToString();
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1462,6 +1486,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1540,7 +1566,7 @@ namespace OGA.TCP_Test_SP
                 string channelname = Guid.NewGuid().ToString();
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1550,6 +1576,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1634,7 +1662,7 @@ namespace OGA.TCP_Test_SP
                 int losscounter = 0;
 
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -1654,6 +1682,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1753,7 +1783,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_InjectibleNetworkState(RemoteHost, RemotePort, logger);
@@ -1768,6 +1798,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1862,7 +1894,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_ConnectedDelegate(RemoteHost, RemotePort, logger);
@@ -1872,6 +1904,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Start the web socket client...
@@ -1929,7 +1963,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_ConnectedDelegate(RemoteHost, RemotePort, logger);
@@ -1945,6 +1979,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Make sure the client won't timeout...
@@ -2025,7 +2061,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -2037,6 +2073,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
 
                 // Make sure the client won't timeout...
@@ -2128,7 +2166,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -2140,6 +2178,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Add a message handler to the client...
                 // Create a channel name...
@@ -2315,7 +2355,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -2327,6 +2367,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Add a message handler to the client...
                 // Create a channel name...
@@ -2502,7 +2544,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -2514,6 +2556,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Add a message handler to the client...
                 // Create a channel name...
@@ -2689,7 +2733,7 @@ namespace OGA.TCP_Test_SP
             try
             {
                 // Create data for a V1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -2701,6 +2745,8 @@ namespace OGA.TCP_Test_SP
                 wss.UserId = (Guid)cp.UserId;
                 wss.RuntimeId = cp.RuntimeId;
                 wss.Pid = cp.Pid;
+                wss.AppId = cp.AppId;
+                wss.AppVersion = cp.AppVersion;
 
                 // Add a message handler to the client...
                 // Create a channel name...

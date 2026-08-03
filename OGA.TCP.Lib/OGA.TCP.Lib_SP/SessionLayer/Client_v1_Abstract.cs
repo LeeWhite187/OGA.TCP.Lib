@@ -357,6 +357,27 @@ namespace OGA.TCP.SessionLayer
         public string RuntimeId { get; set; }
 
         /// <summary>
+        /// Identifier of the client application, sent with connection registration.
+        /// The v2 registration contract made this mandatory, and LibVersion 3 carries that contract forward:
+        ///     a v3 client MUST populate this (and AppVersion) before starting, or registration is refused
+        ///     by both the base send logic and the server.
+        /// The server also holds it immutable for the life of a connection.
+        /// </summary>
+        public string AppId { get; set; } = "";
+
+        /// <summary>
+        /// Version of the client application, sent with connection registration.
+        /// Mandatory alongside AppId for LibVersion 2 and later registrations (see AppId).
+        /// </summary>
+        public string AppVersion { get; set; } = "";
+
+        /// <summary>
+        /// Language/culture tag of the client application (e.g. "en-us"), sent with connection registration
+        ///     when populated. Optional: the server defaults an unannounced language to "en-us".
+        /// </summary>
+        public string Language { get; set; } = "";
+
+        /// <summary>
         /// This defines the current TCP/WSLib version behavior of the client.
         /// It should be set in the constructor of deriving classes of this abstract.
         /// </summary>
@@ -2109,9 +2130,11 @@ namespace OGA.TCP.SessionLayer
         /// NOTE:   This method is virtual, so it can be overridden for new registration behavior.
         ///         Specifically, this call, performs a connection registration for TCP/WSLibVersion = 1 and 3 clients.
         ///         Version 1 clients send no libver property (the server infers version 1 from its absence).
-        ///         Version 3 clients announce their version via the libver property (see PropName_ClientLibVer).
-        ///         Version 2 registration adds mandatory client application properties (appid, appver) that this base class has no knowledge of,
-        ///         so a version 2 instance will error out here: the deriving class must override this method to supply them.
+        ///         Version 3 clients announce their version via the libver property (see PropName_ClientLibVer), and carry
+        ///         the version 2 registration contract forward: the AppId and AppVersion properties are mandatory (the
+        ///         server refuses a v2-or-later registration without them), and Language is sent when populated.
+        ///         Version 2 instances must override this method (the historical v2 pattern; kept so existing derived
+        ///         v2 clients register exactly as they always have).
         /// </summary>
         /// <returns></returns>
         public virtual async Task<int> Send_RegistrationMessage()
@@ -2121,7 +2144,7 @@ namespace OGA.TCP.SessionLayer
                 // Confirm this base method knows how to register our TCP/WSLibVersion...
                 if (this.LibVersion != LibVersions.CONST_LibVersion_1 && this.LibVersion != LibVersions.CONST_LibVersion_3)
                 {
-                    // We are not defined as a version this base method can register (v2 needs app-identity props we don't have).
+                    // We are not defined as a version this base method can register.
                     // Which means the deriving class did not include an override of this method for its version.
                     // So, we must error the client connection.
 
@@ -2130,6 +2153,19 @@ namespace OGA.TCP.SessionLayer
                         $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
                         $"Cannot send {(this.PropName_ClientLibVer ?? "")}={(this.LibVersion ?? "")} registration data from the base class. " +
                         $"This method must be overridden for proper registration behavior.");
+
+                    return -3;
+                }
+
+                // Enforce the v3 registration contract client-side, so a misconfigured client fails fast
+                //  with a clear log instead of being refused by the server...
+                if (this.LibVersion == LibVersions.CONST_LibVersion_3 &&
+                    (string.IsNullOrEmpty(this.AppId) || string.IsNullOrEmpty(this.AppVersion)))
+                {
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_RegistrationMessage)} - " +
+                        $"A {(this.PropName_ClientLibVer ?? "")}={(this.LibVersion ?? "")} registration requires the AppId and AppVersion properties to be set. " +
+                        "Populate them before starting the client.");
 
                     return -3;
                 }
@@ -2160,6 +2196,13 @@ namespace OGA.TCP.SessionLayer
                 {
                     // Set a property announcing our library version...
                     props.Add("\"" + this.PropName_ClientLibVer + "\":\"" + this.LibVersion + "\"");
+
+                    // Carry the v2 app-identity contract: appid and appver are mandatory (verified above),
+                    //  and the language is announced when populated (the server defaults it otherwise)...
+                    props.Add("\"appid\":\"" + this.AppId + "\"");
+                    props.Add("\"appver\":\"" + this.AppVersion + "\"");
+                    if (!string.IsNullOrEmpty(this.Language))
+                        props.Add("\"language\":\"" + this.Language + "\"");
                 }
 
                 // Set the loopback echo flag is needed...

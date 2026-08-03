@@ -220,6 +220,11 @@ client.UserId    = userId;          // Guid.Empty if no user context yet
 client.RuntimeId = runtimeId;
 client.Pid       = Environment.ProcessId;
 
+// App identity — MANDATORY for a v3 registration (the server refuses without it):
+client.AppId      = "myapp";
+client.AppVersion = appVersion;
+client.Language   = "en-us";        // optional; the server defaults it
+
 // Session events:
 client.OnConnectionLost = (c) => appState.MarkOffline();
 client.OnStatus_Change  = (c, status) => logger.Info($"conn status: {status}");
@@ -377,7 +382,7 @@ Everything is logged with class/instance/method context; the packages ship PDBs 
 
 ## 12. Compatibility and versioning
 
-**LibVersion** is the wire-protocol version, announced by the client at registration (`tcplibver` prop): **1** — baseline; **2** — adds app-identity props and tokenless connection; **3** — the dual-frame protocol this guide describes (typed frames, binary messaging, rebuilt chunking, size limits). A server accepts registrations from any version it supports ([1..3]).
+**LibVersion** is the wire-protocol version, announced by the client at registration (`tcplibver` prop): **1** — baseline; **2** — adds app-identity props and tokenless connection; **3** — the dual-frame protocol this guide describes (typed frames, binary messaging, rebuilt chunking, size limits); v3 registration carries the v2 contract forward, so app identity (`AppId`, `AppVersion`) remains mandatory. A server accepts registrations from any version it supports ([1..3]).
 
 **The v3 boundary is a framing break:** v3 and pre-v3 libraries cannot share a connection at all (§16.2 shows the symptoms). Deploy v3 to **both ends of each conversation together**. There is no wire negotiation or fallback by design (spec KD-07).
 
@@ -395,10 +400,11 @@ Everything is logged with class/instance/method context; the packages ship PDBs 
 
 1. **Upgrade both ends of every conversation in one deployment step.** Mixed pairs cannot communicate (§12).
 2. **Recompile against the new packages.** Existing delegate-based channel registrations and send calls compile unchanged; delegate-registered channels default to JSON-kind.
-3. **If you assigned `OnRawMessageReceived`:** its signature changed from a decoded string to `(frameType, byte[])` — update your handler and decode where needed.
-4. **If you relied on never-dropping quiet connections:** the keepalive fix means a genuinely unanswered ping now recycles the connection (it previously never did). Deployments with servers stalled beyond the reply window will see reconnect cycles that were silently tolerated before — that is the feature working; tune §5.1 if your topology needs more patience.
-5. **If you consumed `Metrics` before first connect** it previously threw; it now returns an empty snapshot.
-6. **If you restarted clients (`Stop_Async` then `Start_Async`):** that was never reliable (handlers were silently cleared on stop) and is now refused — `Start_Async` returns an error on a stopped instance. Construct a new client per session (§8, §16.3).
+3. **Set `AppId` and `AppVersion` on the client before starting.** The base v3 registration announces them (previously only overridden v2 registrations carried them); a v3 client without them fails fast at registration. If your v2 client overrode `Send_RegistrationMessage` to supply app identity, you can now drop the override and set the properties instead.
+4. **If you assigned `OnRawMessageReceived`:** its signature changed from a decoded string to `(frameType, byte[])` — update your handler and decode where needed.
+5. **If you relied on never-dropping quiet connections:** the keepalive fix means a genuinely unanswered ping now recycles the connection (it previously never did). Deployments with servers stalled beyond the reply window will see reconnect cycles that were silently tolerated before — that is the feature working; tune §5.1 if your topology needs more patience.
+6. **If you consumed `Metrics` before first connect** it previously threw; it now returns an empty snapshot.
+7. **If you restarted clients (`Stop_Async` then `Start_Async`):** that was never reliable (handlers were silently cleared on stop) and is now refused — `Start_Async` returns an error on a stopped instance. Construct a new client per session (§8, §16.3).
 
 ---
 

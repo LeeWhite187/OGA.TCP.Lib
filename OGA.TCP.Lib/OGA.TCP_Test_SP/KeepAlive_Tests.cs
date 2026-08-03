@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -150,6 +150,9 @@ namespace OGA.TCP_Test_SP
 
                 // Setup the tcpsocket client...
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                // The v3 registration contract requires app identity...
+                wss.AppId = "aid-test";
+                wss.AppVersion = "1.0.0";
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
                 {

@@ -2899,12 +2899,12 @@ namespace OGA.TCP.Server
                     return -10;
                 }
 
-                // Do WSLibVersion=2 property checks...
-                if(libver == 2)
+                // Do WSLibVersion>=2 property checks...
+                if(libver > 1)
                 {
-                    // WSLib Version is a V2.
-                    // The defining feature of a V2 registration is its mandatory client application properties.
-                    // (V3 changed the wire framing, not the registration contract, so its app-identity properties are optional.)
+                    // WSLib Version is at least a V2.
+                    // V2 added mandatory client application properties, and each later version carries that
+                    //  registration contract forward (owner decision, OI-50).
 
                     // Enforce mandatory AppId and AppVersion properties...
                     {
@@ -2928,7 +2928,7 @@ namespace OGA.TCP.Server
                             return -10;
                         }
                     }
-                    // If here, all manadatory TCP/WSLibVersion=2 properties are present.
+                    // If here, all manadatory TCP/WSLibVersion>=2 properties are present.
                 }
 
                 // We don't allow the AppId to change, once given.

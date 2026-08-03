@@ -203,7 +203,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -224,6 +224,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp.UserId;
                     client1.RuntimeId = cp.RuntimeId;
                     client1.Pid = cp.Pid;
+                    client1.AppId = cp.AppId;
+                    client1.AppVersion = cp.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -353,7 +355,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp1 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp1 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -374,6 +376,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp1.UserId;
                     client1.RuntimeId = cp1.RuntimeId;
                     client1.Pid = cp1.Pid;
+                    client1.AppId = cp1.AppId;
+                    client1.AppVersion = cp1.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -445,7 +449,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a second client connection...
                 {
                     // Create data for a v1 client...
-                    var cp2 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp2 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client2 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -466,6 +470,8 @@ namespace OGA.TCP_Test_SP
                     client2.UserId = (Guid)cp2.UserId;
                     client2.RuntimeId = cp2.RuntimeId;
                     client2.Pid = cp2.Pid;
+                    client2.AppId = cp2.AppId;
+                    client2.AppVersion = cp2.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -577,7 +583,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp1 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp1 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -598,6 +604,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp1.UserId;
                     client1.RuntimeId = cp1.RuntimeId;
                     client1.Pid = cp1.Pid;
+                    client1.AppId = cp1.AppId;
+                    client1.AppVersion = cp1.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -669,7 +677,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a second client connection...
                 {
                     // Create data for a v1 client...
-                    var cp2 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp2 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client2 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -690,6 +698,8 @@ namespace OGA.TCP_Test_SP
                     client2.UserId = (Guid)cp2.UserId;
                     client2.RuntimeId = cp2.RuntimeId;
                     client2.Pid = cp2.Pid;
+                    client2.AppId = cp2.AppId;
+                    client2.AppVersion = cp2.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -810,7 +820,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp1 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp1 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -831,6 +841,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp1.UserId;
                     client1.RuntimeId = cp1.RuntimeId;
                     client1.Pid = cp1.Pid;
+                    client1.AppId = cp1.AppId;
+                    client1.AppVersion = cp1.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -898,7 +910,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a second client connection...
                 {
                     // Create data for a v1 client...
-                    var cp2 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp2 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client2 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -919,6 +931,8 @@ namespace OGA.TCP_Test_SP
                     client2.UserId = (Guid)cp2.UserId;
                     client2.RuntimeId = cp2.RuntimeId;
                     client2.Pid = cp2.Pid;
+                    client2.AppId = cp2.AppId;
+                    client2.AppVersion = cp2.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -1047,7 +1061,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp1 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp1 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -1064,6 +1078,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp1.UserId;
                     client1.RuntimeId = cp1.RuntimeId;
                     client1.Pid = cp1.Pid;
+                    client1.AppId = cp1.AppId;
+                    client1.AppVersion = cp1.AppVersion;
 
 
                     // Make sure the client won't timeout...
@@ -1164,7 +1180,7 @@ namespace OGA.TCP_Test_SP
                 // Stand up a client connection...
                 {
                     // Create data for a v1 client...
-                    var cp1 = clientproperties.Create_Random_WSLibV1_ClientData();
+                    var cp1 = clientproperties.Create_Random_WSLibV3_ClientData();
 
                     // Setup the tcpsocket client...
                     client1 = new TCPClient_v1_Impl(cm.ListeningAddress, cm.ListeningPort, logger);
@@ -1181,6 +1197,8 @@ namespace OGA.TCP_Test_SP
                     client1.UserId = (Guid)cp1.UserId;
                     client1.RuntimeId = cp1.RuntimeId;
                     client1.Pid = cp1.Pid;
+                    client1.AppId = cp1.AppId;
+                    client1.AppVersion = cp1.AppVersion;
 
 
                     // Make sure the client won't timeout...

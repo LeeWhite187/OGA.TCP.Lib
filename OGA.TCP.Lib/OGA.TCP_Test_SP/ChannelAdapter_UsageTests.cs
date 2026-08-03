@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -209,7 +209,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -224,6 +224,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -290,7 +292,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -305,6 +307,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -357,7 +361,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -372,6 +376,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -423,7 +429,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -438,6 +444,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -490,7 +498,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -505,6 +513,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...
@@ -548,7 +558,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -563,6 +573,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
 
                 // The server-side of this test does not send connection registration replies.
@@ -674,7 +686,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Wrong return");
 
                 // Create data for a v1 client...
-                var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+                var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
                 // Setup the tcpsocket client...
                 client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
@@ -689,6 +701,8 @@ namespace OGA.TCP_Test_SP
                 client.UserId = (Guid)cp.UserId;
                 client.RuntimeId = cp.RuntimeId;
                 client.Pid = cp.Pid;
+                client.AppId = cp.AppId;
+                client.AppVersion = cp.AppVersion;
 
                 // The server-side of this test does not send connection registration replies.
                 // So, we need to tell the client to not require this...

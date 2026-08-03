@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OGA.TCP;
 using OGA.TCP.Messages;
 using OGA.TCP.Server;
@@ -631,13 +631,15 @@ namespace OGA.TCP_Test_SP
             if (this._wsl.Listener.State != eListenerState.Active)
                 Assert.Fail("Listener not active");
 
-            var cp = clientproperties.Create_Random_WSLibV1_ClientData();
+            var cp = clientproperties.Create_Random_WSLibV3_ClientData();
 
             var client = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
             client.DeviceId = cp.DeviceId;
             client.UserId = (Guid)cp.UserId;
             client.RuntimeId = cp.RuntimeId;
             client.Pid = cp.Pid;
+            client.AppId = cp.AppId;
+            client.AppVersion = cp.AppVersion;
             client.Cfg_Disable_KeepAlive = true;
 
             var res = await client.Start_Async();

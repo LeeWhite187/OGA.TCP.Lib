@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -149,6 +149,9 @@ namespace OGA.TCP_Test_SP
             try
             {
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                // The v3 registration contract requires app identity...
+                wss.AppId = "aid-test";
+                wss.AppVersion = "1.0.0";
 
                 // Read metrics before any connection exists...
                 // This must return a baseline snapshot, not throw.
@@ -178,6 +181,9 @@ namespace OGA.TCP_Test_SP
             try
             {
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                // The v3 registration contract requires app identity...
+                wss.AppId = "aid-test";
+                wss.AppVersion = "1.0.0";
 
                 // The silent server never sends a registration reply, so don't wait on one...
                 wss.Cfg_ConnectionWaitsforRegistrationReply = false;
@@ -223,6 +229,9 @@ namespace OGA.TCP_Test_SP
             try
             {
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+                // The v3 registration contract requires app identity...
+                wss.AppId = "aid-test";
+                wss.AppVersion = "1.0.0";
 
                 // Stop the client without ever starting it...
                 await wss.Stop_Async();
@@ -245,6 +254,12 @@ namespace OGA.TCP_Test_SP
             var logger = OGA.SharedKernel.Logging_Base.Logger_Ref;
 
             var wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+
+            // The v3 registration contract requires app identity...
+
+            wss.AppId = "aid-test";
+
+            wss.AppVersion = "1.0.0";
             wss.Dispose();
 
             var res = await wss.Start_Async();
@@ -264,6 +279,12 @@ namespace OGA.TCP_Test_SP
                 int losscounter = 0;
 
                 wss = new TCPClient_v1_Impl(RemoteHost, RemotePort, logger);
+
+                // The v3 registration contract requires app identity...
+
+                wss.AppId = "aid-test";
+
+                wss.AppVersion = "1.0.0";
                 // Assign a local lambda that will increment a counter each time it triggers...
                 wss.OnConnectionLost = ((locws) =>
                 {

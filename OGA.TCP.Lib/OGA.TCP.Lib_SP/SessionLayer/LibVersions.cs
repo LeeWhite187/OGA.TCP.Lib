@@ -32,6 +32,8 @@ namespace OGA.TCP.SessionLayer
         /// a four-byte little-endian body length followed by a one-byte frame type from the FrameTypes registry.
         /// This allows json and binary message bodies to share the same connection without base64 encoding.
         /// Also adds chunked (large-message) transfer of both json and binary payloads.
+        /// Registration carries the version 2 contract forward: the client application properties (appid, appver)
+        /// remain mandatory, announced alongside the version property (set the client's AppId and AppVersion).
         /// v3 endpoints cannot exchange traffic with v1/v2 peers; both ends of a connection must be updated together.
         /// See the design spec (docs/OGA.TCP.Lib_SPEC.md), items KD-03, KD-04, KD-05, and KD-07, for the wire format details.
         /// </summary>
