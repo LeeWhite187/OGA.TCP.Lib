@@ -1402,6 +1402,90 @@ namespace OGA.TCP_Test_SP
             }
         }
 
+        // Verify a throwing AddConnection override cannot orphan an endpoint (OI-28)...
+        //  Test_1_4_1  Create a manager whose AddConnection override throws.
+        //              Connect a raw client.
+        //              Verify the manager tracks nothing, and the client's connection is closed by the
+        //              server (the endpoint was torn down, not started orphaned).
+        [TestMethod]
+        public async Task Test_1_4_1()
+        {
+            ThrowingAddConnectionMgr cm = null;
+            System.Net.Sockets.TcpClient raw = null;
+            try
+            {
+                cm = new ThrowingAddConnectionMgr();
+                cm.ListeningPort = 5000;
+                cm.ListeningAddress = "localhost";
+
+                // Start the instance...
+                var res = cm.Startup();
+                if(res != 1)
+                    Assert.Fail("Wrong Value");
+
+                // Connect a raw socket...
+                raw = new System.Net.Sockets.TcpClient();
+                await raw.ConnectAsync("127.0.0.1", 5000);
+
+                // Wait for the override to have been hit...
+                WaitforCondition(() => cm.AddConnectionCallCount >= 1, 3000);
+                if(cm.AddConnectionCallCount < 1)
+                    Assert.Fail("AddConnection override was never called.");
+
+                // The manager must track nothing...
+                System.Threading.Thread.Sleep(500);
+                if(cm.UnRegisteredConnectionCount != 0 || cm.ConnectionCount != 0)
+                    Assert.Fail("Manager should track no connections.");
+
+                // And the server must have torn the connection down (not left an orphan endpoint serving it).
+                // A read on the client side observes the closure (zero-byte read) or a reset...
+                bool closed = false;
+                try
+                {
+                    raw.Client.ReceiveTimeout = 5000;
+                    var buf = new byte[16];
+                    var got = raw.Client.Receive(buf);
+                    closed = got == 0;
+                }
+                catch (Exception)
+                {
+                    // A reset/timeout exception also indicates no live endpoint is serving us.
+                    closed = true;
+                }
+
+                if(!closed)
+                    Assert.Fail("The connection should have been closed by the server.");
+            }
+            finally
+            {
+                try
+                {
+                    raw?.Dispose();
+                }
+                catch (Exception e) { }
+                try
+                {
+                    cm?.CloseDown();
+                }
+                catch (Exception e) { }
+            }
+        }
+
+        /// <summary>
+        /// Test double for OI-28: a connection manager whose AddConnection override throws,
+        ///     simulating a consumer override failure during accept.
+        /// </summary>
+        private class ThrowingAddConnectionMgr : TCPConnMgr_wListener
+        {
+            public volatile int AddConnectionCallCount;
+
+            public override int AddConnection(Endpoint_Abstract newconn)
+            {
+                this.AddConnectionCallCount++;
+                throw new Exception("Test-injected AddConnection failure.");
+            }
+        }
+
         #endregion
 
 

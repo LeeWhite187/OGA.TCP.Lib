@@ -299,7 +299,20 @@ namespace OGA.TCP.Server
                         return;
                     }
                 }
-                catch (Exception ex) { }
+                catch (Exception ex)
+                {
+                    // A throwing AddConnection (its override point is virtual) is a failed add.
+                    // Falling through here would start an endpoint the manager does not track — an orphan
+                    //  that serves traffic invisibly and is never closed by CloseDown (OI-28)...
+
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(ex,
+                        $"{_classname}:{_instance_counter.ToString()}::{nameof(ListenerCALLBACK_OnNew_Client_Connection)} - " +
+                        $"AddConnection threw while adding a new client connection (from listener). Closing down received client connection...");
+
+                    // We will close the endpoint and client connection in the finally.
+
+                    return;
+                }
                 // All good so far.
 
                 OGA.SharedKernel.Logging_Base.Logger_Ref?.Debug(
