@@ -1986,12 +1986,15 @@ namespace OGA.TCP.SessionLayer
             if (await this.SendPing_toEndpoint_Async() != 1)
             {
                 // Failed to send ping message.
+                // A ping that cannot even be SENT is a failed connection: report it as such, so the
+                //  connection recycles now instead of waiting out a pong timeout for a ping that never
+                //  left this end (OI-37).
 
                 this.Logger?.Error(
                     $"{_classname}:{this.InstanceId.ToString()}::{nameof(Send_KeepAlive_IfNeeded_Async)} - " +
                     $"Failed to send ping message to web service, over ConnectionId = {(this.ConnectionId ?? "")}.");
 
-                return 1;
+                return -1;
             }
             // If here, the ping message was sent.
 
@@ -3101,11 +3104,24 @@ namespace OGA.TCP.SessionLayer
                 // The message envelope has a message id, timestamp, data type and payload as json.
 
                 // Get the message type...
-                var mt = me.MessageType.ToLower();
+                // Null-guarded: an explicit json null must drop gracefully, not NRE the receive path (OI-37)...
+                var mt = (me.MessageType ?? "").ToLower();
 
                 // See if the message is something we handle, and don't pass along...
                 int res = this.Process_InternalMessage(mt, me.Data);
-                if (res < 0)
+                if (res == -10)
+                {
+                    // Fatal internal-message failure (e.g. a garbled registration reply).
+                    // Report it as fatal so the connection recycles, rather than logging and idling until
+                    //  the registration-reply timeout does the same thing slower (OI-37)...
+
+                    this.Logger?.Error(
+                        $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_ReceivedMessage)} - " +
+                        "Received internal message failed fatally. The connection must recycle.");
+
+                    return -1;
+                }
+                else if (res < 0)
                 {
                     // Something was wrong with the received message.
                     // We must disregard it, and try again.

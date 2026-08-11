@@ -21,7 +21,7 @@ namespace OGA.TCP.Shared
         public bool AtMax { get=> maxreached; }
 
         /// <summary>
-        /// Accepts a jitter factor between 0 and 1.
+        /// Accepts a jitter factor between 0 and 1. Values outside the range clamp to the nearest bound.
         /// </summary>
         public float JitterHeight
         {
@@ -31,12 +31,18 @@ namespace OGA.TCP.Shared
                 if (value < 0.0f)
                     _jitterheight = 0.0f;
                 else if (value > 1.0f)
-                    _jitterheight = 0;
+                    _jitterheight = 1.0f;
                 else
                     _jitterheight = value;
             }
         }
 
+        /// <summary>
+        /// Constructor accepts the retry ceiling and the delay range.
+        /// NOTE: maxRetries is recorded but NOT enforced — no caller has ever relied on a retry limit,
+        ///     and enforcing one now would change live reconnect behavior (OI-37). The delay simply
+        ///     plateaus at maxDelayMilliseconds (see AtMax).
+        /// </summary>
         public ExpBackoff_wJitter(int maxRetries, int delayMilliseconds,
             int maxDelayMilliseconds)
         {
@@ -57,29 +63,56 @@ namespace OGA.TCP.Shared
             maxreached = false;
         }
 
+        /// <summary>
+        /// Waits the next backoff delay without blocking a thread.
+        /// Returns 1 when the delay elapsed; 0 when the token cancelled the wait early (OI-37: previously
+        ///     cancellation reported success — or, awaited through Task.Delay, threw — instead of being
+        ///     observable in the result).
+        /// </summary>
+        /// <param name="token">Optional cancellation token for leaving the wait early.</param>
+        /// <returns></returns>
         public async Task<int> DelayAsync(CancellationToken? token = null)
         {
             var delay = CalculateDelay();
 
             // Wait the corresponding delay...
             if(token == null)
+            {
                 await Task.Delay(delay);
+            }
             else
-                await Task.Delay(delay, (CancellationToken)token);
+            {
+                try
+                {
+                    await Task.Delay(delay, (CancellationToken)token);
+                }
+                catch (Exception)
+                {
+                    // Cancelled during the wait.
+                    return 0;
+                }
+            }
 
             return 1;
         }
+        /// <summary>
+        /// Waits the next backoff delay, blocking the calling thread.
+        /// Returns 1 when the delay elapsed; 0 when the token cancelled the wait early (OI-37).
+        /// </summary>
+        /// <param name="token">Optional cancellation token for leaving the wait early.</param>
+        /// <returns></returns>
         public int Delay(CancellationToken? token = null)
         {
             var delay = CalculateDelay();
 
             // Wait the corresponding delay...
             if(token == null)
+            {
                 System.Threading.Thread.Sleep(delay);
-            else
-                Perform_Abortable_Delay(delay, (CancellationToken)token);
+                return 1;
+            }
 
-            return 1;
+            return Perform_Abortable_Delay(delay, (CancellationToken)token);
         }
 
         public int CalculateDelay()

@@ -2298,10 +2298,11 @@ namespace OGA.TCP.Server
                 } catch (Exception) { }
 
                 // Get the message type...
-                var mt = me.MessageType.ToLower();
+                // Null-guarded: an explicit json null must drop gracefully, not NRE the receive path (OI-37)...
+                var mt = (me.MessageType ?? "").ToLower();
 
                 // Do a quick check if the given message is a local loopback...
-                if(me.Scope.ToLower() == "loopback=rawmsg")
+                if((me.Scope ?? "").ToLower() == "loopback=rawmsg")
                 {
                     // The client wants the given message echoed back to them.
 
