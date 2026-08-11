@@ -2,8 +2,8 @@
 
 **Project:** OGA.TCP.Lib
 **Short description:** A message-based TCP connectivity library for .NET, providing framed JSON message exchange, channels, large-message chunking, keepalive, and client registration between processes.
-**Status:** In Implementation — Release 1 shipped; Release 2 (LibVersion 3 wire break) built and under verification
-**Revision:** 3
+**Status:** Maintained — the phased improvement effort is implemented (Releases 1 and 2, LibVersion 3); remaining open items are deferred features or owner-side carry-overs
+**Revision:** 4
 **Template Revision:** 3
 **Created:** 2026-07-26T00:00:00Z
 **Related Documents:** references/SPEC_TEMPLATE_R3.md, references/IMPLEMENTATION_GUIDE_TEMPLATE_R1.md, ../README.md
@@ -205,17 +205,17 @@ Requirements describe the system as designed: current shipping behavior where un
 
 ### 3.1 Performance
 
-**NFR-01 — Non-blocking receive path.** The receive path SHALL NOT block threadpool threads with fixed sleeps or spin-waits; per-message processing cost SHALL be bounded by actual work, not built-in delays. (The current `cReceiveLoop` violates this — OI-21 — and the Release 2 rework resolves it.)
+**NFR-01 — Non-blocking receive path.** The receive path SHALL NOT block threadpool threads with fixed sleeps or spin-waits; per-message processing cost SHALL be bounded by actual work, not built-in delays.
 
-**NFR-02 — Serialized sends, bounded waits.** All sends on a connection SHALL be serialized through one write gate so frames never interleave mid-frame; waiting delays in the connection loop SHOULD be async rather than thread-blocking (current violations tracked in OI-35).
+**NFR-02 — Serialized sends, bounded waits.** All sends on a connection SHALL be serialized through one write gate so frames never interleave mid-frame; waiting delays in the connection loop SHOULD be async rather than thread-blocking.
 
 **NFR-03 — Chunk overhead proportionality.** Chunking overhead SHALL be proportional to metadata size, not payload size: no base64 or escaping expansion of chunk payloads (KD-05).
 
-No numeric throughput or latency targets are committed at this revision; the Release 2 rework SHOULD be benchmarked before/after (OI-21) to establish a baseline worth committing to.
+No numeric throughput or latency targets are committed at this revision. Informal measurement of the rebuilt receive path (the suite's 10 MB chunked-transfer test) shows roughly 35 MB/s over loopback; a deliberate benchmark SHOULD precede committing any figure as a target.
 
 ### 3.2 Reliability and Availability
 
-**NFR-04 — No crash from remote input or teardown races.** Malformed messages, invalid frames, and connection teardown concurrent with in-flight receives SHALL never terminate the host process; failures are contained to the connection (current violations: OI-20, OI-04).
+**NFR-04 — No crash from remote input or teardown races.** Malformed messages, invalid frames, and connection teardown concurrent with in-flight receives SHALL never terminate the host process; failures are contained to the connection.
 
 **NFR-05 — Contained message failures.** A malformed or undeliverable message SHALL be logged and dropped without closing the connection, except framing-level violations (oversized, negative, or unknown-type frames), which are fatal to the connection by design.
 
@@ -225,15 +225,15 @@ No numeric throughput or latency targets are committed at this revision; the Rel
 
 ### 3.3 Security
 
-Not applicable beyond §1.7's exclusion of transport security: the library trusts its host environment, carries an auth-level enum and auth-token hook for consumers, and imposes no trust boundary of its own. The review pass confirmed this posture, with one qualification: the framing and limit checks (§9.1.1, KD-06) are the library's only hardening against hostile peers, and deployments exposing listeners beyond trusted networks should treat transport security and peer authentication as their own responsibility (see also OI-26 on the keepalive-exemption resource exposure).
+Not applicable beyond §1.7's exclusion of transport security: the library trusts its host environment, carries an auth-level enum and auth-token hook for consumers, and imposes no trust boundary of its own. The review pass confirmed this posture, with one qualification: the framing and limit checks (§9.1.1, KD-06) are the library's only hardening against hostile peers, and deployments exposing listeners beyond trusted networks should treat transport security and peer authentication as their own responsibility. The keepalive-exemption resource exposure is policy-gated (`Cfg_Allow_KeepAliveExemption`, §9.1.4).
 
 ### 3.4 Observability
 
 **NFR-08 — Contextual logging.** All log lines SHALL carry class name, instance id, and method context (the established `_classname:InstanceId::method` convention), with file/line metadata supplied by the Debug+PDB packaging posture (KD-01).
 
-**NFR-09 — Accurate counters.** Exposed metrics (`cEndpoint_Metrics` counters and timestamps, channel adapter counters) SHALL reflect actual traffic; all timestamps SHALL be UTC (current violations: OI-33, OI-37).
+**NFR-09 — Accurate counters.** Exposed metrics (`cEndpoint_Metrics` counters and timestamps, channel adapter counters) SHALL reflect actual traffic; all timestamps SHALL be UTC.
 
-**NFR-10 — Distinct trace spans.** The server's OpenTelemetry activities SHALL emit their three distinct span names (send, receive, dispatch) with correlation-id tags (current violation: OI-33).
+**NFR-10 — Distinct trace spans.** The server's OpenTelemetry activities SHALL emit their three distinct span names (send, receive, dispatch) with correlation-id tags.
 
 ### 3.5 Accessibility
 
@@ -342,7 +342,7 @@ The library is layered so that transport specifics (how bytes move) are separate
 
 ### 5.3 Component Machinery Reference
 
-Per-component narratives of internal mechanics (OI-45), written against the v3 implementation and verified against the code as built. §5.1/§5.2 say what each piece is and how data moves; this section says how each piece works inside.
+Per-component narratives of internal mechanics, written against the v3 implementation and verified against the code as built. §5.1/§5.2 say what each piece is and how data moves; this section says how each piece works inside.
 
 #### 5.3.1 cReceiveLoop — the read pump
 
@@ -374,7 +374,7 @@ One thread-safe registry class serves both sides (KD-08). Adapters register unde
 
 One instance serves one transfer. `Load` captures the transfer id, the original body's frame type, the encoded bytes, routing values, and one **transfer-constant header timestamp** — segment headers are serialized twice per offset (measure, then send), and JSON date serialization is variable-length, so a per-serialization timestamp would break byte-true sizing.
 
-`SendChunksAsync` runs three stages. (1) **Pre-count**: walk the body measuring each segment's real header cost at its offset (header size varies with the offset's digit count) to derive an accurate chunk count for the start declaration; a frame cap too small to fit any payload aborts. (2) **Start** (`ChunkStartDTO`, JSON — transfer id, inner frame type, byte-true total size, chunk sizing/count). (3) **Segments**: each is a binary message whose routing header carries the transfer id and byte offset as props and whose payload is a raw slice — sized to fit `MaxFrameSize` exactly after measured overhead, or capped by `MaxChunkPayloadSize` when the operator tunes chunks smaller for interleaving. Every send awaits the endpoint's write semaphore, which is the share-the-pipe property: other channels' frames interleave between segments. (4) **End** (`ChunkEndDTO`). Every control and segment send result is checked; failure or cancellation sends a best-effort `ChunkCancelDTO` so the receiver tears down, and reports the transfer failed. There are no acks or retransmissions — the transports are reliable and ordered (OI-15's record explains what would need them).
+`SendChunksAsync` runs three stages. (1) **Pre-count**: walk the body measuring each segment's real header cost at its offset (header size varies with the offset's digit count) to derive an accurate chunk count for the start declaration; a frame cap too small to fit any payload aborts. (2) **Start** (`ChunkStartDTO`, JSON — transfer id, inner frame type, byte-true total size, chunk sizing/count). (3) **Segments**: each is a binary message whose routing header carries the transfer id and byte offset as props and whose payload is a raw slice — sized to fit `MaxFrameSize` exactly after measured overhead, or capped by `MaxChunkPayloadSize` when the operator tunes chunks smaller for interleaving. Every send awaits the endpoint's write semaphore, which is the share-the-pipe property: other channels' frames interleave between segments. (4) **End** (`ChunkEndDTO`). Every control and segment send result is checked; failure or cancellation sends a best-effort `ChunkCancelDTO` so the receiver tears down, and reports the transfer failed. There are no acks or retransmissions — the transports are reliable and ordered (KD-05 records what would need them).
 
 #### 5.3.5 LargeMsgReceiver — the chunked-transfer receiver
 
@@ -404,7 +404,7 @@ The library holds no durable state; its data model is the set of wire types and 
 
 ### 6.1 Entity Overview
 
-**MessageEnvelope** — the JSON wire wrapper for every JSON message. Created per send, consumed per receive, never persisted. **BinaryMessageHeader (v3)** — the envelope-minus-Data sibling that fronts a binary message body; same routing semantics, payload externalized. **ConnRegisterDTO / ConnRegisterReplyDTO** — the registration handshake pair; created per registration exchange. **Chunk control DTOs (v3)** — `ChunkStartDTO`, `ChunkEndDTO`, `ChunkCancelDTO`, reshaped per KD-05; a transfer's Start creates receiver state keyed by transfer id, End or Cancel or the prune timeout destroys it. (`ChunkAckDTO`/`ChunkRequestDTO` exist but are outside the protocol — OI-15.) **ClientInfo** — the server's live per-connection metadata record, created at endpoint construction, updated by registration, destroyed with the endpoint. **ConnectionEntry_v1** — the versioned cache/routing record derived from ClientInfo for the client-mapping service; deliberately a separate type so the cache contract cannot drift through casual library edits. **cEndpoint_Metrics** — per-connection counters/timestamps, reset per connection.
+**MessageEnvelope** — the JSON wire wrapper for every JSON message. Created per send, consumed per receive, never persisted. **BinaryMessageHeader (v3)** — the envelope-minus-Data sibling that fronts a binary message body; same routing semantics, payload externalized. **ConnRegisterDTO / ConnRegisterReplyDTO** — the registration handshake pair; created per registration exchange. **Chunk control DTOs (v3)** — `ChunkStartDTO`, `ChunkEndDTO`, `ChunkCancelDTO`, reshaped per KD-05; a transfer's Start creates receiver state keyed by transfer id, End or Cancel or the prune timeout destroys it. **ClientInfo** — the server's live per-connection metadata record, created at endpoint construction, updated by registration, destroyed with the endpoint. **ConnectionEntry_v1** — the versioned cache/routing record derived from ClientInfo for the client-mapping service; deliberately a separate type so the cache contract cannot drift through casual library edits. **cEndpoint_Metrics** — per-connection counters/timestamps, reset per connection.
 
 ### 6.2 Schema
 
@@ -433,7 +433,7 @@ The library holds no durable state; its data model is the set of wire types and 
 
 - **Connection id** — dual-phase: the client generates a GUID per connection attempt; the server assigns the authoritative id as a ULID (`WSId`, NUlid) created at endpoint construction and delivered in the registration reply; the client adopts it. Server-side registries and routing key on the ULID exclusively (an anti-forgery measure — client-proposed ids never key anything server-side).
 - **MsgId** — integer-string envelope id. Client-side: a process-global interlocked counter shared by all client instances (ids are unique in-process but non-contiguous per connection). Server-side: per-endpoint counter. MsgIds are diagnostic/correlational; nothing orders or dedupes by them.
-- **TransferId (v3)** — the chunking transfer key, explicit and distinct from any frame's MsgId (the KD-05 remedy for the OI-18 ambiguity). Unique per in-flight transfer per connection.
+- **TransferId (v3)** — the chunking transfer key, explicit and distinct from any frame's MsgId (KD-05). Unique per in-flight transfer per connection.
 - **InstanceId** — per-object diagnostic id from static counters, used only in logs.
 - **DeviceId / UserId** — consumer-supplied identity; the manager's device query returns the newest connection per device and lazily disposes older duplicates.
 
@@ -577,11 +577,11 @@ The frame type comes from the `FrameTypes` registry (`OGA.TCP.FrameTypes`): `0 I
 3. Client accepts the reply only if `OldConnectionId` matches its current id (defeats stale-receive-loop races), adopts the server's id, and marks registration complete — which (by default) is what releases `AllowSend`.
 4. Re-registration over a live connection is legal for user-context changes and repeats the exchange (FR-09).
 
-**LibVersion semantics** (`LibVersions.cs`; this section is the spec's self-sufficient record — the file's wiki links are temporarily dead pending the owner's Confluence-to-Bookstack migration, and will be repointed per OI-43): **v1** — baseline: registration with the four base props; user-auth token required by consuming deployments. **v2** — adds client app identity props (`appid`, `appver`, `language`, libver) and permits connecting without a user auth token. **v3 (KD-03…KD-09)** — the five-byte frame preamble, dual JSON/binary messaging, the rebuilt chunking protocol, and the KD-06 limits; its registration carries the v2 contract forward (app identity mandatory — owner decision, OI-50). The server accepts registrations announcing any supported version [1..3], enforcing the v2+ app-identity mandate uniformly; version negotiation cannot guard across the v2/v3 framing break — the frame-type byte is the mismatch detector (KD-07).
+**LibVersion semantics** (`LibVersions.cs`; this section is the spec's self-sufficient record — the file's wiki links are temporarily dead pending the owner's Confluence-to-Bookstack migration, and will be repointed per OI-43): **v1** — baseline: registration with the four base props; user-auth token required by consuming deployments. **v2** — adds client app identity props (`appid`, `appver`, `language`, libver) and permits connecting without a user auth token. **v3 (KD-03…KD-09)** — the five-byte frame preamble, dual JSON/binary messaging, the rebuilt chunking protocol, and the KD-06 limits; its registration carries the v2 contract forward (app identity mandatory, as at v2). The server accepts registrations announcing any supported version [1..3], enforcing the v2+ app-identity mandate uniformly; version negotiation cannot guard across the v2/v3 framing break — the frame-type byte is the mismatch detector (KD-07).
 
 #### 9.1.4 Keepalive
 
-Application-level `ping`/`pong` messages (not transport-level probes), governed by take-credit semantics: any received message defers the next ping, since traffic proves liveness. Client side: after `Cfg_KeepAliveInterval` (default 15 s, floor 3 s) of receive silence, send `ping` and set in-flight state; a received `pong` clears it; with a ping in flight, declare the connection dead when nothing has been received for `Cfg_KeepAlive_ReplyMaxDuration` (default 20 s), floored at two connection-loop ticks after the ping was sent, then recycle. Evaluation cadence is the connection-loop tick (`Cfg_Connected_InnerLoop_Delay`, default 5000 ms, auto-lowered for sub-5-second keepalive intervals). Server side: answers every `ping` with a `pong` unconditionally; when chatter is required and the client has not requested keepalive exemption, declares the client dead after `Cfg_DeadClientTimeout` (default 30 s, floor 5 s) of receive silence. Coordination rules for the three client delays are documented on the properties themselves (OI-02's fix). `Cfg_Disable_KeepAlive` suspends client pinging (a debugging affordance); the registration `keepalive:off` prop requests the mirror exemption server-side (resource-exposure caveat: OI-26).
+Application-level `ping`/`pong` messages (not transport-level probes), governed by take-credit semantics: any received message defers the next ping, since traffic proves liveness. Client side: after `Cfg_KeepAliveInterval` (default 15 s, floor 3 s) of receive silence, send `ping` and set in-flight state; a received `pong` clears it; with a ping in flight, declare the connection dead when nothing has been received for `Cfg_KeepAlive_ReplyMaxDuration` (default 20 s), floored at two connection-loop ticks after the ping was sent, then recycle. Evaluation cadence is the connection-loop tick (`Cfg_Connected_InnerLoop_Delay`, default 5000 ms, auto-lowered for sub-5-second keepalive intervals). Server side: answers every `ping` with a `pong` unconditionally; when chatter is required and the client has not requested keepalive exemption, declares the client dead after `Cfg_DeadClientTimeout` (default 30 s, floor 5 s) of receive silence. Coordination rules for the three client delays are documented on the properties themselves. `Cfg_Disable_KeepAlive` suspends client pinging (a debugging affordance); the registration `keepalive:off` prop requests the mirror exemption server-side, honored only where policy permits (`Cfg_Allow_KeepAliveExemption`, default true, propagated from the manager at accept; refusal is logged and the dead-client timeout simply continues to apply).
 
 #### 9.1.5 Chunking (v3 protocol, KD-05)
 
@@ -591,7 +591,7 @@ Trigger: a message's encoded body exceeds the frame budget. The sender splits **
 2. **N binary chunk-data messages**: routing header identifies chunk-data and carries `TransferId` + byte offset; payload = raw slice of `MaxChunkPayloadSize` bytes (final chunk = remainder).
 3. **`ChunkEndDTO`** (JSON): `TransferId`.
 
-Receiver: Start creates a receiver keyed by `TransferId` (rejected if declared size exceeds `MaxTransferSize`); chunks must arrive in order (offset check = corruption guard; TCP/WS guarantee order); End validates byte and chunk counts and **re-injects** `(InnerFrameType, bytes)` into normal receive processing — a reassembled message is indistinguishable from a single-frame arrival, and a reassembled body that itself parses to chunk messages is a protocol error. **`ChunkCancelDTO`** (JSON) from the sender (cancellation or mid-sequence send failure) tears down the receiver; the prune timer (`Cfg_ReceiverTimeout`, default 120 s, floor 5 s) collects abandoned transfers. Concurrent transfers interleave by `TransferId`; other channels' traffic interleaves between chunk frames. No acks, no retransmission (reliable ordered transports; the write semaphore provides backpressure). The pre-v3 string-based chunk protocol (`ChunkDTO` string slices keyed by envelope MsgId) is superseded and documented only by OI-18/OI-19.
+Receiver: Start creates a receiver keyed by `TransferId` (rejected if declared size exceeds `MaxTransferSize`); chunks must arrive in order (offset check = corruption guard; TCP/WS guarantee order); End validates byte and chunk counts and **re-injects** `(InnerFrameType, bytes)` into normal receive processing — a reassembled message is indistinguishable from a single-frame arrival, and a reassembled body that itself parses to chunk messages is a protocol error. **`ChunkCancelDTO`** (JSON) from the sender (cancellation or mid-sequence send failure) tears down the receiver; the prune timer (`Cfg_ReceiverTimeout`, default 120 s, floor 5 s) collects abandoned transfers. Concurrent transfers interleave by `TransferId`; other channels' traffic interleaves between chunk frames. No acks, no retransmission (reliable ordered transports; the write semaphore provides backpressure). The pre-v3 string-based chunk protocol (`ChunkDTO` string slices keyed by envelope MsgId) is retired; its record lives in Git history.
 
 #### 9.1.6 Version Compatibility Posture
 
@@ -607,19 +607,19 @@ The principal flows are narrated in §5.2 (send, receive, connection establishme
 
 ### 9.3 User Workflow Narration
 
-Not applicable: the library has no end-user workflows; consumer-facing usage flows belong to the implementation guide (OI-16).
+Not applicable: the library has no end-user workflows; consumer-facing usage flows belong to the implementation guide (`OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`).
 
 ---
 
 ## 10. API Surface
 
-Not applicable in the HTTP sense: this is a library distributed as NuGet packages; its surface is the public API of its types, documented in §8 and in the consumer implementation guide (OI-16).
+Not applicable in the HTTP sense: this is a library distributed as NuGet packages; its surface is the public API of its types, documented in §8 and in the consumer implementation guide (`OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`).
 
 ---
 
 ## 11. Infrastructure
 
-Not applicable as deployment topology: this is a NuGet-distributed library; deployment shape is the consumer's concern. Build/publish infrastructure (Jenkins pipeline, GitVersion, BaGet feed) is part of this repository's operational surface and its known issues are captured in OI-08.
+Not applicable as deployment topology: this is a NuGet-distributed library; deployment shape is the consumer's concern. Build/publish infrastructure (Jenkins pipeline, GitVersion, BaGet feed) is part of this repository's operational surface; its deliberate posture is recorded in KD-01 and KD-02.
 
 ---
 
@@ -675,7 +675,7 @@ Reassembly lives in the session layer at the existing chunking intercept step, k
 
 **Alternatives considered.** A dedicated chunk-data frame type in the registry (rejected: WebSocket has no frame registry, so it would need a message-layer discriminator anyway — the same question answered at different layers per transport, recreating the hand-mirrored-drift pattern; and registry values are permanent, the wrong place for session-protocol concepts that may evolve). All-binary-native control messages (rejected: control is tiny and per-transfer so there is nothing to save, and under KD-04 a metadata-only binary message degenerates into an envelope-equivalent while abandoning the existing internal-message machinery). Base64 chunk data inside JSON envelopes (rejected: the encoding tax chunking exists to avoid). An ack/request handshake (rejected: adds no correctness on reliable ordered transports).
 
-**Consequences.** `LargeMsgSender`/`LargeMsgReceiver` are rebuilt byte-based; the Start/End/Cancel DTOs are reshaped; `ChunkDTO` retires; `ChunkAckDTO`/`ChunkRequestDTO` remain outside the protocol (their reserved-vs-deleted disposition stays with OI-15). The OI-18 and OI-19 defects are resolved by replacement rather than patching. The chunk-size arithmetic measures the real encoded chunk-message size rather than assuming fixed headroom. The rebuilt classes are part of the common-elements candidate set (OI-40).
+**Consequences.** `LargeMsgSender`/`LargeMsgReceiver` are rebuilt byte-based; the Start/End/Cancel DTOs are reshaped; `ChunkDTO` retires; `ChunkAckDTO`/`ChunkRequestDTO` are deleted — reliable ordered transports plus the write semaphore's backpressure need neither acks nor retransmit requests, and the capabilities that would need message types of this kind (chunking over an unreliable/unordered transport, or resumable transfers across reconnects) would get freshly designed DTOs against the v3 transfer model rather than reviving the pre-v3, string-slice-shaped classes. The OI-18 and OI-19 defects are resolved by replacement rather than patching. The chunk-size arithmetic measures the real encoded chunk-message size rather than assuming fixed headroom. The rebuilt classes are part of the common-elements candidate set (OI-40).
 
 ### KD-06 — Three size limits govern messaging: frame, chunk payload, and transfer
 
@@ -685,7 +685,7 @@ Reassembly lives in the session layer at the existing chunking intercept step, k
 - **`MaxChunkPayloadSize`** (default: derived, fit-to-frame) — the most payload bytes one chunk-data message may carry. Defaults to what fits under `MaxFrameSize` after the measured chunk-message overhead; configurable lower so bulk transfers use smaller frames than ordinary messages, giving latency-sensitive channels more frequent interleave slots. The library clamps it so a chunk frame can never exceed `MaxFrameSize`.
 - **`MaxTransferSize`** (default 64 MiB) — the most total bytes a chunked message may reassemble to; the actual message-size ceiling in the chunked world, and the receiver's memory defense. Enforced at ChunkStart (an over-declared `TotalSize` rejects the transfer with a Cancel) and re-checked during accumulation (receipt exceeding the declaration is a protocol error), so an under-declaring sender cannot bypass the gate.
 
-Relationships are enforced, not merely documented: `MaxChunkPayloadSize` is clamped to fit `MaxFrameSize`; `MaxTransferSize` must be at least `MaxFrameSize`. All three carry expressive XML documentation stating what each limit protects and how to coordinate the values, and the same content appears in this spec's §9 (when authored) and in the consumer implementation guide (OI-16).
+Relationships are enforced, not merely documented: `MaxChunkPayloadSize` is clamped to fit `MaxFrameSize`; `MaxTransferSize` must be at least `MaxFrameSize`. All three carry expressive XML documentation stating what each limit protects and how to coordinate the values, and the same content appears in §9.1.1 and in the consumer implementation guide.
 
 **Rationale.** Once chunking works, the frame cap stops being the message-size limit and becomes a fairness knob; the transfer cap takes over as the true ceiling and closes the unbounded-reassembly hole (OI-19); the chunk-payload knob exists specifically for the owner's share-the-pipe goal — tuning bulk-transfer granularity independently of the ordinary-message cap.
 
@@ -700,100 +700,6 @@ Additionally, the `FrameTypes` registry permanently reserves value **123 (0x7B, 
 **Rationale.** The LibVersion mechanism exists for exactly this and costs one registry entry. But version negotiation rides *inside* frames, so it cannot guard across a framing break: a v2 peer and a v3 peer misparse each other from the first frame, before any registration message is ever interpreted. The frame-type byte is therefore the real wild-mismatch detector — a v2 client against a v3 server dies immediately and diagnosably on the reserved 0x7B; a v3 client against a v2 server fails registration (its preamble byte corrupts the JSON parse) and cycles on the registration-reply timeout, which is the owner's accepted early-fail behavior for a scenario that is not supposed to occur. The version entry's primary roles are documentation, same-framing capability gating, and rejection of a v3 client by an older server that validates the announced range.
 
 **Consequences.** `LibVersions.cs` (TCP) gets the v3 entry; the corresponding `WSLibVersions.cs` in the WebSocket library gets its own v3 entry when that library adopts the shared elements (OI-42). Server registration validation accepts [1..3]. Version semantics are documented in the file itself and in §9.1.3; the file's external wiki links are repointed to the owner's new wiki per OI-43. Server-side capability announcement in the registration reply remains with OI-41.
-
----
-
-## 13. Open Items
-
-### OI-01 — Backport WebSocket class organization to OGA.WSClient_Base, then remove the files
-
-`WSClient_v1_Abstract.cs` (client SP), `WSEndpoint.cs` and `WSConnectionMgr_Base.cs` (server SP) are unused in this library; WebSocket connectivity lives in the separate OGA.WSClient_Base library. These three files hold the owner's latest attempt at layering WebSocket transport over the `Client_v1_Abstract` type. The owner will backport how these three classes are organized into OGA.WSClient_Base; after the backport, the files are deleted from this repository. Until then, reviews, tests, and documentation in this effort disregard these files. Note: the recent binary-frame commit (a9f960d) touched `WSEndpoint.cs` as well as the shared base classes; the base-class binary-frame members are unaffected by this removal.
-
-### OI-02 — Inverted keepalive pong-timeout comparison ⚠ NEEDS YOUR REVIEW
-
-**Intended function (confirmed with owner).** The client keepalive takes credit for all received traffic: every received message of any type refreshes `LastReceivedTime` (`TCPClient_v1_Abstract.CALLBACK_Receiver_Message_Received`, line ~811), so a ping is sent only when the connection has been quiet for `Cfg_KeepAliveInterval` (check at `Client_v1_Abstract.cs` line ~1781 — correct). A received pong resets the in-flight flag `_keepAliveStatus` (line ~3204 — correct). `LastReceivedTime` is deliberately the timeout baseline, rather than ping-send time, so that any received traffic proves remote-end liveness and defers dead-peer declaration. The take-credit architecture works as designed and SHALL be preserved.
-
-**The flaw.** The last-resort branch — ping in flight, nothing received at all — has its comparison inverted (`Send_KeepAlive_IfNeeded_Async`, line ~1756): `ctime.CompareTo(LastReceivedTime.AddSeconds(Cfg_KeepAlive_ReplyMaxDuration)) < 0` declares the connection dead when the current time is still *within* the reply window, and returns "still waiting" on every tick once the window has passed. With default timing (interval 15 s, reply window 20 s, connection-loop tick ~5 s), the in-flight branch is first evaluated at roughly the deadline, so in practice: (a) a truly silent remote end is never declared dead by the keepalive — connection loss is only detected by other means (send failures, receive-loop errors); and (b) in the narrow case where a loop tick lands inside the reply window with a ping outstanding and no pong yet, the connection would be declared dead prematurely.
-
-**Recommendation.** Invert the comparison (`ctime > LastReceivedTime + Cfg_KeepAlive_ReplyMaxDuration` → dead), keeping `LastReceivedTime` as the baseline per the intended take-credit semantics. Note the post-fix semantics: dead is declared when *total silence* exceeds `Cfg_KeepAlive_ReplyMaxDuration`, which gives the server a meaningful reply window only when `Cfg_KeepAlive_ReplyMaxDuration > Cfg_KeepAliveInterval + loop tick`; the defaults (20 vs. 15 + 5) sit exactly on that boundary.
-
-**Risk assessment (owner-reviewed).** The fix is client-local decision logic: no wire change, no client/server version coordination. The server answers pings unconditionally (`Endpoint_Abstract.Process_InternalMessage`, "ping" branch, line ~2361 — no configuration gate), so healthy servers are unaffected. Behavior changes per consuming application only as it adopts the updated package, giving a naturally incremental rollout; `Cfg_Disable_KeepAlive` remains a per-consumer escape hatch. Connections newly dropped by the fix are half-open/zombie connections that today sit undetected indefinitely — dropping them is the designed behavior. Residual exposures: (a) a server whose receive/dispatch path is blocked longer than the reply window by a consumer handler will now cause client reconnect cycles (previously tolerated silently); (b) configurations with `Cfg_KeepAliveInterval >= Cfg_KeepAlive_ReplyMaxDuration` leave only one loop tick of pong grace — addressed by the guard below.
-
-**Agreed fix scope.** The fix release SHALL include:
-1. The comparison inversion, preserving `LastReceivedTime` as the timeout baseline.
-2. A configuration-relationship guard or floor ensuring the pong deadline falls no earlier than a couple of loop ticks after the ping was sent.
-3. XML doc comments on the relevant delay properties (`Cfg_KeepAliveInterval`, `Cfg_KeepAlive_ReplyMaxDuration`, `Cfg_Connected_InnerLoop_Delay`) explaining how the intervals coordinate and the required relationship between them.
-4. Corresponding delay-coordination guidance in the consumer implementation guide (OI-16).
-5. A unit test for the client-side pong-timeout path. Existing keepalive tests in `TCPClient_v1_Tests.cs` cover the server-side dead-client timeout and keepalive-disable request only; no test exercises the client's pong-timeout branch. The new test rigs an endpoint to swallow pings and asserts the client declares the connection lost within the configured window (this test fails against current code, anchoring the regression).
-
-Status: closed (owner, 2026-08-03). Items 1, 2, 3, and 5 shipped in commit 8b8df28 (pushed, released); item 4 landed with the implementation guide. The regression test anchors the fix. The owner will verify in-environment behavior after the current update train lands; no further tracking here.
-
-### OI-03 — MessageEnvelope.ToLogString defects ⚠ NEEDS YOUR REVIEW
-
-`MessageEnvelope.ToLogString()` prints `MsgId` on the `Message_Type` line (copy/paste slip), and every `"label = " + value ?? ""` line null-coalesces the already-non-null concatenation result rather than the value (operator precedence). Log-only impact; recommendation: fix the field reference and parenthesize the coalesces.
-
-Status: implemented (owner-approved, 2026-08-03), including the same-pattern siblings OI-37 flagged: `ClientInfo.ToLogString` (where the precedence bug also swallowed each line's closing quote), both `ConnectionEntry_v1` copies, and the `corelationid` prop-composition sites; the chunking DTOs' `ToLogString` methods no longer exist post-rebuild. Log-output-only change. Closes on release.
-
-### OI-04 — async void chunk processing
-
-`ProcessChunkingMessage` is `async void` on both client and server sides. Exceptions thrown in it are unobservable by callers and can crash the process; completion cannot be awaited. The review pass identified concrete reachable paths: a duplicate `ChunkStart` (or the un-removed receiver of OI-19) makes `Dictionary.Add` throw at `Client_v1_Abstract.cs:2973`, and the client dispatches the reassembled message inline at `:3082`, so a consumer handler's exception escapes into the async-void machinery. Both are remotely triggerable. Correctness also currently depends on the `AcceptChunk*` calls completing synchronously — introducing a real `await` in them would let frame N+1 be processed before frame N, which the receiver's strict in-order offset check would then reject. Candidate fix: `async Task` with an explicitly observed continuation, or restructure the call site.
-
-Status: resolved by replacement in Release 2. Chunk control processing is synchronous by design in the rebuild (`ProcessChunkingControl` performs no awaits), so failures are observable by the caller and ordering cannot slip; there is no `async void` anywhere in the chunking path. Closes on release.
-
-### OI-05 — Test coverage gaps
-
-Areas with no direct test coverage: the chunking helpers (`LargeMsgSender`, `LargeMsgReceiver`) in isolation, chunk-cancel/timeout/prune paths, `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, and `cCustom_Serializer` (one test for ~1,580 lines). The binary-frame members added in a9f960d are also untested.
-
-The review pass sharpened the priority: **an end-to-end large-message test over a real TCP connection, in both directions, would have caught OI-18** (client-to-server chunked transfers never complete; chunk frames exceed the frame cap). That test is the first one to write, before the OI-18 fix, so it anchors the regression the same way the keepalive test anchors OI-02. Other high-value additions suggested by the findings: a message containing non-BMP characters large enough to chunk (OI-19 surrogate splitting), a payload that is quote-dense enough to expose the char-vs-byte escaping margin (OI-18b), registration props containing colons and quotes (OI-29), runtime channel-adapter registration while traffic flows (OI-25), and a dispose-during-active-receive race (OI-20). Note the existing client suite binds a hardcoded LAN address, so new tests should use loopback to stay portable (see OI-38).
-
-Status: substantially addressed across the two releases. Now covered: the chunking path end-to-end in both directions with json and binary inner types, non-BMP payloads, transfer-limit rejection, and the framing-mismatch detectors (`V3Framing_Tests`); keepalive regression (`KeepAlive_Tests`); dispatcher concurrency and kind enforcement (`ChannelDispatcher_Tests`); the single-use lifecycle (`ClientLifecycle_Tests`); and the rewritten receive loop's contract (`ReceiveLoop_Test`, reworked for v3). Remaining gaps, narrowed: `ExpBackoff_wJitter`, `cBuffer`, `cEndpoint_Metrics`, `ConnectionMgr_Abstract` in isolation, `cCustom_Serializer` breadth (tied to OI-11's disposition), and registration-prop parsing edge cases (OI-29).
-
-Closure (2026-08-03): the narrowed gaps are filled — registration-prop edge cases landed with OI-29 (`PropString_Tests` plus the hostile-value E2E test), and the final tranche adds `SharedComponents_Tests` (`ExpBackoff_wJitter` including OI-37 regression anchors for the jitter clamp and cancellation contract, `cBuffer`, `cEndpoint_Metrics`) and `ConnMgr_Isolation_Tests` (the manager base without sockets: lifecycle, the new-connection gate, config floors, empty-registry purges). `cCustom_Serializer` breadth stays deliberately untested per OI-11's kept-whole disposition — its unexercised paths are documented as such, with OI-32 as the defect record. Closed.
-
-### OI-06 — TESTINGSRVR_* forked server copies have drifted ⚠ NEEDS YOUR REVIEW
-
-`Testing_CommonHelpers_SP` contains forked copies of the server classes (`TESTINGSRVR_Endpoint_Abstract`, plus listener/endpoint/model copies) declared into the real `OGA.TCP.Server` namespaces, because client test targets include frameworks the server library does not support. Client/server compatibility is therefore validated against a snapshot rather than against the shipping server code.
-
-This is a test-fidelity concern only — there is no packaging exposure. `Testing_CommonHelpers_SP` is imported exclusively by test projects (all client and server test csprojs, plus the isolated NET452 test solution); no library target project imports it, so the forked copies never reach either published package.
-
-The drift is no longer hypothetical. The binary-frame receive capability added to the real `Endpoint_Abstract` in commit a9f960d was never mirrored into the fork: `Process_ReceivedBinaryFrame_from_Client`, `Cfg_BinaryFrameHandling_IsFatal`, and `OnBinaryFrameReceived` appear 4, 4, and 6 times respectively in the real class and **zero** times in the fork (fork 2,489 lines vs. real 2,572). Chunking, keepalive/silence detection, chunk-cancel handling, and connection-entry population are still present in both. Practical consequence: client-side binary-frame behavior cannot be exercised against the fork at all, which matters directly for OI-13 and OI-36.
-
-Options to assess: re-sync the fork and add a scripted diff check to catch future divergence; consolidate so the tests build the real server sources for the frameworks that support them; or accept the drift, document the fork as a frozen v1/v2-protocol reference server, and test newer capabilities only in the server test projects.
-
-Status: the fork was re-synced to the v3 protocol as part of Release 2 (typed framing, frame-send choke, binary receive path, rebuilt chunking, v3 registration range) — it now exercises the full v3 wire against the real client, including the new binary and chunked-transfer tests. One deliberate divergence: the fork has no channel-adapter machinery, so received binary messages land on a fork-specific `OnBinaryMessageReceived` delegate.
-
-**Resolution of the structural question (owner decision, 2026-08-03): the copies stay, documented, for as long as the client library supports .NET Framework.**
-
-*Why the copies exist.* The owner supports fielded client implementations on .NET Framework and retains those client targets for now; client tests on those frameworks need a live server to talk to, and the server library (correctly) has no netfx targets. Compiling copied server classes into the client test projects is the only arrangement that satisfies both — the alternatives were each rejected: `#if` guards to make production server sources compile on netfx pollute the server code for a test-only need; adding netfx targets to the server package misrepresents its supported platforms; dropping the pre-NET5 client test projects orphans the coverage for those fielded implementations.
-
-*Drift management.* The sync obligation is documented at **both ends** of every pair. Each `TESTINGSRVR_` class header states its purpose, the sync expectation, and (on the endpoint) the deliberate divergences a future sync must not "fix"; and each **origin** class header (`Endpoint_Abstract`, `TCPEndpoint`, `cListener`, `ClientInfo`, `ConnectionEntry_v1`, and the `Simple_TCPListener` harness) carries the reciprocal SYNC NOTE: **modifying an origin class requires mirroring the change into its `TESTINGSRVR_` copy**, so client testing remains viable and correct while the client library retains .NET Framework support. This is part of the definition of done for any change to these classes. The drift detector of last resort is the client suite itself: protocol changes break the fork's compile and then its tests, loudly — demonstrated this release, and again by the currency audit below. OI-40's common-elements package, when taken up, shrinks the copies further (the shared substrate would be package-referenced; only the server-specific endpoint/manager/listener logic remains copied).
-
-*Removal condition and migration recipe — execute when the client library drops its .NET Framework targets:*
-1. Delete the `Helper_ServerClasses/TESTINGSRVR_*.cs` files from `Testing_CommonHelpers_SP` and their projitems entries.
-2. Give each remaining client test csproj a project reference to the matching `OGA.TCP.Server.Lib_NETx` csproj (or import `OGA.TCP.Server.Lib_SP` directly, as the server test projects do).
-3. In the client test sources, replace the `TESTINGSRVR_` type names with the real ones (`Endpoint_Abstract`, `TCPEndpoint`, `cListener`, `ClientInfo`, `ConnectionEntry_v1`), and replace `TESTINGSRVR_Simple_TCPListener` with the server test suite's `Simple_TCPListener` harness (relocated into a shared test-helper location both suites can import).
-4. Rework the fork-specific binary delegate usage: tests using `OnBinaryMessageReceived` move to the real endpoint's channel adapters or its `OnBinaryFrameReceived` no-channel fallback.
-5. Run both full suites; the client suite's behavior should be unchanged, since the fork was behaviorally synced.
-
-*Currency audit (2026-08-03, owner-requested).* Each copy was diffed against its origin to confirm the fork tests current server behavior. Three staleness findings, all mirrored: `TESTINGSRVR_cListener` carried the pre-OI-27 defects (unguarded end-accept, hardcoded backlog, message-text port-in-use detection); `TESTINGSRVR_TCPEndpoint.Metrics` lacked the OI-33 before-first-connection guard; `TESTINGSRVR_Endpoint_Abstract.Stop_Async` lacked the OI-24 cancel-first ordering and did not clear the binary delegate. Verified current without action: `TESTINGSRVR_ClientInfo` (lacks only the unused diagnostic `ToLogString`; its `LogDelta` was always correct), `TESTINGSRVR_ConnectionEntry_v1` (identical), `TESTINGSRVR_Simple_TCPListener` (member-identical to the server-tests harness), and the endpoint's remaining member gaps are exactly the documented channel-dispatcher divergence.
-
-This item stays open as the tracker for that future removal.
-
-### OI-07 — (Closed)
-
-### OI-08 — (Closed by KD-02)
-
-### OI-09 — (Cancelled)
-
-### OI-10 — (Closed by §9.1.3)
-
-### OI-11 — cCustom_Serializer breadth vs. actual usage
-
-Usage is now established: repository-wide, the only production callers of `cCustom_Serializer` are `Serialize_Integer32` (frame-length writers in `TCPClient_v1_Abstract` and `TCPEndpoint`) and `Deserialize_Integer32` (the frame-length reader in `cReceiveLoop`), plus the `size_of_Int32` constant. Every other type — bool, short, long, float, double, DateTime, Guid, Version, string, string[] — is referenced only from within the class and its own test file. So roughly 95% of the codec is unused by the wire protocol, and several of its unused paths are defective (OI-32). Decide its disposition: keep and repair it as the designated primitive codec for the binary work (OI-13), trim it to the Int32 methods actually in use, or leave as-is with its status documented.
-
-Resolution (owner decision, 2026-08-03): **kept whole, documented.** The class is a copy from the owner's OGA.Common library, carried into this repository so OGA.TCP.Lib builds without that dependency; the authoritative implementation lives there, and pruning the copy would obscure its lineage. The type now carries header commentary citing its source, why the copy exists, that only the Int32 codec is exercised by this library's wire protocol, and a pointer to OI-32's defect record for the unexercised paths. The same commentary is to be added to the WebSocket library's copy (OI-51 backport list). Closed.
-
-### OI-12 — (Closed)
 
 ### KD-08 — The channel subsystem becomes one shared, kind-aware substrate
 
@@ -834,227 +740,132 @@ Resolution (owner decision, 2026-08-03): **kept whole, documented.** The class i
 
 A pause capability — stopping a client while retaining its delegate/adapter graph until Dispose wipes it — was considered and deferred: it would only earn its place if constructing a configured client instance proves impractical for some consumer, and no near-term use case exists. The codebase is deliberately not structured for it now; if the need arises, it becomes a new decision.
 
+---
+
+## 13. Open Items
+
+### OI-01 — Backport WebSocket class organization to OGA.WSClient_Base, then remove the files
+
+`WSClient_v1_Abstract.cs` (client SP), `WSEndpoint.cs` and `WSConnectionMgr_Base.cs` (server SP) are unused in this library; WebSocket connectivity lives in the separate OGA.WSClient_Base library. These three files hold the owner's latest attempt at layering WebSocket transport over the `Client_v1_Abstract` type. The owner will backport how these three classes are organized into OGA.WSClient_Base; after the backport, the files are deleted from this repository. Until then, reviews, tests, and documentation in this effort disregard these files. Note: the recent binary-frame commit (a9f960d) touched `WSEndpoint.cs` as well as the shared base classes; the base-class binary-frame members are unaffected by this removal.
+
+### OI-02 — (Closed by §9.1.4)
+
+### OI-03 — (Closed)
+
+### OI-04 — (Closed by KD-05)
+
+### OI-05 — (Closed)
+
+### OI-06 — TESTINGSRVR_* forked server copies: sync obligation and removal tracker
+
+`Testing_CommonHelpers_SP` carries forked copies of the server classes (`TESTINGSRVR_Endpoint_Abstract`, `TESTINGSRVR_TCPEndpoint`, `TESTINGSRVR_cListener`, `TESTINGSRVR_ClientInfo`, `TESTINGSRVR_ConnectionEntry_v1`, and the `TESTINGSRVR_Simple_TCPListener` harness), declared into the real `OGA.TCP.Server` namespaces. They exist because the owner supports fielded client implementations on .NET Framework and retains those client compile targets: client tests on those frameworks need a live server to talk to, and the server library (correctly) has no netfx targets, so compiling copied server classes into the client test projects is the only arrangement that satisfies both. The alternatives were each rejected: `#if` guards to make production server sources compile on netfx pollute the server code for a test-only need; adding netfx targets to the server package misrepresents its supported platforms; dropping the pre-NET5 client test projects orphans the coverage for those fielded implementations. This is a test-fidelity concern only — `Testing_CommonHelpers_SP` is imported exclusively by test projects, so the copies never reach either published package.
+
+*Drift management.* The sync obligation is documented at **both ends** of every pair. Each `TESTINGSRVR_` class header states its purpose, the sync expectation, and (on the endpoint) the deliberate divergences a future sync must not "fix" — the fork has no channel-adapter machinery, so received binary messages land on a fork-specific `OnBinaryMessageReceived` delegate. Each **origin** class header (`Endpoint_Abstract`, `TCPEndpoint`, `cListener`, `ClientInfo`, `ConnectionEntry_v1`, and the `Simple_TCPListener` harness) carries the reciprocal SYNC NOTE: **modifying an origin class requires mirroring the change into its `TESTINGSRVR_` copy**, so client testing remains viable and correct while the client library retains .NET Framework support. This is part of the definition of done for any change to these classes. The drift detector of last resort is the client suite itself: protocol changes break the fork's compile and then its tests, loudly. OI-40's common-elements package, when taken up, shrinks the copies further (the shared substrate would be package-referenced; only the server-specific endpoint/manager/listener logic remains copied).
+
+*Removal condition and migration recipe — execute when the client library drops its .NET Framework targets:*
+1. Delete the `Helper_ServerClasses/TESTINGSRVR_*.cs` files from `Testing_CommonHelpers_SP` and their projitems entries.
+2. Give each remaining client test csproj a project reference to the matching `OGA.TCP.Server.Lib_NETx` csproj (or import `OGA.TCP.Server.Lib_SP` directly, as the server test projects do).
+3. In the client test sources, replace the `TESTINGSRVR_` type names with the real ones (`Endpoint_Abstract`, `TCPEndpoint`, `cListener`, `ClientInfo`, `ConnectionEntry_v1`), and replace `TESTINGSRVR_Simple_TCPListener` with the server test suite's `Simple_TCPListener` harness (relocated into a shared test-helper location both suites can import).
+4. Rework the fork-specific binary delegate usage: tests using `OnBinaryMessageReceived` move to the real endpoint's channel adapters or its `OnBinaryFrameReceived` no-channel fallback.
+5. Run both full suites; the client suite's behavior should be unchanged, since the fork was behaviorally synced.
+
+This item stays open as the tracker for that future removal.
+
+### OI-07 — (Closed)
+
+### OI-08 — (Closed by KD-02)
+
+### OI-09 — (Cancelled)
+
+### OI-10 — (Closed by §9.1.3)
+
+### OI-11 — (Closed)
+
+### OI-12 — (Closed)
+
 ### OI-13 — (Closed by KD-09)
 
 ### OI-39 — (Closed by KD-09)
 
 ### OI-14 — (Closed)
 
-### OI-15 — (Closed)
-
-Resolution (owner decision, 2026-08-03): `ChunkAckDTO` and `ChunkRequestDTO` are deleted. They were reserved during the original chunking work in case the protocol needed them, and the v3 protocol establishes it does not: **acks** detect loss and provide flow control, but TCP/WebSocket are reliable ordered streams (no lost-segment case exists on a live connection) and the write semaphore already provides send-side backpressure; **retransmit requests** have no reachable scenario — a sequence gap on a live connection is treated as corruption and abandons the transfer, and a dead connection kills its transfers entirely, since transfers deliberately do not span connections. What WOULD require message types of this kind: chunking over an unreliable/unordered transport, or **resumable transfers across reconnects** (a receiver resuming from a byte offset on a new connection) — the latter being a substantial new capability whose DTOs would be designed fresh against the v3 transfer model (TransferId, byte offsets/ranges), which these pre-v3, string-slice-shaped classes did not fit. `ChunkCancelDTO` remains a live protocol member (KD-05). Deleted inside the v3 breaking train, so the public-surface removal rides the already-breaking release.
+### OI-15 — (Closed by KD-05)
 
 ### OI-16 — (Closed)
 
-Resolution: the consumer implementation guide is authored (`docs/OGA.TCP.Lib_IMPLEMENTATION_GUIDE.md`) and kept current with the v3 build; the owner will review it after the library updates land, without tracking here. The one piece carried out of this item: the repository README still needs its high-level library overview (both nuspecs point `releaseNotes` at the README and embed it as the package readme) — executed as part of the release-train wrap-up.
-
 ### OI-17 — (Closed by §13)
 
-### OI-18 — Chunking is non-functional over TCP ⚠ NEEDS YOUR REVIEW
+### OI-18 — (Closed by KD-05)
 
-Two independent defects mean the large-message chunking feature cannot work over the TCP transport as shipped. Both were verified directly in code.
+### OI-19 — (Closed by KD-05)
 
-**(a) The server keys receivers by the wrong identifier.** `Endpoint_Abstract.cs:1968` passes the *envelope* id (`me.MsgId`) into `ProcessChunkingMessage`, and the receiver is stored under it (`:2131`) and looked up by it (`:2163`, `:2220`, `:2288`). But every frame gets a fresh envelope id — `Client_v1_Abstract.cs:2242` assigns `me.MsgId = GetNextMessageId()` inside the per-frame send — so the id under which the receiver was stored never matches any subsequent chunk frame. The client side keys by the logical transfer id `dto.MsgId` (`Client_v1_Abstract.cs:2973`, `:3005`, `:3062`), which is correct. Net effect: **client-to-server chunked transfers never complete**; every chunk logs "Received message chunk without a chunk start message", the message is lost silently, and an orphaned receiver accumulates per attempt until the 120-second prune. Server-to-client transfers work.
+### OI-20 — (Closed by §5.3)
 
-**(b) Chunk frames exceed the frame cap.** The chunking threshold and chunk size are character-based (`Client_v1_Abstract.cs:2105`, `:2118` — `MaxMessageSize - 1024` = 1,047,552 chars), but each chunk's `Data` slice is JSON-escaped twice before hitting the wire — once serializing `ChunkDTO`, again as the envelope's `Data` string — and only 1024 bytes of headroom exist. Because the chunked payload is itself JSON, it is quote-dense, and each `"` expands to `\\\"`. A measured worst case produced a 1,591,749-byte frame against the 1,048,576-byte cap. `cReceiveLoop.cs:1097` treats an oversized frame as fatal, so the feature tears down the connection it exists to protect. Note the send-side size guard is deliberately skipped when chunking is enabled (`:2220-2237`), so nothing else catches it. The same char-vs-byte confusion also lets a *non-chunked* message just under the threshold exceed the cap after single-level escaping.
+### OI-21 — (Closed by §5.3)
 
-Resolution path decided: these defects are resolved by replacement rather than patching — the KD-05 chunking rebuild removes both failure classes by construction. This item stays open as the defect record until the rebuild ships. Until then, consumers should be told the practical message ceiling is a single frame.
+### OI-22 — (Closed by §5.3)
 
-Status: resolved by replacement in Release 2. The KD-05 rebuild keys receivers by the explicit TransferId (defect a cannot recur) and slices encoded bytes with per-segment byte-true measurement (defect b cannot recur). The end-to-end large-message tests OI-05 called for — both directions, json and binary inner types — are in the client suite (`V3Framing_Tests`) and pass over loopback. Closes on release.
+### OI-23 — (Closed by §5.3)
 
-### OI-19 — Chunking data-integrity and lifecycle defects ⚠ NEEDS YOUR REVIEW
+### OI-24 — (Closed)
 
-Beyond OI-18, the chunking subsystem carries defects that produce silent corruption or leaks once the transfer path works:
+### OI-25 — (Closed)
 
-- **Surrogate-pair splitting.** `LargeMsgSender.cs:353` slices with `Substring` on UTF-16 code units, so a chunk boundary can split a surrogate pair. The lone surrogate survives JSON serialization and is replaced with U+FFFD at UTF-8 encoding, so a non-BMP character (e.g. an emoji in user content) silently becomes two replacement characters. Character counts are preserved, so offsets still line up and nothing reports an error.
-- **Client never removes a completed receiver** (`Client_v1_Abstract.cs:3062-3084`; the server does, at `Endpoint_Abstract.cs:2238`). The reassembled message stays pinned for up to `Cfg_ReceiverTimeout`; a duplicate `ChunkEnd` re-dispatches the entire message a second time; and a reused MsgId makes `Dictionary.Add` throw inside an `async void` (see OI-04) — remotely triggerable.
-- **No completeness validation.** `LargeMsgReceiver.cs:155-191` never compares accumulated bytes to `MessageSize` or chunk count to `ChunkCount`, so if any chunk was rejected, the End message dispatches a truncated payload as if complete.
-- **ChunkCancel is sent but never handled.** The intercept lists comment out `ChunkCancelDTO` (`Client_v1_Abstract.cs:2793`, `Endpoint_Abstract.cs:1960`), so a cancel frame falls through to the *application* dispatch as a bogus message type, and the cancel-handling branches on both sides are unreachable. Sender-side aborts therefore never tear down the peer's receiver.
-- **Sender ignores the send result of the Start and End frames** (`LargeMsgSender.cs:245`, `:279`), so a failed End frame reports overall success while the message silently evaporates at the receiver.
-- **Unbounded receiver growth.** Declared `MessageSize`/`ChunkCount` are never enforced, and each chunk refreshes the idle timer, so a peer can stream indefinitely under one MsgId.
-- **`Determine_Chunk_Count` divides by the wrong constant** (`LargeMsgSender.cs:372`, `:384` use `CONST_MAX_MessageSize` instead of `MaxChunkSize`), understating `ChunkCount` — latent today, but it would poison the completeness check that fixes the third item above.
+### OI-26 — (Closed)
 
-Resolution path decided: resolved by the KD-05 rebuild rather than patched individually. This item stays open as the defect record until the rebuild ships.
+### OI-27 — (Closed)
 
-Status: resolved by replacement in Release 2. Byte-based slicing removes surrogate splitting (verified by a non-BMP payload test); receivers are removed on End/Cancel/rejection under a lock; completeness is validated byte-true before dispatch; ChunkCancel is intercepted and handled on both sides; the sender checks every control and segment send result and issues a best-effort cancel on failure; MaxTransferSize is enforced at start declaration and during accumulation (over-limit test in `V3Framing_Tests`). Closes on release.
+### OI-28 — (Closed)
 
-### OI-20 — Receive-loop teardown can crash the process ⚠ NEEDS YOUR REVIEW
+### OI-29 — (Closed)
 
-In `cReceiveLoop.cs`, the try/catch around the read callback ends at line 874; all frame-processing code after it (through `Process_Received_MessageBuffer`) runs unprotected on an IO-completion thread. `CloseDown()` concurrently disposes and nulls the buffer (`:388-396`) with no synchronization against an in-flight callback. A read completing while the owner disposes the loop — or while the frame-read timeout fires and calls `CloseDown` — dereferences the nulled buffer at `:979` or `:1424`, throwing a `NullReferenceException` on a threadpool thread with no handler, which terminates the process. Candidate fix: a close/callback gate (lock or interlocked state) plus wrapping the post-`EndRead` processing.
+### OI-30 — (Closed)
 
-Status: resolved by replacement in Release 2. The rewritten `cReceiveLoop` is a single async read pump with no shared mutable buffers between a callback and teardown; the entire pump body is exception-guarded, lifecycle transitions are serialized under one lock, and reads abandoned at closedown have their eventual faults observed. Closes on release.
-
-### OI-21 — Receive loop caps throughput at a few messages per second ⚠ NEEDS YOUR REVIEW
-
-`cReceiveLoop.cs` blocks a threadpool thread with `Thread.Sleep(100)` on every read-callback entry (`:687`), before every body-read queue (`:519`), and in `CloseDown` (`:383`). A single message therefore costs roughly 300 ms of blocked thread time (length callback + body queue + body callback), limiting a connection to roughly 3–10 messages per second and holding a blocked thread per active connection. The sleeps appear to exist to let a cancellation token settle before disposal; a proper CTS lifecycle would remove the need. This is a scalability ceiling on a live service and worth measuring before and after.
-
-Status: resolved by replacement in Release 2. The rewritten pump contains no `Thread.Sleep` and blocks no threadpool thread between frames. Informal measurement from the suite's 10 MB chunked-transfer test: ~35 MB/s over loopback (thousands of frames per second), versus the old ceiling of roughly 3–10 messages per second. Closes on release.
-
-### OI-22 — Frame validation gaps
-
-`cReceiveLoop.cs:1097` sanity-checks the frame length only against `MaxMessageSize`; a negative length passes and dies later via an incidental `ArgumentOutOfRangeException` from `BeginRead` rather than the check. Separately, `FrameReadTimeout` bounds only a single `BeginRead` and is re-armed on every partial read, and the length-read phase has no timeout at all — so a peer dripping one byte every few seconds holds a connection and its buffer indefinitely (slowloris). Candidate fixes: add `tempint < 0` to the sanity check, and add a whole-frame deadline distinct from the per-read one.
-
-Status: resolved by replacement in Release 2. The v3 preamble validation rejects negative and over-cap lengths explicitly, and `FrameReadTimeout` is now a whole-frame deadline armed at a frame's first byte — a dripping peer is classified Lost at the deadline regardless of how the bytes arrive. Covered by the receive-loop suite's partial-frame tests. Closes on release.
-
-### OI-23 — Frame-read timeout races
-
-`cReceiveLoop.Arm_FrameReadTimeout` (`:619-666`) awaits `Task.Delay` on a token, then re-reads `this._readcts` — which may by then be a *new* CTS belonging to a later frame — and declares the connection `Lost` on a healthy connection. The same block swallows an `ObjectDisposedException` from a concurrently disposed CTS, silently leaving that frame with no read timeout. Candidate fix: capture the CTS (or a generation counter) in the local scope the timeout task closes over.
-
-Status: resolved by replacement in Release 2. The rewritten pump has no per-frame CTS churn: the deadline is a local value raced against each read, so there is no stale-token window to misclassify a healthy connection. Closes on release.
-
-### OI-24 — Client shutdown ordering and dispose do not wait ⚠ NEEDS YOUR REVIEW
-
-Two related defects in the client lifecycle:
-
-- `Client_v1_Abstract.cs:479` calls `Stop_Async().GetAwaiter()` without `GetResult()`, so `Dispose` returns immediately while teardown continues on another thread — and `Logger` is nulled underneath it. The same fire-and-forget pattern appears at `TCPClient_v1_Abstract.cs:733`, `:798`, `:849` (benign only because the TCP override completes synchronously) and in the server at `Endpoint_Abstract.cs:371`, `:1040`.
-- `Stop_Async` closes the transport *first* and cancels `_cts` last, after ~200 ms of delays (`:574-656`). In that window the connection loop can observe `!IsConnected`, treat it as connection loss, and start a full reconnect — including re-registration with the server — after the consumer called Stop. Candidate fix: cancel `_cts` before closing the transport.
-
-Status: implemented in Release 1 (commit 15519fa) — Stop cancels the loop first and disarms the connection-lost delegate; Dispose blocks until teardown completes on both session classes; the fire-and-forget transport closes now wait. Verified by the lifecycle test suite; closes on release.
-
-### OI-25 — Non-thread-safe dictionaries on hot paths ⚠ NEEDS YOUR REVIEW
-
-Three plain `Dictionary` instances are mutated and enumerated from different threads with no synchronization:
-
-- `_ChannelMessageHandlers` (client): written by `Add_ChannelAdapter`/`Remove_ChannelHandler`/`Close_ChannelAdapters` (`Client_v1_Abstract.cs:685`, `:735`, `:745`), read by dispatch on the receive thread (`:3430`). Registering a channel adapter at runtime while traffic flows can throw or corrupt the table — and runtime channel registration is an advertised feature (UR-02).
-- `_largemsgreceivers` on both sides: mutated on the receive thread, enumerated by the prune on the connection-loop thread (`Client_v1_Abstract.cs:2973`/`:3142`; `Endpoint_Abstract.cs:2131`/`:2304`). A chunk arriving during a prune throws inside the loop, killing the prune pass (client) or tearing down the connection (server).
-
-Resolution path decided: the channel-handler dictionaries are resolved by the KD-08 `ChannelDispatcher` (one thread-safe registry replacing both sides' collections), and the `_largemsgreceivers` dictionaries by the KD-05 chunking rebuild. Status: the channel-handler half is implemented in Release 1 (commit 15519fa), with a concurrency test in the dispatcher suite; the receiver-dictionary half is implemented in Release 2 — every access to the receiver registry (register, lookup, remove, prune, clear) is serialized under one lock on both sides. Closes on release.
-
-### OI-26 — Server can leak connection slots indefinitely ⚠ NEEDS YOUR REVIEW
-
-Three findings compound into a resource leak on the server:
-
-- A client can send registration prop `"keepalive":"off"`, which sets `Cfg_Disable_KeepAlive` on the endpoint (`Endpoint_Abstract.cs:2610-2644`) and thereby skips the silence check (`:734`). There is no server-side way to refuse the request.
-- `ConnectionMgr_Abstract`'s reapers (`Purge_OldUnregisteredConnections`, `Purge_LostConnections`) are invoked **only** from `CloseDown()` (`:128-143`) — no timer or background loop calls them anywhere in the library.
-- An endpoint disposed directly (rather than through a manager purge) never fires `DispatchConnectionClosed` — `Stop_Async` clears the delegate instead (`:476-567`) — so its entry stays in the manager's dictionary.
-
-Together: a silent client that opted out of keepalive holds its slot, its endpoint task, and its dictionary entry for the life of the process. Deciding whether the reapers should be scheduled (and whether clients may disable keepalive at all) is an owner call.
-
-Status: implemented (owner decisions, 2026-08-03). Three parts:
-1. **The reapers now run.** `ConnectionMgr_Abstract` gains a maintenance loop (started at `Startup`, cancelled first at `CloseDown`) that runs both purges every `Cfg_ConnectionPurgeInterval` seconds (default 30). `Cfg_Enable_ConnectionPurging` (default true) suspends the passes for testing, per the owner — so connections survive while breakpointed or deliberately parked; the closedown purges still run regardless. `Cfg_UnregisteredConnectionTTL` exposes the formerly-internal TTL. Anchored by tests: a never-registering connection is collected; with the gate off it survives past TTL and is collected after re-enable.
-2. **Closed notification is guaranteed.** The owner's deliberate teardown order was reviewed and preserved: `Stop_Async` still closes the transport, grants the closure-frame grace windows, and clears delegates last. The only change: `DispatchConnectionClosed()` (fire-once guarded) is now invoked just before the delegate clearing, converting the previously timing-dependent manager notification into a guaranteed one at the same point in the order.
-3. **Keepalive exemption is policy-gated.** The client's `keepalive:off` request (the owner's testing affordance) remains honored by default; `Cfg_Allow_KeepAliveExemption` on the endpoint (propagated from the manager's `Allow_KeepAliveExemption` at accept) lets a server require keepalives regardless — for chatty-by-assumption or firewall-traversing deployments. Refusal is logged and silently enforced (the dead-client timeout simply applies; older clients have no refusal vocabulary), and the registration itself still succeeds. Covered by honored-and-refused test pairs.
-
-Closes on release. The WebSocket-library backport of this pattern is tracked by OI-51.
-
-### OI-27 — Listener fragility ⚠ NEEDS YOUR REVIEW
-
-`cListener.Accept_Callback` responds to a `SocketException` by calling `CloseDown_Listener()` without re-arming (`:677-704`). `EndAcceptTcpClient` throws `SocketException` for a single aborted inbound connection — a client sending RST between connect and accept, which is routine — so one bad handshake permanently stops the server from accepting connections. Compounding it: the listener is single-use (`Start_Listener` requires `Initialized` state and `CloseDown_Listener` nulls the delegates), and `TCPConnMgr_wListener.cs:212` discards `Start_Listener`'s return value, so a failed bind (port in use) is reported to the host as a successful startup. Also: the backlog is hardcoded to 10, and port-in-use is detected by matching an English exception-message prefix (`:780`) rather than `SocketError.AddressAlreadyInUse`.
-
-Status: implemented (owner-approved, 2026-08-03). The end-accept is individually guarded: a `SocketException` there belongs to the one aborted inbound connection, which is discarded while the accept re-arms — one bad handshake can no longer stop the server (anchored by a listener test that RST-aborts five connections and verifies the listener still publishes the next good one). `TCPConnMgr_wListener.StartListener` now propagates `Start_Listener`'s result, so a failed bind fails the manager's startup visibly. Port-in-use is detected by `SocketError.AddressAlreadyInUse` (locale-independent). The backlog is a configurable `Backlog` property defaulting to the historical 10. In passing: the `SendTimeout` floor's missing `else` (an OI-37 sub-item) and the copy/paste `nameof` in `Activate_Listener`'s log lines were fixed. Closes on release.
-
-### OI-28 — Endpoint can run orphaned from its connection manager
-
-`TCPConnMgr_wListener.cs:269-295` wraps `AddConnection` in a swallow-all catch and then starts the endpoint regardless. If `AddConnection` throws (or is overridden to throw), the endpoint runs, registers, and serves traffic while absent from `_connections` — invisible to queries and counts, never closed by `CloseDown()`, with its delegates unwired.
-
-Status: implemented (owner-approved, 2026-08-03). A throwing `AddConnection` is now treated exactly like a failed one: the exception is logged and the accept path returns, letting the existing cleanup close the endpoint and client connection — the fall-through that started an untracked endpoint is gone. Anchored by a test whose manager subclass throws from its `AddConnection` override and verifies nothing is tracked and the client's connection is closed by the server. Closes on release.
-
-### OI-29 — Registration prop parsing is fragile
-
-Server-side prop parsing (`Endpoint_Abstract.cs:2561-2676`) splits each prop on **every** `:` and reads `parts[1]`, so any value containing a colon is silently truncated — a `runtimeid` of `node:4222` is stored as `node`. Keys are matched with `ToLower().Contains(...)`, so a prop whose key merely contains a known substring is hijacked (`"rapid"` matches `pid`; `"languagepack"` overwrites Language), and correctness depends on the order the branches are checked (`appid` contains `pid` and only works because it is tested first). On the client side, props are built as hand-concatenated JSON fragments with no escaping (`Client_v1_Abstract.cs:2011-2044`), so a quote or backslash in `RuntimeId` produces a malformed prop. Additionally, re-registration re-initializes the parsed locals and writes them unconditionally (`:2525-2536`, `:2783-2787`), so a later registration that omits `runtimeid`/`language`/libver silently wipes or downgrades the recorded values. Fixing the parse without breaking live clients means keeping the existing wire format but splitting on the first colon only and matching keys exactly.
-
-Status: implemented (owner-approved design, 2026-08-03). The shared `PropString` helper is the single composer/parser for prop fragments — the wire format is untouched. `Compose` emits byte-identical output to the historical hand-concatenation for plain values and properly escapes special characters; `TryParse` parses the fragment as the json property it is (colons in values survive, escapes are honored) and falls back to a first-colon split for malformed legacy fragments. Both server parse loops (real endpoint and the TESTINGSRVR fork) dispatch on exact case-insensitive key equality, and props omitted from a re-registration are back-filled from the recorded `ClientInfo` values, so re-registration can no longer wipe or downgrade recorded identity. Covered by a dedicated unit suite (`PropString_Tests`, 11 tests: escaping, colon preservation, fallback, roundtrip) plus an end-to-end registration test with a hostile `RuntimeId` (`V3Framing_Tests` Test_3_7_1). The owner backports `PropString` and the parse-loop rewrite to the WebSocket library; the class is self-contained for that purpose. Closes on release.
-
-### OI-30 — Registration completion is fire-and-forget
-
-`Endpoint_Abstract.cs:2811-2835` sends the registration reply and fires `DispatchConnectionRegistered` on a `Task.Run` after `Process_InternalMessage` has already returned success. If the reply send fails, the connection stays up but the manager is never told the connection registered, so no routing layer knows about a connection the endpoint considers live. A second registration arriving before the task runs is compared against the not-yet-updated `ClientInfo.ConnectionId` and can be rejected as a fatal mismatch.
-
-Status: implemented (owner decision, 2026-08-03). The registration reply is now sent inline within `Process_InternalMessage` — registration success means the client has been told — and a failed reply send fails the registration with the fatal code, so the connection recycles immediately and visibly instead of leaving a half-registered connection the client would abandon on its reply timeout. `DispatchConnectionRegistered` remains posted to a task (a slow consumer handler must not stall the receive path) but now observes fully-updated registration state, closing the re-registration race. Applied to both the real endpoint and the TESTINGSRVR fork; no wire change. This session's own test runs hit the race twice (a stop racing the deferred reply), which is what promoted this item. Closes on release.
-
-### OI-31 — A raw-message tap disables the session layer
-
-On both sides, setting the raw-message delegate causes `Process_ReceivedMessage` to return before `Process_InternalMessage` runs (`Client_v1_Abstract.cs:2727-2733`; mirrored server-side). Consequences on the client: pings are never answered, pongs never clear the keepalive flag, and registration replies are never processed — so with the default `Cfg_ConnectionWaitsforRegistrationReply`, the client recycles its connection every `Cfg_RegistrationReplyTimeout` forever. The XML docs do not warn about this. Decide whether internal messages should be processed before the tap, or whether the behavior should simply be documented as "raw tap replaces the session layer."
-
-Status: implemented in Release 2 per the owner's decision — the tap is a deliberate dumb-pipe testing mode that owns ALL processing. The behavior is now stated in the tap's XML documentation on both sides, and the delegate signature carries the v3 typed frame (`frametype`, `byte[]`) rather than a decoded string. Closes on release.
+### OI-31 — (Closed)
 
 ### OI-32 — cCustom_Serializer correctness defects
 
-Independent of how widely it is used (OI-11), the codec has real defects: the embedded-length string methods store `string.Length` (char count) as the prefix while writing UTF-8 bytes, so any non-ASCII string round-trips truncated and misaligns the rest of the stream (`:144-171`, and the string-array metadata at `:1570`); `Deserialize_Version` passes recovered values positionally into a constructor with different parameter order, swapping Build and Revision, and throws on 2- or 3-part versions (`:559-562` vs `:1239-1245`); `size_of_short` is 4 rather than 2 (`:11`), so short round-trips misreport consumed bytes; the big-endian path reverses bytes **in place** (mutating the caller's buffer) and even reverses UTF-8 text, which has no endianness; and `cMultiString_MetaData.Deserialize` allocates an array from an unvalidated wire-supplied count before its bounds check (`:1466-1499`). Since production traffic only uses the Int32 codec, none of this is live-service urgent — but it bears directly on OI-11's disposition and on OI-13, which may want a working primitive codec.
+Independent of how widely it is used, the codec has real defects: the embedded-length string methods store `string.Length` (char count) as the prefix while writing UTF-8 bytes, so any non-ASCII string round-trips truncated and misaligns the rest of the stream (`:144-171`, and the string-array metadata at `:1570`); `Deserialize_Version` passes recovered values positionally into a constructor with different parameter order, swapping Build and Revision, and throws on 2- or 3-part versions (`:559-562` vs `:1239-1245`); `size_of_short` is 4 rather than 2 (`:11`), so short round-trips misreport consumed bytes; the big-endian path reverses bytes **in place** (mutating the caller's buffer) and even reverses UTF-8 text, which has no endianness; and `cMultiString_MetaData.Deserialize` allocates an array from an unvalidated wire-supplied count before its bounds check (`:1466-1499`). Since production traffic only uses the Int32 codec, none of this is live-service urgent.
 
-Disposition (with OI-11, 2026-08-03): the class is kept whole as a documented copy of its OGA.Common source, so these defects are **recorded, not repaired here** — the class header directs any future consumer of the unexercised paths to this record first. Because the copy mirrors its source, the same defects presumably exist in OGA.Common itself; repairing them belongs upstream in that library, at the owner's discretion. This item stays open as the standing defect record for the unexercised paths.
+Disposition (2026-08-03): the class is kept whole as a documented copy of its OGA.Common source (OI-11), so these defects are **recorded, not repaired here** — the class header directs any future consumer of the unexercised paths to this record first. Because the copy mirrors its source, the same defects presumably exist in OGA.Common itself; repairing them belongs upstream in that library, at the owner's discretion. This item stays open as the standing defect record for the unexercised paths.
 
-### OI-33 — Metrics and telemetry defects
+### OI-33 — (Closed)
 
-`Sent_Message_Count` is permanently zero on both sides: `TCPEndpoint.cs:354` and `TCPClient_v1_Abstract.cs:605` increment through a `Metrics` getter that returns a fresh copy each call. The same getters dereference the receive loop without a null check, so reading `Metrics` before the first connection throws. Owner decision: reading `Metrics` before a first connection SHALL return a baseline (empty) metrics instance rather than throwing. In `cReceiveLoop.cs:1444`, `Last_Received_Message_Time` is set from `DateTime.Now` while every sibling write uses `UtcNow`. And all three OpenTelemetry span names lose their suffix to `??` precedence, so every span is named just `tcpsocket`/`tcp` instead of the three intended distinct names.
+### OI-34 — (Closed)
 
-Status: all four defects implemented/fixed in Release 1 (commit 15519fa); closes on release.
+### OI-35 — (Closed)
 
-### OI-34 — Unbounded task spawning on ping and loopback paths
+### OI-36 — (Closed)
 
-Each received ping spawns a `Task.Run` to send the pong (`Endpoint_Abstract.cs:2376-2384`), and each message spawns one per loopback echo (`:1887`, `:1937`), all queueing on the write semaphore. A client sending faster than the server's synchronous write drains accumulates unbounded queued tasks and buffered payloads, with no cap, coalescing, or drop policy. A pending-pong flag would bound the keepalive case.
+### OI-37 — (Closed)
 
-Status: implemented (owner decisions, 2026-08-03). Pong replies are coalesced by an interlocked pending flag — a ping arriving while a pong is queued or in flight spawns nothing, since keepalive credit needs some received traffic rather than a pong per ping; the path is bounded at one queued pong regardless of ping rate. Loopback echoes now ride the receive path inline (owner clarification: loopback is strictly a troubleshooting/test mode, never in-band traffic), giving natural backpressure — a flooding client throttles itself — and guaranteed echo ordering. Both changes are mirrored in the TESTINGSRVR fork, and anchored by a ping-flood liveness test and a burst-echo ordering test. Closes on release. The WebSocket backport of the pong coalescing (and the inline-echo posture, if that library's loopback shares the shape) is carried by OI-51.
+### OI-44 — (Closed)
 
-### OI-35 — Client connection loop blocks threadpool threads
+### OI-45 — (Closed by §5.3)
 
-The connection loop uses `ExpBackoff_wJitter.Delay` (a `Thread.Sleep` loop) at eight call sites despite an available `DelayAsync`, and `WaitforCondition` uses `SpinWait.SpinUntil` for up to the full registration-reply timeout (`Client_v1_Abstract.cs:1646`). One client instance can therefore tie up a threadpool thread for the whole backoff or registration window; many client instances in one process can starve the pool. `WaitforCondition`'s `scaninterval` parameter is computed and then ignored.
-
-Status: implemented (owner-approved, 2026-08-03). All eight backoff sites now await `DelayAsync` (same backoff/jitter math, no thread held), and `WaitforCondition` is the async polling loop the method's own commented-out draft always intended: condition checks guarded against throwing predicates, `await Task.Delay(scaninterval, token)` between checks (the scan-interval parameter is finally honored), return contract unchanged (1 condition-true, 0 timeout, -1 cancelled). Handshake resolution now lands on scan-interval boundaries (50 ms default) rather than a spinning thread's — invisible at these timescales. Verified by the full client suite, which exercises every connect/retry/registration path. Closes on release; the WebSocket mirror is item 5 on OI-51's backport list.
-
-### OI-36 — Binary-frame plumbing is inert on the TCP transport
-
-`Process_ReceivedBinaryFrame_from_Client` (`Endpoint_Abstract.cs:2000-2058`) is only ever called from the WebSocket endpoint, and `cReceiveLoop` has no binary-frame concept — its only payload delegate hands out a decoded string. So on TCP, `OnBinaryFrameReceived` never fires and `Cfg_BinaryFrameHandling_IsFatal` has no effect: a consumer wiring a binary handler on a TCP endpoint silently gets nothing. Resolution path decided: the Release 2 wire break (KD-09) connects this plumbing — the surviving delegate becomes the no-channel binary fallback of the KD-08 dispatcher. This item stays open as the record until that ships.
-
-Status: implemented in Release 2. Binary frames are first-class on the TCP transport (KD-03/KD-04), and `OnBinaryFrameReceived` is the no-channel binary fallback wired through the dispatcher on both sides. Binary roundtrips in both directions, including chunked ones, are covered in `V3Framing_Tests`. Closes on release.
-
-### OI-37 — Dead code and minor defects (batch)
-
-Collected low-severity items, each small and independent:
-
-- `cEndpoint_Ping_Tracking` is confirmed dead — zero references repository-wide outside the shared-project include. It is public API, so removal is a minor breaking change; decide keep-or-remove. (If revived it needs fixes: a 20 ms coercion of its delay setters, a copy/paste log message in `Disable()`, an unknown-state branch that returns `None` instead of `CloseConnection`, and local-time timestamps.) (Resolved 2026-08-03 — deleted, per owner. It was built natively here during early ping/pong prototyping; the live keepalive covers every behavior it modeled — quiet-interval pings via `Cfg_KeepAliveInterval`, take-credit timer resets on any received traffic, the reply-timeout dead declaration with the OI-02 fix, and enable/disable via `Cfg_Disable_KeepAlive` plus the OI-26 server policy — with UTC timestamps and regression coverage the prototype lacked. The surface removal rides the v3 breaking train.)
-- The `res == -1` fatal-recycle path in `TCPClient_v1_Abstract.cs:829-859` is unreachable: `Process_ReceivedMessage` maps every negative internal-message result to `0` (`Client_v1_Abstract.cs:2752-2763`), so a garbled registration reply is only logged. (Resolved 2026-08-03: the client's json path now maps the fatal internal code (-10, e.g. a garbled registration reply) to the fatal receive result, making the recycle path reachable; lesser negatives still degrade to disregard-and-continue.)
-- `Close_ChannelAdapters` (`Client_v1_Abstract.cs:745-757`) removes the adapter *after* calling its `Close()`; a consumer adapter that throws from `Close()` leaves the collection unchanged and the loop refetches the same element forever — an infinite loop inside `Dispose`. (Resolved in Release 1: the dispatcher's `CloseAll` empties the registry before closing, and a throwing `Close` is contained — covered by a dispatcher test.)
-- `Start_Async` has no already-started guard (`:541-552`); a second call orphans the first `CancellationTokenSource` and runs two connection loops against one client. (Resolved by KD-10's viability check.)
-- `Stop_Async` nulls all consumer delegates and closes all channel adapters (`:586-590`, `:647-649`), so a Stop-then-Start cycle silently loses every handler the consumer registered. (Resolved by KD-10: Start-after-Stop is refused, making the clearing consistent with an enforced single-use contract.)
-- A failed ping *send* returns success (`:1832-1841`), so only pong timeout recycles the connection. (Resolved 2026-08-03: a ping that cannot be sent now reports connection failure, and the connection loop recycles immediately.)
-- `ExpBackoff_wJitter` clamps `JitterHeight` above 1.0 to **0** rather than 1.0 (`:31-37`), silently disabling jitter for a caller asking for maximum; its `maxRetries` constructor argument is stored but never enforced; and `Delay()` returns success even when cancelled. (Resolved 2026-08-03: the clamp lands on 1.0; `Delay`/`DelayAsync` return 0 on cancellation — `DelayAsync` no longer throws for it, matching the quiet-cancel contract the connection loop was always built around; `maxRetries` is deliberately documented as recorded-but-unenforced, since enforcing a retry limit now would change live reconnect behavior.)
-- `_instance_counter++` in `cReceiveLoop.cs:161` is not atomic despite the field being `volatile`, so concurrent accepts can share an InstanceId in logs.
-- Log-string precedence bugs of the same shape as OI-03 exist in `ClientInfo.ToLogString` and the chunking DTOs' `ToLogString`. (Resolved with OI-03's sweep; the chunking DTOs' `ToLogString` methods were removed by the KD-05 rebuild.)
-- `cListener`'s `SendTimeout` floor is dead code (missing `else`, `:62-67`). (Resolved with OI-27's listener hardening.)
-- Explicit JSON nulls for `MessageType`/`Scope` cause an NRE that drops the message (`Endpoint_Abstract.cs:1872`, `:1875`). (Resolved 2026-08-03: the receive paths null-coalesce both fields on client, server, and the fork; a null types drops gracefully as an unroutable message.)
-- Several `cReceiveLoop` error paths request a `Closed` transition from `Open`, which the state machine forbids, producing a spurious "state change prevented" error log on every such path and losing the intended `Error` classification.
-
-### OI-44 — XML documentation completeness on touched classes
-
-Classes modified by this effort SHALL gain XML documentation on the properties, methods, and fields currently emitting missing-comment warnings, as part of the change that touches them — starting with the Release 1 and Release 2 work (KD-09). Comments follow the OI-02 precedent: expressive, stating what a member protects or coordinates with, not restating its name. A final sweep for untouched classes still emitting warnings is deferred until the release train completes.
-
-Status: completed (2026-08-03). The touched-class rule held through both releases, and the final sweep documented every remaining warning site — `MessageEnvelope` and the registration DTOs (wire contracts, documented as such), `cEndpoint_Metrics`, `cBuffer`, `ExpBackoff_wJitter`, both enumeration files, the serializer's size constants (including a defect callout on `size_of_short` pointing at OI-32), `ConnectionMgr_Abstract`'s queries/purges/handlers, the listener delegates, the two listener-less manager shells, and the WebSocket shim's remaining members. Both libraries now build with **zero CS1591 warnings**. Closed.
-
-### OI-45 — Component-level machinery documentation in the design spec
-
-Extend the design documentation so a future reader can understand the machinery of each library component and class — deeper than §5.1's tier descriptions: per-component narratives of internal mechanics (the receive state machine, the connection loop's phases, dispatcher internals, chunking sender/receiver lifecycles, manager/listener interplay), likely as an expansion of §5 or a dedicated component reference within the spec. Authored against the Release 2 design so it documents what is being built, then verified against code as implementation lands (a congruency-check candidate per the methodology).
-
-Status: implemented (2026-08-03) as **§5.3 Component Machinery Reference** — seven narratives: the cReceiveLoop read pump (phases, deadline mechanics, socket ownership, failure classification, observable contract), the client connection loop (five phases, the three backoff classes, quiet consumer stop), ChannelDispatcher internals, the LargeMsgSender and LargeMsgReceiver lifecycles, the server endpoint lifecycle (registration processing and the deliberate teardown order), and the manager/listener interplay (accept fault-isolation, registry hygiene, the maintenance loop). Authored after the v3 train finished, so it documents the code as built rather than as planned; the congruency check is inherent. Closed.
-
-### OI-46 — Test helper classes require updates mirroring the v3 changes
-
-The test projects contain helper classes that proxy library functionality — the `TESTINGSRVR_*` forked server classes, `Simple_TCPListener` harnesses, `cClientServer_Test_Helper`/`cClient_Helper`, `CommonChannel`, and the test-only client subclasses — simulating "the other end" of conversations or acting as harnesses. The Release 1 and Release 2 changes (channel substrate, framing, receive-loop contract, chunking) will invalidate some of them. Most will surface through unit-test failures during the release work; this item tracks the ones that need explicit, deliberate update — in particular the `TESTINGSRVR_*` fork (whose re-sync/consolidation decision is OI-06) and any helper that hand-builds legacy frames. Resolved incrementally alongside the KD-09 releases.
-
-Status: completed with Release 2. The `TESTINGSRVR_*` fork is re-synced (see OI-06); the test-side frame-send helpers in `ReceiveLoop_Test` and `TCPEndpoint_Tests` now write the v3 preamble (with a typed overload for non-json frames); hand-built legacy frames inside tests were converted to v3 framing except where a legacy frame is the point of the test (the KD-07 detector test). Closes on release.
+### OI-46 — (Closed)
 
 ### OI-43 — Repoint wiki links to the Bookstack instance after page migration
 
-File headers and version documentation — notably `LibVersions.cs` — reference the owner's former Confluence wiki. Those links are temporarily dead: the Confluence site is taken down and its pages are being migrated to the owner's Bookstack instance. Once the pages are migrated, update the in-code URL references to their new Bookstack locations; the owner prioritizes the migration itself. Independent of the links, §9.1.3 remains this spec's self-sufficient record of LibVersion semantics, and the v3 `LibVersions.cs` entry (KD-07, written at Release 2) should carry the new wiki URL from the start.
-
-Status note: the v3 entry was written at Release 2 while the Bookstack migration was still pending, so no new URL existed to carry; it references this spec (KD-03/04/05/07) instead. When the wiki pages land, add the Bookstack URL to the v3 entry along with repointing the v1/v2 links.
+File headers and version documentation — notably `LibVersions.cs` — reference the owner's former Confluence wiki. Those links are temporarily dead: the Confluence site is taken down and its pages are being migrated to the owner's Bookstack instance. Once the pages are migrated, update the in-code URL references to their new Bookstack locations; the owner prioritizes the migration itself. Independent of the links, §9.1.3 remains this spec's self-sufficient record of LibVersion semantics. The v3 `LibVersions.cs` entry was written while the migration was still pending, so it references this spec (KD-03/04/05/07) instead of a wiki URL; when the wiki pages land, add the Bookstack URL to the v3 entry along with repointing the v1/v2 links.
 
 ### OI-42 — Propagate LibVersion 3 into the WebSocket library's version registry
 
 The WebSocket library (OGA.WSClient_Base) maintains its own `WSLibVersions.cs` documenting versions and capabilities for the WebSocket transport; both libraries currently stand at version 2. When the WebSocket library adopts the shared dual-frame elements (OI-40), its `WSLibVersions.cs` SHALL gain the corresponding version-3 entry documenting the adopted capabilities (binary message body layout, rebuilt chunking, limits), mirroring the TCP library's `LibVersions.cs` v3 entry from KD-07. Recorded so the propagation is not forgotten; owner executes it in the WebSocket library's own repository at that phase.
 
-Carried from OI-48: when editing that file, also apply the constants-before-default declaration ordering (version constants declared above any default field that references them) — the harmonized copy likely shares the TCP file's latent static-initializer-order null, which becomes live the moment any code consumes the default.
+When editing that file, also apply the constants-before-default declaration ordering (version constants declared above any default field that references them) — the harmonized copy likely shares the TCP file's latent static-initializer-order null, which becomes live the moment any code consumes the default.
 
 ### OI-41 — Negotiated size limits and capability exchange at registration
 
-Under KD-06, the size limits are local policy: each side enforces its own receive limits, and a sender exceeding the receiver's `MaxTransferSize` discovers it via the transfer-time Cancel rather than up front. The owner's suggestion, deferred to a later phase: exchange limits at registration so the two ends operate on the more constrained set — the client announcing its receive limits in its registration props, the server announcing its own in the reply's currently-empty `Props`, and each sender honoring the peer's receive limits so oversize sends fail fast at the call site instead of mid-transfer. This dovetails with the version-guard/capability-announcement question (OI-39): the registration reply's `Props` is the natural single mechanism for the server to declare limits, supported frame types, and other capabilities. Held until the dual-frame work is functioning; when taken up, decide what is announced, what is enforced versus advisory, and how config asymmetry (send vs. receive limits) is expressed.
+Under KD-06, the size limits are local policy: each side enforces its own receive limits, and a sender exceeding the receiver's `MaxTransferSize` discovers it via the transfer-time Cancel rather than up front. The owner's suggestion, deferred to a later phase: exchange limits at registration so the two ends operate on the more constrained set — the client announcing its receive limits in its registration props, the server announcing its own in the reply's currently-empty `Props`, and each sender honoring the peer's receive limits so oversize sends fail fast at the call site instead of mid-transfer. The registration reply's `Props` is the natural single mechanism for the server to declare limits, supported frame types, and other capabilities. When taken up, decide what is announced, what is enforced versus advisory, and how config asymmetry (send vs. receive limits) is expressed.
 
-Status (owner decision, 2026-08-11): held until the feature can be implemented for the TCP and WebSocket libraries together, so the announcement scheme is designed once for both transports. Candidate placement: the default limit values (and possibly the negotiation logic itself) belong in the shared common-elements library (OI-40), so both libraries enforce identical defaults from one definition. Not a release blocker.
+Held (owner decision, 2026-08-11) until the feature can be implemented for the TCP and WebSocket libraries together, so the announcement scheme is designed once for both transports. Candidate placement: the default limit values (and possibly the negotiation logic itself) belong in the shared common-elements library (OI-40), so both libraries enforce identical defaults from one definition. Not a release blocker.
 
 ### OI-40 — Publishable common-elements library for cross-library reuse
 
-The dual-frame design work is producing elements that are deliberately transport- and library-neutral: the common messaging-host interface that decouples the channel-adapter substrate from `Client_v1_Abstract` (so client, server, TCP, and WebSocket endpoints can all host the same adapters), the relocated adapter family, the binary message body layout, and the rebuilt chunking classes. The separate OGA.WSClient_Base library is intended to consume these same elements; today, sharing between the two libraries happens by manually harmonized code copies, which is the drift mechanism already seen in OI-06 and in the keepalive fix backport.
+The dual-frame design work produced elements that are deliberately transport- and library-neutral: the common messaging-host interface that decouples the channel-adapter substrate from `Client_v1_Abstract` (so client, server, TCP, and WebSocket endpoints can all host the same adapters), the relocated adapter family, the binary message body layout, and the rebuilt chunking classes. The separate OGA.WSClient_Base library is intended to consume these same elements; today, sharing between the two libraries happens by manually harmonized code copies, which is the drift mechanism this effort repeatedly encountered (OI-06's fork; the keepalive fix backport).
 
-Plan for a published library (nuget package) of the common elements that both this library and the WebSocket library reference, replacing copy-based sharing for the shared substrate. Deliberately deferred: the elements are being designed and proven inside this repository first, and the extraction/packaging boundary gets decided once something is functioning here. When taken up, decisions needed: package naming and namespace (transport-neutral), which of the existing `ClientServerShared_SP` contents belong in it versus staying TCP-specific (e.g., the frame-type registry and `cReceiveLoop` are TCP-only), and the release-coordination model between three packages on one Jenkins/GitVersion pipeline pattern.
+Plan for a published library (nuget package) of the common elements that both this library and the WebSocket library reference, replacing copy-based sharing for the shared substrate. Deliberately deferred: the elements were designed and proven inside this repository first, and the extraction/packaging boundary gets decided once the WebSocket adoption is taken up. Decisions needed then: package naming and namespace (transport-neutral), which of the existing `ClientServerShared_SP` contents belong in it versus staying TCP-specific (e.g., the frame-type registry and `cReceiveLoop` are TCP-only), and the release-coordination model between three packages on one Jenkins/GitVersion pipeline pattern.
 
 Candidate contents beyond the substrate (noted 2026-08-11): the default size-limit values — and possibly the limit-negotiation logic — from OI-41, so both libraries enforce identical defaults from one definition.
 
@@ -1062,11 +873,7 @@ Candidate contents beyond the substrate (noted 2026-08-11): the default size-lim
 
 ### OI-47 — (Closed)
 
-Resolution: environmental to the review VM only — its 4.5.2 targeting pack was never fully installed (doc files present, no reference DLLs). The owner's Jenkins build VM and dev PC both carry full 4.5.2 support and compile and run these tests there; the sources themselves are proven 4.5.2-compatible (the SDK-style NET452 library target and the shared test sources under the old-style NET48 csproj both build clean). No change needed.
-
 ### OI-48 — (Closed)
-
-Resolution: the latent static-initializer-order null in `LibVersions.cs` never affected shipped code (nothing read the default field until Release 2's constructor change) and is fixed by declaration reordering with an explanatory comment. Owner reviewed and closed. Suggested follow-up carried by OI-42: apply the same constants-before-default ordering to the WebSocket library's `WSLibVersions.cs` when its v3 entry is added.
 
 ### OI-51 — Backport the connection-manager housekeeping pattern to the WebSocket library (owner carry-over)
 
@@ -1079,30 +886,17 @@ connection-manager and endpoint classes:
 3. **Policy-gate the keepalive exemption.** `Cfg_Allow_KeepAliveExemption` on the endpoint (default true, propagated from a manager-level property at accept): when cleared, a client's `keepalive:off` registration prop is logged and silently enforced — registration succeeds, and the normal dead-client timeout continues to apply.
 4. **Coalesce pong replies (from OI-34).** An interlocked pending-pong flag: a ping arriving while a pong is already queued or in flight spawns nothing — the in-flight pong answers it. Bounds the ping path at one queued send regardless of ping rate. Likewise, if the WebSocket library's loopback echo spawns a task per message, consider the inline-on-receive-path posture adopted here (loopback is a troubleshooting/test mode only, per the owner).
 5. **Unblock the client connection loop (from OI-35).** If the WebSocket client shares the copied patterns: backoff waits should use `ExpBackoff_wJitter.DelayAsync` rather than the thread-blocking `Delay` (the loop is already async at every call site), and the client's `WaitforCondition` should poll with `await Task.Delay(scaninterval, token)` between checks instead of `SpinWait.SpinUntil` — which burns a threadpool thread at full attention for up to the whole registration-reply timeout on every handshake, and ignores its scan-interval parameter. Return contract preserved: 1 condition-true, 0 timeout, -1 cancelled.
-6. **Delete the unused chunking DTOs (from OI-15).** `ChunkAckDTO` and `ChunkRequestDTO` exist in the WebSocket library as well; remove them there with the same spec acknowledgement this repository recorded — reliable ordered transports plus send-semaphore backpressure need neither acks nor retransmit requests, and the functionality that would need message types of this kind (unreliable transports, or resumable transfers across reconnects) would get freshly designed DTOs.
+6. **Delete the unused chunking DTOs (from OI-15).** `ChunkAckDTO` and `ChunkRequestDTO` exist in the WebSocket library as well; remove them there with the same spec acknowledgement this repository recorded (KD-05) — reliable ordered transports plus send-semaphore backpressure need neither acks nor retransmit requests, and the functionality that would need message types of this kind (unreliable transports, or resumable transfers across reconnects) would get freshly designed DTOs.
 7. **Add the lineage commentary to that library's `cCustom_Serializer` copy (from OI-11).** Mirror this repository's class-header commentary: the type is a copy from OGA.Common carried to avoid the dependency, kept whole to preserve lineage; note which members that library's wire protocol actually exercises, and point at the OI-32 defect record before any unexercised path is put into service.
 8. **The OI-37 minor-defect batch**, where the WebSocket library shares the copied code: (a) a client ping that fails to SEND should report connection failure so the connection recycles immediately, instead of returning success and waiting out the pong timeout; (b) the client's fatal internal-message code (a garbled registration reply) should map to the fatal receive result so the recycle path is reachable, rather than degrading to disregard-and-continue; (c) null-guard `MessageType`/`Scope` at envelope hydration on both receive sides (an explicit json null must drop the message gracefully, not NRE the receive path); (d) `ExpBackoff_wJitter` (if copied there): the `JitterHeight` over-1.0 clamp should land on 1.0 not 0, and `Delay`/`DelayAsync` should return 0 on cancellation without throwing.
 
-The TCP-side implementations (this repository, the OI-26 and OI-34 status entries) are the reference; each carries an OI-26 or OI-34 comment marker at the change site.
+The TCP-side implementations (this repository) are the reference; each carries an OI-26 or OI-34 comment marker at the change site.
 
 ### OI-49 — Evaluate receive-cancellation behavior in the WebSocket library (owner carry-over)
 
-Discussion held and resolved (2026-08-03). The three Release 2 receive-loop rewrite regressions (status-publish granularity, socket ownership on Dispose, metrics baseline) were introduced and fixed within the same implementation session — no shipped version ever had them, `cReceiveLoop` is TCP-only, and nothing requires backporting. The TCP side of this item is closed.
+Cancelling a pending socket read via `CancellationToken` **aborts the underlying connection** — the runtime cannot un-ask for bytes, so it kills the socket to unblock the read. `ClientWebSocket.ReceiveAsync` has the same semantics: cancelling a pending receive puts the WebSocket into the `Aborted` state, unusable thereafter (including for a graceful Close handshake). Evaluation to perform in OGA.WSClient_Base: find any path that cancels a pending `ReceiveAsync` and then expects to keep using, or gracefully close, that same WebSocket — e.g. a pause-receiving path, or a close sequence that cancels the receive before sending the Close frame. If every such cancellation is already followed by full connection teardown, the behavior is invisible and nothing needs changing; otherwise the path needs the TCP receive loop's posture (leave the receive pending, signal shutdown out-of-band, let the owner tear down the transport — §5.3.1).
 
-**What remains — the owner's carry-over to the WebSocket library session:** the behavioral fact confirmed during the fix. Cancelling a pending socket read via `CancellationToken` **aborts the underlying connection** — the runtime cannot un-ask for bytes, so it kills the socket to unblock the read. `ClientWebSocket.ReceiveAsync` has the same semantics: cancelling a pending receive puts the WebSocket into the `Aborted` state, unusable thereafter (including for a graceful Close handshake). Evaluation to perform in OGA.WSClient_Base: find any path that cancels a pending `ReceiveAsync` and then expects to keep using, or gracefully close, that same WebSocket — e.g. a pause-receiving path, or a close sequence that cancels the receive before sending the Close frame. If every such cancellation is already followed by full connection teardown, the behavior is invisible and nothing needs changing; otherwise the path needs the TCP loop's posture (leave the receive pending, signal shutdown out-of-band, let the owner tear down the transport).
-
-### OI-50 — v3 registration semantics in the base classes (decided; implemented)
-
-Nothing about v1 or v2 handling changed — both behave exactly as before, which is why the WebSocket library's v1/v2 flow is unaffected and this library's mirror of it keeps working. What Release 2 added is how the **base classes** handle version 3, and two judgment calls inside that are the discussion:
-
-1. **Client side.** The base `Send_RegistrationMessage` was v1-only: it refused to run unless `LibVersion == "1"`, because v2 registration carries mandatory app-identity props (`appid`, `appver`) that only a derived class knows — so v2 clients override it (same pattern as the WebSocket library). KD-07 requires the stock v3 client to announce version 3, so the base method now handles v1 **and** v3: v3 sends the `tcplibver` prop plus the same props v1 sends; v2 still requires the override, unchanged.
-2. **Server side.** The accepted range extends to [1..3]. The app-identity presence mandate was written as `libver > 1`; kept as-is, it would reject every stock v3 client, since the base class has no app identity to send. The implemented choice scopes the **presence mandate to v2 only**, treats app-identity props as optional-but-honored for v3, keeps the AppId-immutability rule for any registration that supplies one, and stops a later registration that omits app-identity props from erasing previously recorded `ClientInfo` values.
-
-The alternative worth weighing together: define v3 registration as "v2 plus the version prop" — i.e., app identity stays mandatory at v3. That is arguably cleaner policy, but it means a stock base client cannot register without the consumer supplying app identity — either by overriding registration (as for v2) or by the base class gaining `AppId`/`AppVersion` properties. Owner's call; the server-side mandate is a one-line scope change in each of the two endpoint classes (plus the fork) if the decision goes the other way.
-
-**Decision (owner, 2026-08-03).** v3 registration includes the registration info of v2, as v2 expanded on v1 — app identity stays mandatory at every version past 1.
-
-Status: implemented. `Client_v1_Abstract` gained `AppId`, `AppVersion`, and `Language` properties; the base `Send_RegistrationMessage` registers v1 and v3, and for v3 requires `AppId`/`AppVersion` before sending (failing fast client-side with a clear log) and announces them alongside the libver prop, with `language` sent when populated. The server-side mandate is restored to v2-and-later on both endpoint classes and the fork. v2 clients continue to override registration, unchanged. §9.1.3 and the v3 entry in `LibVersions.cs` record the contract; the client suite registers with app identity throughout. Closes on release.
+### OI-50 — (Closed by §9.1.3)
 
 ---
 
