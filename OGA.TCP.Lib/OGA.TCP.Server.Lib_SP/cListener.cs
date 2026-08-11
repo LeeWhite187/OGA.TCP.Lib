@@ -12,6 +12,11 @@ namespace OGA.TCP.Server
     /// Spawns a new connection for each connected client.
     /// Each instance of this class can listen on one IP/port combination.
     /// You must create a second instance to listen to a different port or IP address.
+    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_cListener in Testing_CommonHelpers_SP —
+    ///     compiled into the client test projects so client tests can run against live server behavior on
+    ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
+    ///     change into that copy, so client testing remains viable and correct while the client library
+    ///     retains .NET Framework support (design spec OI-06).
     /// </summary>
     public class cListener : IDisposable
     {

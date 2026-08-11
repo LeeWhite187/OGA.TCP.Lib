@@ -21,6 +21,11 @@ namespace OGA.TCP.Server
     /// Represents a server-side tcp/ws socket endpoint.
     /// Provides framed message transfer with channel, scope, and custom properties.
     /// This abstract class gets derived for each transport type.
+    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_Endpoint_Abstract in Testing_CommonHelpers_SP —
+    ///     compiled into the client test projects so client tests can run against live server behavior on
+    ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
+    ///     change into that copy (minding its documented deliberate divergences), so client testing remains
+    ///     viable and correct while the client library retains .NET Framework support (design spec OI-06).
     /// </summary>
     public abstract class Endpoint_Abstract : IDisposable, IMessagingHost
     {

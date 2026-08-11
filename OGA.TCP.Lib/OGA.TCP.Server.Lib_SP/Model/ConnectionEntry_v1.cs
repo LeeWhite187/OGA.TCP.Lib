@@ -10,6 +10,11 @@ namespace OGA.TCP.Server.Model
     /// It does hold the same properties, for now.
     /// But, it is for exclusive use in the cache table,
     ///     and cannot be updated through simple library updates, without additionalevaluation.
+    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_ConnectionEntry_v1 in Testing_CommonHelpers_SP —
+    ///     compiled into the client test projects so client tests can run against live server behavior on
+    ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
+    ///     change into that copy, so client testing remains viable and correct while the client library
+    ///     retains .NET Framework support (design spec OI-06).
     /// </summary>
     public class ConnectionEntry_v1
     {

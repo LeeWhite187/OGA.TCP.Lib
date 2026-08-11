@@ -15,7 +15,12 @@ namespace OGA.TCP.Server
 {
     /// <summary>
     /// Provides tcpsocket connectivity to a single connected client.
-    /// Is compatible with clients of LibVersion={1,2}
+    /// Is compatible with clients of LibVersion={1,2,3}
+    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_TCPEndpoint in Testing_CommonHelpers_SP —
+    ///     compiled into the client test projects so client tests can run against live server behavior on
+    ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
+    ///     change into that copy, so client testing remains viable and correct while the client library
+    ///     retains .NET Framework support (design spec OI-06).
     /// </summary>
     public class TCPEndpoint : Endpoint_Abstract, IDisposable
     {
