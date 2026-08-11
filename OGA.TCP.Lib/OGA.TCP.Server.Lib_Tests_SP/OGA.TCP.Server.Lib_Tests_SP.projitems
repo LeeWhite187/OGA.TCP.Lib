@@ -12,6 +12,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ConnMgrImplementations\TCPConnMgr_Template.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Helpers\Simple_TCPListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Listener_Test.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ConnMgr_Isolation_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPConnMgr_wListener_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TCPEndpoint_Tests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestAssemblyBase.cs" />

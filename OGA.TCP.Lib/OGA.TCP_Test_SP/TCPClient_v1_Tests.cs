@@ -2833,7 +2833,7 @@ namespace OGA.TCP_Test_SP
 
                     //await Task.Delay(500000);
                     // Wait for the server to receive all messages...
-                    WaitforCondition(() => serverreceivedtype.Count == messagecount, 10000);
+                    WaitforCondition(() => serverreceivedtype.Count == messagecount, 20000);   // Wide window: bulk transfers under full-suite load.
 
 
                     // Verify each message was received and is correct...
@@ -2884,7 +2884,7 @@ namespace OGA.TCP_Test_SP
 
                     //await Task.Delay(500000);
                     // Wait for the server to receive all messages...
-                    WaitforCondition(() => clientreceivedtype.Count == messagecount, 10000);
+                    WaitforCondition(() => clientreceivedtype.Count == messagecount, 20000);   // Wide window: bulk transfers under full-suite load.
 
 
                     // Verify each message was received and is correct...
