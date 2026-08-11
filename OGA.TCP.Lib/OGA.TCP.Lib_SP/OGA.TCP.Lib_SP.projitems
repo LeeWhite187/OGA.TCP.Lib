@@ -10,7 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)Impl\TCPClient_v1_Impl.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\cEndpoint_Ping_Tracking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\Client_v1_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\TCPClient_v1_Abstract.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionLayer\WSClient_v1_Abstract.cs" />
