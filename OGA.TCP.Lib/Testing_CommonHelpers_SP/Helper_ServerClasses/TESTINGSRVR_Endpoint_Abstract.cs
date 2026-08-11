@@ -524,10 +524,20 @@ namespace OGA.TCP.Server
                 // Clear the allow sending flag, to prevent any outgoing messages...
                 this._allowsend = false;
 
+                // Cancel the connection loop before touching the transport (OI-24 parity).
+                // Cancelling first lets the loop exit cleanly instead of observing the dropped transport mid-teardown.
+                // Disposal of the token source stays below, after the loop has had time to observe the cancel.
+                try
+                {
+                    this._cts?.Cancel();
+                }
+                catch (Exception) { }
+
                 // Disconnect any message handlers...
                 this._ChannelMessageHandlers.Clear();
                 this._delOnMessageReceived = null;
                 this._delOnRawMessageReceived = null;
+                this._delOnBinaryMessageReceived = null;
 
                 // Wrap this in a try-catch to ensure overridden method doesn't unwind us with an exception...
                 try

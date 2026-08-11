@@ -52,6 +52,11 @@ namespace Testing_CommonHelpers_SP.Helpers
         // we need a timeout (in milliseconds)
         public int SendTimeout = 5000;
 
+        /// <summary>
+        /// Pending-connection queue depth handed to the listening socket at startup (OI-27 parity).
+        /// </summary>
+        public int Backlog = 10;
+
         public int Spawned_Connection_Count
         {
             get
@@ -458,17 +463,34 @@ namespace Testing_CommonHelpers_SP.Helpers
                 listener = (System.Net.Sockets.TcpListener)ar.AsyncState;
 
                 // Declare a client reference and get the passed back client instance.
-                client = listener.EndAcceptTcpClient(ar);
-
-                // Log a message here.
-                OGA.SharedKernel.Logging_Base.Logger_Ref?.Info("A client connected!");
-
-                // We received a valid client connection, and need to publish it.
-
-                // We need to publish the client instance.
-                // Publish the client if we have a delegate to handle it.
-                if (this._del_new_client_connection != null)
+                // The end-accept is guarded on its own: a SocketException here belongs to the ONE inbound
+                //  connection being accepted (a client that reset between connect and accept), NOT to the
+                //  listener socket. Such a failure discards that connection and falls through to re-arm
+                //  the accept, so one bad handshake cannot stop the test listener (OI-27 parity)...
+                try
                 {
+                    client = listener.EndAcceptTcpClient(ar);
+                }
+                catch (System.Net.Sockets.SocketException se)
+                {
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Warn(
+                        $"An inbound connection aborted during accept (SocketErrorCode={se.SocketErrorCode.ToString()}). Discarding it and continuing to accept.");
+
+                    client = null;
+                }
+
+                if (client == null)
+                {
+                    // The inbound connection aborted during accept.
+                    // Nothing to publish; we will fall through and re-arm the accept below.
+                }
+                else if (this._del_new_client_connection != null)
+                {
+                    // Log a message here.
+                    OGA.SharedKernel.Logging_Base.Logger_Ref?.Info("A client connected!");
+
+                    // We received a valid client connection, and need to publish it.
+
                     // Log a message here.
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
                         "Publishing the connected client to the registered delegate.");
@@ -593,8 +615,8 @@ namespace Testing_CommonHelpers_SP.Helpers
                 listener.Server.NoDelay = NoDelay;
                 listener.Server.SendTimeout = SendTimeout;
 
-                // Set a connection queue size of 10.
-                listener.Start(10);
+                // Start with the configured pending-connection queue depth (OI-27 parity)...
+                listener.Start(this.Backlog);
 
                 // Set the configured tcp listener as our listener.
                 this._listener_ref = listener;
@@ -613,7 +635,10 @@ namespace Testing_CommonHelpers_SP.Helpers
                 // Exception caught.
                 // was probably from an already used port, invalid port number, or unparseable IP address.
 
-                if(e.Message.StartsWith("Only one usage of each socket address"))
+                // Port-in-use is detected by the socket error code, not the exception message text,
+                //  so the check is locale-independent (OI-27 parity)...
+                var seinuse = e as System.Net.Sockets.SocketException;
+                if(seinuse != null && seinuse.SocketErrorCode == System.Net.Sockets.SocketError.AddressAlreadyInUse)
                 {
                     // A listener is already on the same port/address.
 

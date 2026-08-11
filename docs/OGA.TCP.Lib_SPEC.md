@@ -717,6 +717,8 @@ Status: the fork was re-synced to the v3 protocol as part of Release 2 (typed fr
 4. Rework the fork-specific binary delegate usage: tests using `OnBinaryMessageReceived` move to the real endpoint's channel adapters or its `OnBinaryFrameReceived` no-channel fallback.
 5. Run both full suites; the client suite's behavior should be unchanged, since the fork was behaviorally synced.
 
+*Currency audit (2026-08-03, owner-requested).* Each copy was diffed against its origin to confirm the fork tests current server behavior. Three staleness findings, all mirrored: `TESTINGSRVR_cListener` carried the pre-OI-27 defects (unguarded end-accept, hardcoded backlog, message-text port-in-use detection); `TESTINGSRVR_TCPEndpoint.Metrics` lacked the OI-33 before-first-connection guard; `TESTINGSRVR_Endpoint_Abstract.Stop_Async` lacked the OI-24 cancel-first ordering and did not clear the binary delegate. Verified current without action: `TESTINGSRVR_ClientInfo` (lacks only the unused diagnostic `ToLogString`; its `LogDelta` was always correct), `TESTINGSRVR_ConnectionEntry_v1` (identical), `TESTINGSRVR_Simple_TCPListener` (member-identical to the server-tests harness), and the endpoint's remaining member gaps are exactly the documented channel-dispatcher divergence.
+
 This item stays open as the tracker for that future removal.
 
 ### OI-07 — (Closed)

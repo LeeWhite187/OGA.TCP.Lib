@@ -117,12 +117,18 @@ namespace OGA.TCP.Server
                 cEndpoint_Metrics met = new cEndpoint_Metrics();
                 met.CopyFrom(this._metrics);
 
-                var rcvmet = this._receiveLoop.Metrics;
+                // Fold in the receive loop's counters, if the receive machinery exists...
+                // Before the connection is stood up, no receive loop exists yet, and the baseline copy above is the answer (OI-33 parity).
+                var rl = this._receiveLoop;
+                if (rl != null)
+                {
+                    var rcvmet = rl.Metrics;
 
-                met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
-                met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
-                met.Received_Message_Count = rcvmet.Received_Message_Count;
-                met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                    met.Last_Received_Message_Time = rcvmet.Last_Received_Message_Time;
+                    met.Last_Unknown_MessageType_Time = rcvmet.Last_Unknown_MessageType_Time;
+                    met.Received_Message_Count = rcvmet.Received_Message_Count;
+                    met.Unknown_MessageType_Count = rcvmet.Unknown_MessageType_Count;
+                }
 
                 return met;
             }
