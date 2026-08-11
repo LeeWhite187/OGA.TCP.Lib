@@ -13,11 +13,17 @@ using Testing_CommonHelpers_SP.Helpers;
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE.
-    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
+    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// This is the client-test counterpart of the server test suite's Simple_TCPListener harness,
+    ///     compiled into the client test projects so client tests can host a live server on the
+    ///     .NET Framework targets the server library does not support (the owner retains netfx client
+    ///     support for fielded implementations).
+    /// SYNC EXPECTATION: harness behavior changes MUST be mirrored here; drift breaks the client suite
+    ///     loudly, which is the intended detector.
+    /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
+    ///     and reference the real server classes — see the design spec's OI-06.
     /// Wraps around the cListener class, similar to a WS Connection Manager.
     /// Provides a means to easily spawn and monitor a server-side, TCP Endpoint during testing.
-    /// NOTE: THIS CLASS IS NOT FOR PRODUCTION USAGE.
     /// </summary>
     public class TESTINGSRVR_Simple_TCPListener
     {

@@ -5,8 +5,14 @@ using System.Text;
 namespace OGA.TCP.Server.Model
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE.
-    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
+    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// This is a copy of the server library's ConnectionEntry_v1, compiled into the client test projects
+    ///     so client tests can run against live server behavior on the .NET Framework targets the server
+    ///     library does not support (the owner retains netfx client support for fielded implementations).
+    /// SYNC EXPECTATION: changes in the real class MUST be mirrored here; drift breaks the client suite
+    ///     loudly, which is the intended detector.
+    /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
+    ///     and reference the real server classes — see the design spec's OI-06.
     /// Holds a record of the host and connection.
     /// Tracks the associated connectionid, and the host and port of how to get to it.
     /// It does hold the same properties, for now.

@@ -5,10 +5,14 @@ using System.Text;
 namespace Testing_CommonHelpers_SP.Helpers
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE.
-    /// THIS IS A COPY OF cListener, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
-    /// TESTING HELPER CLASS.
-    /// IS A COPY OF cLISTENER.cs
+    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// This is a copy of the server library's cListener, compiled into the client test projects so
+    ///     client tests can run against live server behavior on the .NET Framework targets the server
+    ///     library does not support (the owner retains netfx client support for fielded implementations).
+    /// SYNC EXPECTATION: behavior changes in the real class MUST be mirrored here; drift breaks the
+    ///     client suite loudly, which is the intended detector.
+    /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
+    ///     and reference the real server classes — see the design spec's OI-06.
     /// </summary>
     public class TESTINGSRVR_cListener
     {

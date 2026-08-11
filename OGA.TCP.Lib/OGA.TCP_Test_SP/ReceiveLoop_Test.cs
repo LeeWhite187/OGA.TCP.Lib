@@ -2361,6 +2361,10 @@ namespace OGA.TCP_Test_SP
                 if(statuschange_listing.Count != 2)
                     Assert.Fail("Wrong Value");
 
+                // Wait for the lost callback: the went-bad delegate fires after the status transition
+                //  (outside the lifecycle lock), so allow for its scheduling...
+                WaitforCondition(() => lostconnection_counter == 1, 1000);
+
                 // Verify a lost connection callback occurred...
                 if(lostconnection_counter != 1)
                     Assert.Fail("Wrong Value");

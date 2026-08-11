@@ -702,7 +702,22 @@ The drift is no longer hypothetical. The binary-frame receive capability added t
 
 Options to assess: re-sync the fork and add a scripted diff check to catch future divergence; consolidate so the tests build the real server sources for the frameworks that support them; or accept the drift, document the fork as a frozen v1/v2-protocol reference server, and test newer capabilities only in the server test projects.
 
-Status: the fork was re-synced to the v3 protocol as part of Release 2 (typed framing, frame-send choke, binary receive path, rebuilt chunking, v3 registration range) — it now exercises the full v3 wire against the real client, including the new binary and chunked-transfer tests. One deliberate divergence: the fork has no channel-adapter machinery, so received binary messages land on a fork-specific `OnBinaryMessageReceived` delegate. The longer-term structural decision (scripted diff check vs. consolidation) remains open for the owner.
+Status: the fork was re-synced to the v3 protocol as part of Release 2 (typed framing, frame-send choke, binary receive path, rebuilt chunking, v3 registration range) — it now exercises the full v3 wire against the real client, including the new binary and chunked-transfer tests. One deliberate divergence: the fork has no channel-adapter machinery, so received binary messages land on a fork-specific `OnBinaryMessageReceived` delegate.
+
+**Resolution of the structural question (owner decision, 2026-08-03): the copies stay, documented, for as long as the client library supports .NET Framework.**
+
+*Why the copies exist.* The owner supports fielded client implementations on .NET Framework and retains those client targets for now; client tests on those frameworks need a live server to talk to, and the server library (correctly) has no netfx targets. Compiling copied server classes into the client test projects is the only arrangement that satisfies both — the alternatives were each rejected: `#if` guards to make production server sources compile on netfx pollute the server code for a test-only need; adding netfx targets to the server package misrepresents its supported platforms; dropping the pre-NET5 client test projects orphans the coverage for those fielded implementations.
+
+*Drift management.* Every `TESTINGSRVR_` class header now states its purpose, the sync expectation, and (on the endpoint) the deliberate divergences a future sync must not "fix". The drift detector is the client suite itself: protocol changes break the fork's compile and then its tests, loudly — demonstrated this release. OI-40's common-elements package, when taken up, shrinks the copies further (the shared substrate would be package-referenced; only the server-specific endpoint/manager/listener logic remains copied).
+
+*Removal condition and migration recipe — execute when the client library drops its .NET Framework targets:*
+1. Delete the `Helper_ServerClasses/TESTINGSRVR_*.cs` files from `Testing_CommonHelpers_SP` and their projitems entries.
+2. Give each remaining client test csproj a project reference to the matching `OGA.TCP.Server.Lib_NETx` csproj (or import `OGA.TCP.Server.Lib_SP` directly, as the server test projects do).
+3. In the client test sources, replace the `TESTINGSRVR_` type names with the real ones (`Endpoint_Abstract`, `TCPEndpoint`, `cListener`, `ClientInfo`, `ConnectionEntry_v1`), and replace `TESTINGSRVR_Simple_TCPListener` with the server test suite's `Simple_TCPListener` harness (relocated into a shared test-helper location both suites can import).
+4. Rework the fork-specific binary delegate usage: tests using `OnBinaryMessageReceived` move to the real endpoint's channel adapters or its `OnBinaryFrameReceived` no-channel fallback.
+5. Run both full suites; the client suite's behavior should be unchanged, since the fork was behaviorally synced.
+
+This item stays open as the tracker for that future removal.
 
 ### OI-07 — (Closed)
 

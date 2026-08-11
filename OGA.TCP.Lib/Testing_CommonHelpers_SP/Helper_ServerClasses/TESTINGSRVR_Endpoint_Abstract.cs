@@ -17,8 +17,19 @@ using System.Threading.Tasks;
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE.
-    /// THIS IS A COPY OF ConnectionEntry_v1, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
+    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// This is a copy of the server library's Endpoint_Abstract, compiled into the client test projects
+    ///     so client tests can run against live server behavior on the .NET Framework targets the server
+    ///     library does not support (the owner retains netfx client support for fielded implementations).
+    /// SYNC EXPECTATION: protocol or behavior changes in the real class MUST be mirrored here. Drift
+    ///     breaks the client suite loudly (compile errors, then test failures) — that is the intended
+    ///     detector.
+    /// DELIBERATE DIVERGENCES from the real class (do not "fix" these during a sync): no channel-adapter
+    ///     machinery — received binary messages land on the fork-specific OnBinaryMessageReceived
+    ///     delegate; TESTINGSRVR_ClientInfo replaces ClientInfo; OpenTelemetry spans are omitted.
+    /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
+    ///     and reference the real server classes — the migration recipe is recorded in the design spec's
+    ///     OI-06.
     /// </summary>
     public abstract class TESTINGSRVR_Endpoint_Abstract : IDisposable
     {

@@ -5,8 +5,14 @@ using System.Text;
 namespace OGA.TCP.Server.Model
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE.
-    /// THIS IS A COPY OF ClientInfo, INTENDED TO REPLICATE SERVER-SIDE FUNCTIONALITY FOR CLIENT SIDE LIBRARY TESTS.
+    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// This is a copy of the server library's ClientInfo, compiled into the client test projects so
+    ///     client tests can run against live server behavior on the .NET Framework targets the server
+    ///     library does not support (the owner retains netfx client support for fielded implementations).
+    /// SYNC EXPECTATION: changes in the real class MUST be mirrored here; drift breaks the client suite
+    ///     loudly, which is the intended detector.
+    /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
+    ///     and reference the real server classes — see the design spec's OI-06.
     /// Small property of an Endpoint instance that holds its client info.
     /// </summary>
     public class TESTINGSRVR_ClientInfo
