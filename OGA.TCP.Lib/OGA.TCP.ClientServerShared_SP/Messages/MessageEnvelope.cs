@@ -11,22 +11,55 @@ namespace OGA.TCP.Messages
     /// </summary>
     public class MessageEnvelope
     {
+        /// <summary>
+        /// Message id of the envelope. Assigned per sent frame; diagnostic and correlational — nothing
+        ///     orders or dedupes by it.
+        /// </summary>
         public string MsgId { get; set; }
 
+        /// <summary>
+        /// UTC time the message was sent, stamped by the sender.
+        /// </summary>
         public DateTime SentTimeUTC { get; set; }
 
+        /// <summary>
+        /// Message type name, used for routing and deserialization on the receiving end.
+        /// Compared case-insensitively; internal types (ping, pong, registration, chunk control) are
+        ///     intercepted by the session layer before consumer dispatch.
+        /// </summary>
         public string MessageType { get; set; }
 
+        /// <summary>
+        /// The message payload, as serialized json. Empty for payload-less internal messages (ping/pong).
+        /// </summary>
         public string Data { get; set; }
 
+        /// <summary>
+        /// Routing scope value. Empty = unset. The value 'loopback=rawmsg' asks the server to echo the
+        ///     message back (a diagnostics feature).
+        /// </summary>
         public string Scope { get; set; }
 
+        /// <summary>
+        /// Channel name the message is routed to. Empty = no channel; the message lands on the receiving
+        ///     side's no-channel handler.
+        /// </summary>
         public string Channel { get; set; }
 
+        /// <summary>
+        /// Reserved reply-routing field. Carried on the wire for future use; not consumed by this library.
+        /// </summary>
         public string ReplyTo { get; set; }
 
+        /// <summary>
+        /// Property strings carried with the message ('key=value' convention, e.g. the correlation id).
+        /// Additive extension point: new props do not affect older receivers.
+        /// </summary>
         public string[] Props { get; set; }
 
+        /// <summary>
+        /// Constructor preloads every field, so an envelope is never sent with nulls.
+        /// </summary>
         public MessageEnvelope()
         {
             MsgId = "";
@@ -39,6 +72,10 @@ namespace OGA.TCP.Messages
             Props = new string[0];
         }
 
+        /// <summary>
+        /// Creates a loggable, line-per-field dump of the envelope, for diagnostics.
+        /// </summary>
+        /// <returns></returns>
         public string ToLogString()
         {
             StringBuilder b = new StringBuilder();

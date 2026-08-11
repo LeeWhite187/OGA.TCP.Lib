@@ -6,6 +6,13 @@ using System.Threading.Tasks;
 
 namespace OGA.TCP.Shared
 {
+    /// <summary>
+    /// Exponential backoff delay generator with optional jitter: each call to a Delay method waits a
+    ///     little longer than the last, doubling toward a configured ceiling, so retry storms spread out.
+    /// Jitter (when enabled) randomizes each delay within a configurable envelope centered on the
+    ///     calculated value, de-synchronizing many clients retrying against one server.
+    /// Reset() returns the progression to its floor — call it after a successful attempt.
+    /// </summary>
     public class ExpBackoff_wJitter
     {
         private readonly int m_maxRetries;
@@ -16,8 +23,14 @@ namespace OGA.TCP.Shared
         private float _jitterheight;
         private Random rnd = new Random();
 
+        /// <summary>
+        /// Enables randomized jitter on each calculated delay. Off by default.
+        /// </summary>
         public bool EnableJitter { get; set; } = false;
 
+        /// <summary>
+        /// True once the progression has reached the configured maximum delay; subsequent delays plateau there.
+        /// </summary>
         public bool AtMax { get=> maxreached; }
 
         /// <summary>
@@ -56,6 +69,10 @@ namespace OGA.TCP.Shared
             JitterHeight = 0.2f;
         }
 
+        /// <summary>
+        /// Returns the backoff progression to its floor. Call after a successful attempt, so the next
+        ///     failure starts the ramp over instead of resuming at the ceiling.
+        /// </summary>
         public void Reset()
         {
             m_retries = 0;
@@ -115,6 +132,12 @@ namespace OGA.TCP.Shared
             return Perform_Abortable_Delay(delay, (CancellationToken)token);
         }
 
+        /// <summary>
+        /// Advances the progression and returns the next delay in milliseconds: exponential growth from
+        ///     the configured floor toward the ceiling, with centered jitter applied when enabled.
+        /// Exposed so a caller can implement its own wait against the calculated value.
+        /// </summary>
+        /// <returns></returns>
         public int CalculateDelay()
         {
             // Calculate the delay for this retry...

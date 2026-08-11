@@ -24,8 +24,14 @@ namespace OGA.TCP.SessionLayer
     {
         #region Private Fields
 
+        /// <summary>
+        /// HTTP request-header name used to carry the auth token on the websocket connect request.
+        /// </summary>
         static public string CONST_HTTP_TokenMarker = "Authorization";
 
+        /// <summary>
+        /// The live ClientWebSocket instance for the current connection attempt. Replaced on each reconnect.
+        /// </summary>
         protected System.Net.WebSockets.ClientWebSocket cws;
  
         /// <summary>

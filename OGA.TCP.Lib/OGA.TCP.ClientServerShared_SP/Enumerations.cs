@@ -4,6 +4,9 @@ using System.Text;
 
 namespace OGA.TCP
 {
+    /// <summary>
+    /// Connection state of a session-layer endpoint (client or server side), from construction through closure.
+    /// </summary>
     public enum eEndpoint_ConnectionStatus
     {
         /// <summary>
@@ -53,6 +56,10 @@ namespace OGA.TCP
         Closed
     }
 
+    /// <summary>
+    /// Connection state of a cReceiveLoop instance, from construction through closure.
+    /// Mirrors the endpoint status shape; the owning endpoint maps loop transitions onto its own state.
+    /// </summary>
     public enum eLoop_ConnectionStatus
     {
         /// <summary>

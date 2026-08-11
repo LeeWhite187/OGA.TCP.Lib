@@ -42,9 +42,16 @@ namespace OGA.TCP.Messages
         /// </summary>
         public string DeviceId { get; set; }
 
+        /// <summary>
+        /// Property strings carried with the reply. Empty today; reserved as the server's
+        ///     capability-announcement carrier (OI-41).
+        /// </summary>
         public string[] Props { get; set; }
 
 
+        /// <summary>
+        /// Constructor preloads every field, so a reply is never sent with nulls.
+        /// </summary>
         public ConnRegisterReplyDTO()
         {
             ConnectionId = "";

@@ -143,6 +143,12 @@ namespace OGA.TCP.Server
 
         #region Delegates and Handlers
 
+        /// <summary>
+        /// Delegate signature for publishing a newly accepted client connection to the listener's owner.
+        /// The receiver takes ownership of the TcpClient.
+        /// </summary>
+        /// <param name="l">The listener that accepted the connection.</param>
+        /// <param name="newclient">The accepted client connection.</param>
         public delegate void dNew_Client_Connection(cListener l, System.Net.Sockets.TcpClient newclient);
         private dNew_Client_Connection _del_new_client_connection;
         /// <summary>
@@ -156,6 +162,11 @@ namespace OGA.TCP.Server
             }
         }
 
+        /// <summary>
+        /// Delegate signature for listener status-change notifications.
+        /// </summary>
+        /// <param name="l">The listener whose status changed.</param>
+        /// <param name="statusupdate">Human-readable description of the transition.</param>
         public delegate void dStatus_Change(cListener l, string statusupdate);
         private dStatus_Change _del_Status_Change;
 

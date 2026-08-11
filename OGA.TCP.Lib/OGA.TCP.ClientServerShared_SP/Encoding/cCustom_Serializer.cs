@@ -20,14 +20,44 @@ namespace OGA.TCP.Shared.Encoding
 	/// </summary>
 	public class cCustom_Serializer
 	{
+		/// <summary>
+		/// Serialized size, in bytes, of a bool.
+		/// </summary>
 		static public int size_of_bool = 1;
+		/// <summary>
+		/// Serialized size, in bytes, of an Int32. The one constant the wire protocol consumes
+		///     (frame preambles and binary-header length fields).
+		/// </summary>
 		static public int size_of_Int32 = 4;
+		/// <summary>
+		/// Serialized size, in bytes, of a short.
+		/// KNOWN DEFECT (OI-32): the value is 4, but a short serializes to 2 bytes. Recorded, not repaired
+		///     here — see the class header; fix belongs in the source library.
+		/// </summary>
 		static public int size_of_short = 4;
+		/// <summary>
+		/// Serialized size, in bytes, of a float.
+		/// </summary>
 		static public int size_of_float = 4;
+		/// <summary>
+		/// Serialized size, in bytes, of a double.
+		/// </summary>
 		static public int size_of_double = 8;
+		/// <summary>
+		/// Serialized size, in bytes, of a long.
+		/// </summary>
 		static public int size_of_long = 8;
+		/// <summary>
+		/// Serialized size, in bytes, of a DateTime (stored as binary ticks).
+		/// </summary>
 		static public int size_of_DateTime = 8;
+		/// <summary>
+		/// Serialized size, in bytes, of a Guid.
+		/// </summary>
 		static public int size_of_GUID = 16;
+		/// <summary>
+		/// Serialized size, in bytes, of a Version (four Int32 fields).
+		/// </summary>
 		static public int size_of_Version = 16;
 
 
@@ -1297,10 +1327,14 @@ namespace OGA.TCP.Shared.Encoding
 	/// </summary>
 	public class cMultiString_MetaData
 	{
-		// Number of represented strings.
+		/// <summary>
+		/// Number of represented strings.
+		/// </summary>
 		public int String_Count;
 
-		//Length of each represented string.
+		/// <summary>
+		/// Length of each represented string.
+		/// </summary>
 		public int[] Lengths;
 
 		/// <summary>

@@ -4,12 +4,22 @@ using System.Text;
 
 namespace OGA.TCP
 {
+	/// <summary>
+	/// Grow-only byte buffer wrapper: allocated on first use, resized only when a larger frame requires it,
+	///     so steady-state receive traffic reuses one allocation.
+	/// </summary>
 	public class cBuffer
 	{
+        /// <summary>
+        /// Logger instance. Optional.
+        /// </summary>
         protected NLog.ILogger Logger;
 
 		private byte[] _buffer;
 
+		/// <summary>
+		/// The backing byte array. Null until the first Resize_Buffer_if_Needed call, and after Dispose.
+		/// </summary>
 		public byte[] Buffer
 		{
 			get
@@ -18,6 +28,9 @@ namespace OGA.TCP
 			}
 		}
 
+		/// <summary>
+		/// Current allocated length of the backing array.
+		/// </summary>
 		public int Length
 		{
 			get
@@ -26,11 +39,18 @@ namespace OGA.TCP
 			}
 		}
 
+		/// <summary>
+		/// Constructor accepts an optional logger.
+		/// </summary>
+		/// <param name="logger">Optional logger instance.</param>
 		public cBuffer(NLog.ILogger logger = null)
 		{
             this.Logger = logger;
 		}
 
+		/// <summary>
+		/// Releases the backing array. The instance can be reused; the next resize call re-allocates.
+		/// </summary>
 		public void Dispose()
 		{
 			// Clear and empty the buffer.

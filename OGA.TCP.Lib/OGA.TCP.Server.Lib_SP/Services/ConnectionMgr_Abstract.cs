@@ -9,6 +9,13 @@ using System.Threading.Tasks;
 
 namespace OGA.TCP.Server.Services
 {
+    /// <summary>
+    /// Base of the server-side connection managers: owns the registry of live endpoint connections
+    ///     (keyed by connection id), their lifecycle wiring at accept, connection queries, the periodic
+    ///     purge maintenance loop, and virtual hooks toward an external client-mapping service.
+    /// Derive per listener arrangement: TCPConnMgr_wListener (integrated listener) or
+    ///     TCPConnectionMgr_Base (externally accepted connections).
+    /// </summary>
     public abstract class ConnectionMgr_Abstract
     //public abstract class ConnectionMgr_Abstract<TEndpoint> where TEndpoint : Endpoint_Abstract
     {
@@ -418,6 +425,11 @@ namespace OGA.TCP.Server.Services
             _allowNewConnections = true;
         }
 
+        /// <summary>
+        /// Collects connections that never completed registration within Cfg_UnregisteredConnectionTTL:
+        ///     removes them from the registry under the lock, then disposes them off-thread.
+        /// Runs on the maintenance loop and at CloseDown; callable directly.
+        /// </summary>
         public void Purge_OldUnregisteredConnections()
         {
             try
@@ -472,6 +484,11 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        /// <summary>
+        /// Collects registry entries whose endpoint reports disconnected: removes them under the lock,
+        ///     then disposes them off-thread. The backstop behind the event-driven closed notification.
+        /// Runs on the maintenance loop and at CloseDown; callable directly.
+        /// </summary>
         public void Purge_LostConnections()
         {
             try
@@ -768,6 +785,12 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        /// <summary>
+        /// Looks up a live connection by its (server-generated) connection id.
+        /// Returns null when no such connection is registered.
+        /// </summary>
+        /// <param name="connid">The connection id to look up.</param>
+        /// <returns></returns>
         public Endpoint_Abstract? QRYGetConnection_ByConnId(string connid)
         {
             Endpoint_Abstract? ws;
@@ -1015,6 +1038,12 @@ namespace OGA.TCP.Server.Services
             }
         }
 
+        /// <summary>
+        /// Endpoint closed-delegate handler: removes the connection from the registry (so no more traffic
+        ///     routes to it) and notifies the client-mapping-service hook for registered connections.
+        /// Wired onto each endpoint at AddConnection; the endpoint guarantees this fires once at teardown.
+        /// </summary>
+        /// <param name="ws">The endpoint that closed.</param>
         protected void HandleConnectionClosed(Endpoint_Abstract ws)
         {
             OGA.SharedKernel.Logging_Base.Logger_Ref?.Warn(
@@ -1085,6 +1114,13 @@ namespace OGA.TCP.Server.Services
 
         #region Private Methods
 
+        /// <summary>
+        /// Removes a connection from the registry by its connection id, so no more traffic routes to it.
+        /// Does not close the endpoint; closure is its owner's concern.
+        /// Returns 1 removed, 0 not present, negatives on error.
+        /// </summary>
+        /// <param name="connectionid">The connection id to remove.</param>
+        /// <returns></returns>
         protected int RemoveConnection(string connectionid)
         {
             try

@@ -32,8 +32,16 @@ namespace OGA.TCP.Messages
         /// </summary>
         public string DeviceId { get; set; }
 
+        /// <summary>
+        /// Property strings carried with the registration ('"key":"value"' fragments; composed and parsed
+        ///     by PropString). Keys in use: loopback, keepalive, pid, runtimeid, and for v2+: appid,
+        ///     appver, language, and the transport libver prop. Additive extension point (§9.1.3).
+        /// </summary>
         public string[] Props { get; set; }
 
+        /// <summary>
+        /// Constructor preloads every field, so a registration is never sent with nulls.
+        /// </summary>
         public ConnRegisterDTO()
         {
             ConnectionId = "";
