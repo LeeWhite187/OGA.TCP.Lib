@@ -340,6 +340,62 @@ The library is layered so that transport specifics (how bytes move) are separate
 
 **Connection establishment.** Client loop: create transport → connect → wire receive machinery → send registration → (optionally) await validated reply → `AllowSend` = true, connected delegate fires. Server: accept → endpoint start → receive loop up → registration arrives as an ordinary message → reply sent, manager notified → connection appears in queries as registered.
 
+### 5.3 Component Machinery Reference
+
+Per-component narratives of internal mechanics (OI-45), written against the v3 implementation and verified against the code as built. §5.1/§5.2 say what each piece is and how data moves; this section says how each piece works inside.
+
+#### 5.3.1 cReceiveLoop — the read pump
+
+One instance reads one TCP connection for that connection's whole life; instances are single-use (`Begin_Comms` refuses a second start, and a closed loop never restarts). The design is a **single async pump task**: one loop that reads the five-byte preamble, validates it, reads the body, and delivers `(frameType, bytes)` to the owner's delegate — no shared buffers between a callback and teardown, which is what made the pre-v3 callback design crashable.
+
+*Pump phases.* (1) **Preamble.** Idle time before a frame's first byte is unlimited by design — between-frame liveness belongs to the keepalive layer. The moment the first byte arrives, the loop promotes Newly_Opened→Open and arms the **whole-frame deadline** (`FrameReadTimeout`, default 5 s): the entire frame, preamble and body, must complete within it, which is what defeats byte-dripping peers. (2) **Validation.** The four-byte length is sanity-checked (negative or over `MaxFrameSize` = fatal Error); the type byte must be a registry value — 0x7B produces the specific "legacy JSON framing detected" diagnosis (KD-07), any other unknown value a corruption error. (3) **Zero-length body** = wire keepalive: counted in metrics, not delivered. (4) **Body + delivery.** The body accumulates under the same deadline; delivery is exception-guarded so a throwing consumer handler cannot kill the connection.
+
+*Reads and socket ownership.* Reads are started **without** a cancellation token — cancelling a pending socket read aborts the connection itself, and the loop does not own the socket; the parent endpoint does. Instead, every read is raced (`Task.WhenAny`) against a cancellable delay: the frame deadline when armed, an infinite cancellable wait otherwise. Local closedown cancels the delay, abandons the pending read (its eventual fault is observed by a continuation so it never surfaces unobserved), and leaves the transport untouched for its owner.
+
+*Failure classification.* All failures funnel through one method that classifies to a terminal state — **Closed** (remote end closed: zero-byte read), **Lost** (frame deadline expired), or **Error** (validation failure, faulted read) — marks comms ended, and fires the went-bad delegate exactly once, outside the lifecycle lock. Locally initiated closedown (`CloseDown`/`Dispose`) is not a failure: it publishes Shutting_Down then Closed and fires nothing.
+
+*Observable contract.* Status changes publish through the status delegate — closedown publishes both transitions (the historical two-step contract endpoints rely on). Metrics baseline the last-received timestamp at construction and re-baseline at start, so keepalive credit never sees a default time.
+
+#### 5.3.2 The client connection loop
+
+`Client_v1_Abstract.ConnectionLoop` is the client's spine: a single async loop owning connect, register, monitor, and recycle. Instances are single-use (KD-10): an interlocked lifecycle state (created→started→stopped) makes `Start_Async` refuse after any stop or dispose.
+
+*Phases per connection attempt.* (1) **Network visibility wait** — loops until the transport reports the network reachable, on a jittered exponential backoff. (2) **Transport creation and connect** — connect failures retry on the startup backoff. (3) **Post-connection work** — start the receive machinery, send the registration message, and (by default) await the validated registration reply; a reply timeout recycles. Success sets `AllowSend` and fires the connected delegate. (4) **Connected monitoring** — a tick loop (`Cfg_Connected_InnerLoop_Delay`) that runs the keepalive check (§9.1.4) and watches connection health; a dead keepalive verdict, failed ping send, receiver failure, or fatal internal message (garbled registration reply) recycles. (5) **Recycle** — close and dereference the transport, fire the connection-lost delegate (once per connection), wait the post-connect-fail backoff, and reenter at phase 1.
+
+*Waits.* Three distinct `ExpBackoff_wJitter` instances serve the three wait classes (network-loss, startup-retry, post-connect-fail), all awaited via `DelayAsync`; the registration-reply wait polls with `await Task.Delay` on a scan interval. No phase blocks a threadpool thread (OI-35).
+
+*Consumer Stop.* `Stop_Async` is terminal and quiet: it cancels the loop first, closes the transport, and does **not** fire the connection-lost delegate — consumer-initiated stop is not a loss (KD-10).
+
+#### 5.3.3 ChannelDispatcher internals
+
+One thread-safe registry class serves both sides (KD-08). Adapters register under case-insensitive channel names with a declared kind (JSON or binary); delegate-style registrations are wrapped into adapters, so the registry holds one shape. Dispatch is: look up the channel → enforce kind (a JSON message to a binary channel, or vice versa, is refused with a distinct code and logged — never delivered cross-kind) → deliver to the adapter, exception-guarded. Channel-less messages fall through to the host's no-channel handlers — `NoChannelJsonHandler`/`NoChannelBinaryHandler` hooks that the client and endpoint wire to their consumer delegates at construction. Return codes distinguish delivered (1), no-handler (0/-1), kind mismatch (-2), and handler fault (-10); callers treat all as non-fatal to the connection. `CloseAll` empties the registry before closing adapters, so a throwing adapter `Close` cannot wedge teardown.
+
+#### 5.3.4 LargeMsgSender — the chunked-transfer sender
+
+One instance serves one transfer. `Load` captures the transfer id, the original body's frame type, the encoded bytes, routing values, and one **transfer-constant header timestamp** — segment headers are serialized twice per offset (measure, then send), and JSON date serialization is variable-length, so a per-serialization timestamp would break byte-true sizing.
+
+`SendChunksAsync` runs three stages. (1) **Pre-count**: walk the body measuring each segment's real header cost at its offset (header size varies with the offset's digit count) to derive an accurate chunk count for the start declaration; a frame cap too small to fit any payload aborts. (2) **Start** (`ChunkStartDTO`, JSON — transfer id, inner frame type, byte-true total size, chunk sizing/count). (3) **Segments**: each is a binary message whose routing header carries the transfer id and byte offset as props and whose payload is a raw slice — sized to fit `MaxFrameSize` exactly after measured overhead, or capped by `MaxChunkPayloadSize` when the operator tunes chunks smaller for interleaving. Every send awaits the endpoint's write semaphore, which is the share-the-pipe property: other channels' frames interleave between segments. (4) **End** (`ChunkEndDTO`). Every control and segment send result is checked; failure or cancellation sends a best-effort `ChunkCancelDTO` so the receiver tears down, and reports the transfer failed. There are no acks or retransmissions — the transports are reliable and ordered (OI-15's record explains what would need them).
+
+#### 5.3.5 LargeMsgReceiver — the chunked-transfer receiver
+
+Receivers live in a per-connection registry keyed by transfer id, with every access — register, look up, remove, prune, clear — serialized under one lock (the receive path and the connection loop's prune tick race otherwise). `AcceptChunkStart` enforces `MaxTransferSize` at declaration time and refuses duplicate transfer ids (first transfer wins). `AcceptSegment` enforces **strict in-order accumulation**: the segment's declared offset must equal the bytes received so far — TCP guarantees order, so any gap is corruption, and a rejected segment abandons the whole transfer. Over-declaration (receipt beyond the announced total) is likewise fatal to the transfer. `AcceptChunkEnd` removes the receiver from the registry, validates byte-true completeness, and yields `(innerFrameType, bytes)` — which the endpoint **re-injects at the top of normal receive processing**, so a reassembled message is indistinguishable from a single-frame arrival; a reassembled body that itself parses to chunking messages is rejected as illegal nesting rather than recursed. Transfers that stall are collected by the idle prune (`Cfg_ReceiverTimeout`) on the connection loop's tick.
+
+#### 5.3.6 The server endpoint lifecycle
+
+A `TCPEndpoint` exists per accepted connection: constructed by the manager's accept callback around the accepted `TcpClient`, wired (closure/registration/message hooks, chatty and keepalive-exemption policy) via `AddConnection`, then started on its own task. `Start_Async` runs the endpoint's connection loop: transport-specific post-connection work (stand up `cReceiveLoop`), then a monitor loop that enforces the dead-client silence timeout (`Cfg_DeadClientTimeout`, subject to the chatty requirement and any honored keepalive exemption) and runs the large-message-receiver prune.
+
+*Registration processing* happens inline on the receive path: prop parsing via `PropString` (exact key matching; omitted props back-filled from recorded values so re-registration cannot wipe identity), version-range and app-identity validation (v2+ mandate), `ClientInfo` recording, then the reply — sent **inline**, so registration success means the client has been told; a failed reply send fails the registration and recycles (OI-30). The manager notification is posted afterward, from completed state.
+
+*Teardown order* (deliberate, owner-designed): mark stopped → block sends → cancel the connection loop (so it exits cleanly rather than misreading the dropped transport) → clear message-dispatch delegates → close the transport → a grace window for closure frames to be received → cancel and dispose the receive machinery → dereference the transport → **guaranteed** connection-closed dispatch (fire-once; usually the loop already dispatched it during the grace windows) → clear the connection-level delegates last.
+
+#### 5.3.7 Manager and listener interplay
+
+`cListener` owns the accept loop: `BeginAcceptTcpClient` → callback → end-accept (individually fault-isolated: an aborted inbound connection is discarded and the accept re-arms — one bad handshake never stops the server) → publish the `TcpClient` to the manager's callback → re-arm. Listener-level failures (bind loss, disposed socket) close the listener; a failed bind at startup propagates so the manager's `Startup` fails visibly.
+
+`TCPConnMgr_wListener`'s accept callback wraps each connection: construct the endpoint, `AddConnection` (registry entry keyed by the server-generated connection id, delegate wiring, policy pass-through), then start it. A failed or throwing `AddConnection` tears the endpoint down instead of starting an untracked orphan (OI-28).
+
+`ConnectionMgr_Abstract` owns the registry and its hygiene: a **maintenance loop** (started at `Startup`, cancelled first at `CloseDown`) runs the two purges — never-registered connections past `Cfg_UnregisteredConnectionTTL`, and entries whose endpoint reports disconnected — every `Cfg_ConnectionPurgeInterval` seconds, gated by `Cfg_Enable_ConnectionPurging` for testing (OI-26). The primary removal path is event-driven: an endpoint's closed dispatch reaches `HandleConnectionClosed`, which removes the entry and notifies the mapping-service hook; the purges are the backstop. `CloseDown` reverses startup: stop the maintenance loop, close the listener, refuse new connections, close all endpoints, purge.
+
 ---
 
 ## 6. Data Model
@@ -963,6 +1019,8 @@ Classes modified by this effort SHALL gain XML documentation on the properties, 
 ### OI-45 — Component-level machinery documentation in the design spec
 
 Extend the design documentation so a future reader can understand the machinery of each library component and class — deeper than §5.1's tier descriptions: per-component narratives of internal mechanics (the receive state machine, the connection loop's phases, dispatcher internals, chunking sender/receiver lifecycles, manager/listener interplay), likely as an expansion of §5 or a dedicated component reference within the spec. Authored against the Release 2 design so it documents what is being built, then verified against code as implementation lands (a congruency-check candidate per the methodology).
+
+Status: implemented (2026-08-03) as **§5.3 Component Machinery Reference** — seven narratives: the cReceiveLoop read pump (phases, deadline mechanics, socket ownership, failure classification, observable contract), the client connection loop (five phases, the three backoff classes, quiet consumer stop), ChannelDispatcher internals, the LargeMsgSender and LargeMsgReceiver lifecycles, the server endpoint lifecycle (registration processing and the deliberate teardown order), and the manager/listener interplay (accept fault-isolation, registry hygiene, the maintenance loop). Authored after the v3 train finished, so it documents the code as built rather than as planned; the congruency check is inherent. Closed.
 
 ### OI-46 — Test helper classes require updates mirroring the v3 changes
 
