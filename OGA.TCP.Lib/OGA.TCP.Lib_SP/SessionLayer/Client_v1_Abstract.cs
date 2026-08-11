@@ -1033,7 +1033,7 @@ namespace OGA.TCP.SessionLayer
 
                             // Wait before checking the network again...
                             //await Task.Delay(this._networkLoss_WaitDelay, _cts.Token);
-                            network_visibility_delay_eb.Delay(_cts.Token);
+                            await network_visibility_delay_eb.DelayAsync(_cts.Token);
 
                             // Now, go back to the top and get a status update...
                             continue;
@@ -1059,7 +1059,7 @@ namespace OGA.TCP.SessionLayer
 
                             // We will do an exponential backoff retry...
                             //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
-                            startup_delay_eb.Delay(_cts.Token);
+                            await startup_delay_eb.DelayAsync(_cts.Token);
 
                             continue;
                         }
@@ -1090,7 +1090,7 @@ namespace OGA.TCP.SessionLayer
                                     // Pausing for a bit, before attempting to connect again...
                                     // We will do an exponential backoff retry...
                                     //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
-                                    startup_delay_eb.Delay(_cts.Token);
+                                    await startup_delay_eb.DelayAsync(_cts.Token);
 
                                     continue;
                                 }
@@ -1134,7 +1134,7 @@ namespace OGA.TCP.SessionLayer
                                     // Pausing for a bit, before attempting to connect again...
                                     // We will do an exponential backoff retry...
                                     //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
-                                    startup_delay_eb.Delay(_cts.Token);
+                                    await startup_delay_eb.DelayAsync(_cts.Token);
 
                                     continue;
                                 }
@@ -1201,7 +1201,7 @@ namespace OGA.TCP.SessionLayer
 
                                     // Wait a little bit, before attempting to connect again...
                                     //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                    postconnect_fail_delay_eb.Delay(_cts.Token);
+                                    await postconnect_fail_delay_eb.DelayAsync(_cts.Token);
 
                                     int x = 0;
                                 }
@@ -1265,7 +1265,7 @@ namespace OGA.TCP.SessionLayer
 
                                             // Wait a little bit, before attempting to connect again...
                                             //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                            postconnect_fail_delay_eb.Delay(_cts.Token);
+                                            await postconnect_fail_delay_eb.DelayAsync(_cts.Token);
 
                                             // Leave the inner status while loop...
                                             break;
@@ -1318,7 +1318,7 @@ namespace OGA.TCP.SessionLayer
 
                                                 // Wait a little bit, before attempting to connect again...
                                                 //await Task.Delay(this._PostConnect_FailDelay, _cts.Token);
-                                                postconnect_fail_delay_eb.Delay(_cts.Token);
+                                                await postconnect_fail_delay_eb.DelayAsync(_cts.Token);
 
                                                 // Leave the inner status while loop...
                                                 break;
@@ -1446,7 +1446,7 @@ namespace OGA.TCP.SessionLayer
 
                             // Pausing for a bit, before attempting to connect again...
                             //await Task.Delay(this.Cfg_Startup_Connect_Retry_Delay, _cts.Token);
-                            startup_delay_eb.Delay(_cts.Token);
+                            await startup_delay_eb.DelayAsync(_cts.Token);
                         }
                     }
                     catch (Exception e)
@@ -1800,68 +1800,55 @@ namespace OGA.TCP.SessionLayer
         {
             DateTime starttime = DateTime.UtcNow;
 
-            TimeSpan duration = new TimeSpan();
-
-            // Ensure the scan interval is no longer than the timeout...
+            // Ensure the scan interval is sane, and no longer than the timeout...
+            if (scaninterval < 1)
+                scaninterval = 1;
             if (scaninterval > timeout)
             {
                 // Reduce the scan interval to the timeout...
                 scaninterval = timeout;
             }
 
-            // We employ a spin-wait, here to evaluate the condition, or leave if cancelled...
-            var reswait1 = System.Threading.SpinWait.SpinUntil(() => condition() || token.IsCancellationRequested, timeout);
-
-            if (reswait1 && !token.IsCancellationRequested)
+            // Poll the condition on the scan interval, awaiting between checks so no thread is held
+            //  for the wait (OI-35: this replaced a spin-wait that burned a thread at full attention
+            //  for the entire timeout)...
+            while (!token.IsCancellationRequested)
             {
-                // The condition went true.
-                return 1;
+                // Do a check...
+                // Wrap it in a try-catch, to ensure it can't throw and unwind our own logic.
+                try
+                {
+                    if (condition())
+                    {
+                        // The condition became true.
+                        // We can leave.
+                        return 1;
+                    }
+                }
+                catch (Exception) { }
+                // Not yet true.
+
+                // See if the timeout has elapsed...
+                if (DateTime.UtcNow.Subtract(starttime).TotalMilliseconds >= timeout)
+                {
+                    // The timeout occurred.
+                    return 0;
+                }
+
+                // We will wait a scan interval before checking it again...
+                try
+                {
+                    await Task.Delay(scaninterval, token);
+                }
+                catch (Exception)
+                {
+                    // Cancelled during the delay.
+                    break;
+                }
             }
-            else if (token.IsCancellationRequested)
-            {
-                // We got cancelled.
-                return -1;
-            }
-            else
-            {
-                // The timeout occurred.
 
-                duration = DateTime.UtcNow.Subtract(starttime);
-
-                return 0;
-            }
-            //try
-            //{
-
-            //// 
-
-            //// Loop until we timeout, cancelled, or condition goes true...
-            //while(!token.IsCancellationRequested)
-            //{
-            //    // Do a check...
-            //    // Wrap it in a try-catch, to ensure it can't throw and unwind our own logic.
-            //    try
-            //    {
-            //        if(condition())
-            //        {
-            //            // The condition became true.
-            //            // We can leave.
-            //            return 1;
-            //        }
-            //    }
-            //    catch(Exception e) { }
-            //    // Not yet true.
-
-            //    // We will wait a scan interval before checking it again...
-            //    await Task.Delay(scaninterval, token);
-            //}
-
-            //return 0;
-            //}
-            //catch (OperationCanceledException) when (token.IsCancellationRequested)
-            //{
-            //    return 0;
-            //}
+            // We got cancelled.
+            return -1;
             //catch (Exception)
             //{
             //    return -1;

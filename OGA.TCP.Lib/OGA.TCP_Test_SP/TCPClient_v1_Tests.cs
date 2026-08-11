@@ -589,6 +589,9 @@ namespace OGA.TCP_Test_SP
                 if(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion != LibVersions.DEFAULT_CONST_WSLIBVERSION)
                     Assert.Fail($"Wrong Value. LibVersion is: '{(_wsl.ServerSide_TCPEndpoint.ClientInfo.LibVersion ?? "")}'");
 
+                // Wait for the CLIENT side of the handshake to finish as well, so the server stop below
+                //  cannot race the registration reply and catch the client mid-handshake (OI-30)...
+                WaitforCondition(() => wss.AllowSend, 2000);
 
                 // Tell the server endpoint to close the connection...
                 await this._wsl.ServerSide_TCPEndpoint.Stop_Async();
