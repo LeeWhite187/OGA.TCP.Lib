@@ -763,9 +763,9 @@ A pause capability — stopping a client while retaining its delegate/adapter gr
 
 ### OI-14 — (Closed)
 
-### OI-15 — Unused chunking DTOs
+### OI-15 — (Closed)
 
-Established during the review pass: `ChunkAckDTO` and `ChunkRequestDTO` are empty classes with no senders or handlers. `ChunkCancelDTO` is different — it **is** sent (by `LargeMsgSender` on cancellation or mid-sequence send failure) but is not intercepted on either receive side, so it reaches consumer dispatch as a bogus application message and its handler branches are dead (see OI-19). KD-05 wires Cancel into the rebuilt protocol and keeps Ack/Request out of it (reliable ordered transports need neither). Remaining decision: whether the two excluded DTOs stay as reserved surface or are deleted.
+Resolution (owner decision, 2026-08-03): `ChunkAckDTO` and `ChunkRequestDTO` are deleted. They were reserved during the original chunking work in case the protocol needed them, and the v3 protocol establishes it does not: **acks** detect loss and provide flow control, but TCP/WebSocket are reliable ordered streams (no lost-segment case exists on a live connection) and the write semaphore already provides send-side backpressure; **retransmit requests** have no reachable scenario — a sequence gap on a live connection is treated as corruption and abandons the transfer, and a dead connection kills its transfers entirely, since transfers deliberately do not span connections. What WOULD require message types of this kind: chunking over an unreliable/unordered transport, or **resumable transfers across reconnects** (a receiver resuming from a byte offset on a new connection) — the latter being a substantial new capability whose DTOs would be designed fresh against the v3 transfer model (TransferId, byte offsets/ranges), which these pre-v3, string-slice-shaped classes did not fit. `ChunkCancelDTO` remains a live protocol member (KD-05). Deleted inside the v3 breaking train, so the public-surface removal rides the already-breaking release.
 
 ### OI-16 — (Closed)
 

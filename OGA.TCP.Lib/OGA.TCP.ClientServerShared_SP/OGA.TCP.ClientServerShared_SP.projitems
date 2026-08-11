@@ -19,8 +19,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Channels\IMessagingHost.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\ChunkingConstants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkCancelDTO.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkRequestDTO.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkAckDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkEndDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\DTO\ChunkStartDTO.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Chunking\Helpers\LargeMsgReceiver.cs" />
