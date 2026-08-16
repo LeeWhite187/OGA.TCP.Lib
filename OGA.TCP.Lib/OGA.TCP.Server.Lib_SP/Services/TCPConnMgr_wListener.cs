@@ -302,7 +302,7 @@ namespace OGA.TCP.Server
                 catch (Exception ex)
                 {
                     // A throwing AddConnection (its override point is virtual) is a failed add.
-                    // Falling through here would start an endpoint the manager does not track — an orphan
+                    // Falling through here would start an endpoint the manager does not track - an orphan
                     //  that serves traffic invisibly and is never closed by CloseDown (OI-28)...
 
                     OGA.SharedKernel.Logging_Base.Logger_Ref?.Error(ex,

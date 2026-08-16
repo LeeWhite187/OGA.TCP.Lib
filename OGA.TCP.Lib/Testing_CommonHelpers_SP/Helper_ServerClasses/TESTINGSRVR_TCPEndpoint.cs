@@ -14,14 +14,14 @@ using OGA.TCP.Shared.Encoding;
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// NOT FOR PRODUCTION USE - TESTING COPY.
     /// This is a copy of the server library's TCPEndpoint, compiled into the client test projects so
     ///     client tests can run against live server behavior on the .NET Framework targets the server
     ///     library does not support (the owner retains netfx client support for fielded implementations).
     /// SYNC EXPECTATION: protocol or behavior changes in the real class MUST be mirrored here; drift
     ///     breaks the client suite loudly, which is the intended detector.
     /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
-    ///     and reference the real server classes — see the design spec's OI-06.
+    ///     and reference the real server classes - see the design spec's OI-06.
     /// Provides tcpsocket connectivity to a single connected client.
     /// Is compatible with clients of LibVersion={1,2,3}
     /// </summary>

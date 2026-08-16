@@ -6,11 +6,11 @@ namespace OGA.TCP.Shared.Encoding
 {
 	/// <summary>
 	/// Primitive-type codec for moving values in and out of wire or file streams.
-	/// LINEAGE: This class is a copy from the owner's OGA.Common library — an older implementation
+	/// LINEAGE: This class is a copy from the owner's OGA.Common library - an older implementation
 	///     carried into this repository so OGA.TCP.Lib can build without taking that dependency.
 	///     It is deliberately kept WHOLE, matching its source, so the copies stay recognizably the
 	///     same type across libraries; do not prune its surface here.
-	/// USAGE IN THIS LIBRARY: only the Int32 codec is exercised by the wire protocol —
+	/// USAGE IN THIS LIBRARY: only the Int32 codec is exercised by the wire protocol -
 	///     Serialize_Integer32 / Deserialize_Integer32 and the size_of_Int32 constant, serving the
 	///     v3 frame preamble and the binary-message header-length fields. The remaining codecs are
 	///     unexercised and untested here; the design spec's OI-32 records known defects in several of
@@ -32,7 +32,7 @@ namespace OGA.TCP.Shared.Encoding
 		/// <summary>
 		/// Serialized size, in bytes, of a short.
 		/// KNOWN DEFECT (OI-32): the value is 4, but a short serializes to 2 bytes. Recorded, not repaired
-		///     here — see the class header; fix belongs in the source library.
+		///     here - see the class header; fix belongs in the source library.
 		/// </summary>
 		static public int size_of_short = 4;
 		/// <summary>

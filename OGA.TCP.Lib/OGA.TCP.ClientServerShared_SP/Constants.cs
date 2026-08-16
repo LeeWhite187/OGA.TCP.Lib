@@ -15,8 +15,8 @@ namespace OGA.TCP
         /// Default cap on a single frame's body size (1 MiB).
         /// Prevents allocation attacks: each frame is prefixed with a length header, so an attacker could
         ///     declare a fake 2GB frame and exhaust server memory; the cap bounds what a receiver will accept.
-        /// Once chunking is in play, this is the interleave quantum of the pipe — the longest one frame can
-        ///     hold the connection before another channel's frame gets a turn — not the message-size ceiling.
+        /// Once chunking is in play, this is the interleave quantum of the pipe - the longest one frame can
+        ///     hold the connection before another channel's frame gets a turn - not the message-size ceiling.
         /// Seeds the per-instance MaxFrameSize property.
         /// </summary>
         public const int CONST_MAX_MessageSize = 1024 * 1024;

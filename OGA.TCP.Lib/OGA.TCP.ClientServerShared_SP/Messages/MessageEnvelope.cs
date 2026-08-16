@@ -12,7 +12,7 @@ namespace OGA.TCP.Messages
     public class MessageEnvelope
     {
         /// <summary>
-        /// Message id of the envelope. Assigned per sent frame; diagnostic and correlational — nothing
+        /// Message id of the envelope. Assigned per sent frame; diagnostic and correlational - nothing
         ///     orders or dedupes by it.
         /// </summary>
         public string MsgId { get; set; }

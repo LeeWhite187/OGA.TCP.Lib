@@ -17,18 +17,18 @@ using System.Threading.Tasks;
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// NOT FOR PRODUCTION USE - TESTING COPY.
     /// This is a copy of the server library's Endpoint_Abstract, compiled into the client test projects
     ///     so client tests can run against live server behavior on the .NET Framework targets the server
     ///     library does not support (the owner retains netfx client support for fielded implementations).
     /// SYNC EXPECTATION: protocol or behavior changes in the real class MUST be mirrored here. Drift
-    ///     breaks the client suite loudly (compile errors, then test failures) — that is the intended
+    ///     breaks the client suite loudly (compile errors, then test failures) - that is the intended
     ///     detector.
     /// DELIBERATE DIVERGENCES from the real class (do not "fix" these during a sync): no channel-adapter
-    ///     machinery — received binary messages land on the fork-specific OnBinaryMessageReceived
+    ///     machinery - received binary messages land on the fork-specific OnBinaryMessageReceived
     ///     delegate; TESTINGSRVR_ClientInfo replaces ClientInfo; OpenTelemetry spans are omitted.
     /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
-    ///     and reference the real server classes — the migration recipe is recorded in the design spec's
+    ///     and reference the real server classes - the migration recipe is recorded in the design spec's
     ///     OI-06.
     /// </summary>
     public abstract class TESTINGSRVR_Endpoint_Abstract : IDisposable
@@ -70,7 +70,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// Coalescing gate for pong replies: 1 while a pong send is queued or in flight.
-        /// A ping arriving while set spawns nothing — the in-flight pong answers it (OI-34).
+        /// A ping arriving while set spawns nothing - the in-flight pong answers it (OI-34).
         /// </summary>
         private int _pongpending;
 
@@ -253,7 +253,7 @@ namespace OGA.TCP.Server
         /// <summary>
         /// When set (the default), a client's registration prop 'keepalive:off' is honored, exempting the
         ///     connection from the server's silence check.
-        /// Clear it to refuse the exemption: the request is logged and silently enforced — the normal
+        /// Clear it to refuse the exemption: the request is logged and silently enforced - the normal
         ///     dead-client timeout continues to apply (OI-26).
         /// </summary>
         public bool Cfg_Allow_KeepAliveExemption { get; set; } = true;
@@ -1344,7 +1344,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// Transfers an oversized encoded body via the chunking layer: a start declaration, binary segments of
-        ///     raw byte slices, and an end declaration — interleaving with other channels' traffic between frames.
+        ///     raw byte slices, and an end declaration - interleaving with other channels' traffic between frames.
         /// Used by both the json and binary send paths; the frame type tells the receiver how to re-inject
         ///     the reassembled bytes.
         /// Returns 1 on success, 0 when cancelled, negatives on failure (a best-effort cancel is sent so the
@@ -1921,7 +1921,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// First-handler of any received frame: the merge point of the receive paths.
-        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type —
+        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type -
         ///     json bodies flow through envelope processing (internal messages, chunking, dispatch),
         ///     binary bodies through routing-header parsing and binary dispatch.
         /// Returns the following:
@@ -2778,7 +2778,7 @@ namespace OGA.TCP.Server
                 // Process any properties of the connection request...
                 // Property elements are of the form: "key":"value".
                 // Fragments are parsed by PropString (values keep their colons; escaping is honored),
-                //  and keys are matched by exact, case-insensitive equality — never by substring — so
+                //  and keys are matched by exact, case-insensitive equality - never by substring - so
                 //  keys cannot hijack one another and branch order does not matter (OI-29).
                 try
                 {
@@ -2842,7 +2842,7 @@ namespace OGA.TCP.Server
                                     // Honor the request only when server policy allows the exemption (OI-26)...
                                     if(!this.Cfg_Allow_KeepAliveExemption)
                                     {
-                                        // Policy refuses the exemption: log it, and silently enforce —
+                                        // Policy refuses the exemption: log it, and silently enforce -
                                         //  the normal dead-client timeout continues to apply.
                                         OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
                                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
@@ -3079,7 +3079,7 @@ namespace OGA.TCP.Server
 
                 // Send out an event that the client has registered his connection, so he can accept traffic on the socket.
                 // The manager callback stays posted to a task, so a slow consumer handler cannot stall the
-                //  receive path — but it now observes fully-updated registration state, closing the
+                //  receive path - but it now observes fully-updated registration state, closing the
                 //  re-registration race OI-30 described.
                 _ = Task.Run(() => DispatchConnectionRegistered(oldvals, newvals));
 

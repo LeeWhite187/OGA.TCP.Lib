@@ -16,8 +16,8 @@ namespace OGA.TCP.Server
     /// Wraps around the cListener class, similar to a WS Connection Manager.
     /// Provides a means to easily spawn and monitor a server-side, TCP Endpoint during testing.
     /// NOTE: THIS CLASS IS NOT FOR PRODUCTION USAGE.
-    /// SYNC NOTE: This harness has a client-test counterpart — TESTINGSRVR_Simple_TCPListener in
-    ///     Testing_CommonHelpers_SP — compiled into the client test projects for the .NET Framework
+    /// SYNC NOTE: This harness has a client-test counterpart - TESTINGSRVR_Simple_TCPListener in
+    ///     Testing_CommonHelpers_SP - compiled into the client test projects for the .NET Framework
     ///     targets the server library does not support. When modifying this harness, mirror the change
     ///     into that copy, so client testing remains viable and correct while the client library retains
     ///     .NET Framework support (design spec OI-06).

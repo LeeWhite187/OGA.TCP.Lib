@@ -11,7 +11,7 @@ namespace OGA.TCP.Shared
     ///     little longer than the last, doubling toward a configured ceiling, so retry storms spread out.
     /// Jitter (when enabled) randomizes each delay within a configurable envelope centered on the
     ///     calculated value, de-synchronizing many clients retrying against one server.
-    /// Reset() returns the progression to its floor — call it after a successful attempt.
+    /// Reset() returns the progression to its floor - call it after a successful attempt.
     /// </summary>
     public class ExpBackoff_wJitter
     {
@@ -52,7 +52,7 @@ namespace OGA.TCP.Shared
 
         /// <summary>
         /// Constructor accepts the retry ceiling and the delay range.
-        /// NOTE: maxRetries is recorded but NOT enforced — no caller has ever relied on a retry limit,
+        /// NOTE: maxRetries is recorded but NOT enforced - no caller has ever relied on a retry limit,
         ///     and enforcing one now would change live reconnect behavior (OI-37). The delay simply
         ///     plateaus at maxDelayMilliseconds (see AtMax).
         /// </summary>
@@ -83,7 +83,7 @@ namespace OGA.TCP.Shared
         /// <summary>
         /// Waits the next backoff delay without blocking a thread.
         /// Returns 1 when the delay elapsed; 0 when the token cancelled the wait early (OI-37: previously
-        ///     cancellation reported success — or, awaited through Task.Delay, threw — instead of being
+        ///     cancellation reported success - or, awaited through Task.Delay, threw - instead of being
         ///     observable in the result).
         /// </summary>
         /// <param name="token">Optional cancellation token for leaving the wait early.</param>

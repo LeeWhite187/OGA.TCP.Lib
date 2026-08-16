@@ -13,7 +13,7 @@ using Testing_CommonHelpers_SP.Helpers;
 namespace OGA.TCP.Server
 {
     /// <summary>
-    /// NOT FOR PRODUCTION USE — TESTING COPY.
+    /// NOT FOR PRODUCTION USE - TESTING COPY.
     /// This is the client-test counterpart of the server test suite's Simple_TCPListener harness,
     ///     compiled into the client test projects so client tests can host a live server on the
     ///     .NET Framework targets the server library does not support (the owner retains netfx client
@@ -21,7 +21,7 @@ namespace OGA.TCP.Server
     /// SYNC EXPECTATION: harness behavior changes MUST be mirrored here; drift breaks the client suite
     ///     loudly, which is the intended detector.
     /// REMOVAL: when the client library drops its .NET Framework targets, delete the TESTINGSRVR_ copies
-    ///     and reference the real server classes — see the design spec's OI-06.
+    ///     and reference the real server classes - see the design spec's OI-06.
     /// Wraps around the cListener class, similar to a WS Connection Manager.
     /// Provides a means to easily spawn and monitor a server-side, TCP Endpoint during testing.
     /// </summary>

@@ -9,7 +9,7 @@ namespace OGA.TCP.Chunking.Helpers
     /// Byte-true and strictly in-order: a segment must land exactly at the accumulation offset (the transports
     ///     are ordered, so a mismatch is corruption, not reordering), accumulation may never exceed the
     ///     declaration, and end-of-transfer validates both total bytes and segment count before the message
-    ///     is released — a truncated transfer is discarded, never dispatched.
+    ///     is released - a truncated transfer is discarded, never dispatched.
     /// One instance serves one transfer; the owning endpoint keys instances by TransferId and prunes idle ones.
     /// </summary>
     public class LargeMsgReceiver

@@ -446,7 +446,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to start Listener");
 
                 // Throw several abortive connections at the listener: connect, then reset (linger zero
-                //  makes Close send RST instead of FIN) — the behavior of a flaky client or port scanner...
+                //  makes Close send RST instead of FIN) - the behavior of a flaky client or port scanner...
                 for (int i = 0; i < 5; i++)
                 {
                     try

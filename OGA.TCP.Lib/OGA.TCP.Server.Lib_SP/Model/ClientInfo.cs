@@ -7,7 +7,7 @@ namespace OGA.TCP.Server.Model
 {
     /// <summary>
     /// Small property of an Endpoint instance that holds its client info.
-    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_ClientInfo in Testing_CommonHelpers_SP —
+    /// SYNC NOTE: This class has a testing copy - TESTINGSRVR_ClientInfo in Testing_CommonHelpers_SP -
     ///     compiled into the client test projects so client tests can run against live server behavior on
     ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
     ///     change into that copy, so client testing remains viable and correct while the client library

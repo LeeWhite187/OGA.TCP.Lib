@@ -21,7 +21,7 @@ namespace OGA.TCP.Server
     /// Represents a server-side tcp/ws socket endpoint.
     /// Provides framed message transfer with channel, scope, and custom properties.
     /// This abstract class gets derived for each transport type.
-    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_Endpoint_Abstract in Testing_CommonHelpers_SP —
+    /// SYNC NOTE: This class has a testing copy - TESTINGSRVR_Endpoint_Abstract in Testing_CommonHelpers_SP -
     ///     compiled into the client test projects so client tests can run against live server behavior on
     ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
     ///     change into that copy (minding its documented deliberate divergences), so client testing remains
@@ -109,7 +109,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// Coalescing gate for pong replies: 1 while a pong send is queued or in flight.
-        /// A ping arriving while set spawns nothing — the in-flight pong answers it, since keepalive
+        /// A ping arriving while set spawns nothing - the in-flight pong answers it, since keepalive
         ///     credit only needs SOME received traffic, not a pong per ping. This bounds the ping path
         ///     at one queued pong regardless of how fast a client pings (OI-34).
         /// </summary>
@@ -311,7 +311,7 @@ namespace OGA.TCP.Server
         /// <summary>
         /// When set (the default), a client's registration prop 'keepalive:off' is honored, exempting the
         ///     connection from the server's silence check (the testing affordance above).
-        /// Clear it for deployments where keepalives must flow regardless of client preference — e.g.
+        /// Clear it for deployments where keepalives must flow regardless of client preference - e.g.
         ///     conversations traversing firewalls or NAT devices whose idle reaping must be preempted by
         ///     traffic. A refused request is logged and silently enforced: the normal dead-client timeout
         ///     simply continues to apply (older clients have no vocabulary for a refusal reply).
@@ -757,7 +757,7 @@ namespace OGA.TCP.Server
                 // Guarantee the closed notification before the delegates unload (OI-26).
                 // The teardown order above is deliberate: closure frames get their grace windows, and the
                 //  connection loop usually dispatches closure itself while they elapse. This call (fire-once
-                //  guarded) covers the case where the loop did not get scheduled in time — so a directly
+                //  guarded) covers the case where the loop did not get scheduled in time - so a directly
                 //  stopped or disposed endpoint always informs its connection manager.
                 this.DispatchConnectionClosed();
 
@@ -1540,7 +1540,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// Transfers an oversized encoded body via the chunking layer: a start declaration, binary segments of
-        ///     raw byte slices, and an end declaration — interleaving with other channels' traffic between frames.
+        ///     raw byte slices, and an end declaration - interleaving with other channels' traffic between frames.
         /// Used by both the json and binary send paths; the frame type tells the receiver how to re-inject
         ///     the reassembled bytes.
         /// Returns 1 on success, 0 when cancelled, negatives on failure (a best-effort cancel is sent so the
@@ -2107,7 +2107,7 @@ namespace OGA.TCP.Server
 
         /// <summary>
         /// First-handler of any received frame: the merge point of the receive paths.
-        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type —
+        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type -
         ///     json bodies flow through envelope processing (internal messages, chunking, dispatch),
         ///     binary bodies through routing-header parsing and binary dispatch.
         /// Returns the following:
@@ -2166,7 +2166,7 @@ namespace OGA.TCP.Server
         /// <summary>
         /// Parses a binary message body (routing header plus raw payload) and dispatches it.
         /// Chunk-data messages are diverted to the chunking layer by their message type; everything else routes
-        ///     through the dispatcher — to the channel's binary-kind adapter, or the no-channel binary fallback.
+        ///     through the dispatcher - to the channel's binary-kind adapter, or the no-channel binary fallback.
         /// Returns 1 handled, 0 recoverable problem (message disregarded).
         /// </summary>
         /// <param name="body">The binary frame's body bytes.</param>
@@ -2380,7 +2380,7 @@ namespace OGA.TCP.Server
 
                     // Echo the message back to the client as is, inline on the receive path (OI-34).
                     // No need to clear the scope, with this, as the echo request was set during connection registration.
-                    // Loopback is strictly a troubleshooting/test mode (owner decision) — see the
+                    // Loopback is strictly a troubleshooting/test mode (owner decision) - see the
                     //  loopback-scope echo above for the backpressure rationale.
                     var resecho = Send_MessageEnvelope_toClient_Async(me).GetAwaiter().GetResult();
                     if (resecho != 1)
@@ -3071,7 +3071,7 @@ namespace OGA.TCP.Server
                 // Process any properties of the connection request...
                 // Property elements are of the form: "key":"value".
                 // Fragments are parsed by PropString (values keep their colons; escaping is honored),
-                //  and keys are matched by exact, case-insensitive equality — never by substring — so
+                //  and keys are matched by exact, case-insensitive equality - never by substring - so
                 //  keys cannot hijack one another and branch order does not matter (OI-29).
                 try
                 {
@@ -3135,7 +3135,7 @@ namespace OGA.TCP.Server
                                     // Honor the request only when server policy allows the exemption (OI-26)...
                                     if(!this.Cfg_Allow_KeepAliveExemption)
                                     {
-                                        // Policy refuses the exemption: log it, and silently enforce —
+                                        // Policy refuses the exemption: log it, and silently enforce -
                                         //  the normal dead-client timeout continues to apply.
                                         OGA.SharedKernel.Logging_Base.Logger_Ref?.Info(
                                             $"{_classname}:{this.InstanceId.ToString()}::{nameof(Process_InternalMessage)} - " +
@@ -3372,7 +3372,7 @@ namespace OGA.TCP.Server
 
                 // Send out an event that the client has registered his connection, so he can accept traffic on the socket.
                 // The manager callback stays posted to a task, so a slow consumer handler cannot stall the
-                //  receive path — but it now observes fully-updated registration state, closing the
+                //  receive path - but it now observes fully-updated registration state, closing the
                 //  re-registration race OI-30 described.
                 _ = Task.Run(() => DispatchConnectionRegistered(oldvals, newvals));
 

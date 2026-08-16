@@ -10,7 +10,7 @@ namespace OGA.TCP_Test_SP
     /*  ConnectionMgr_Abstract isolation tests (OI-05 gap closure)
 
         Exercises the manager base without sockets, via the listener-less TCPConnectionMgr_Base.
-        (Socketed manager behavior — accept, registration, purge collection — is covered by
+        (Socketed manager behavior - accept, registration, purge collection - is covered by
         TCPConnMgr_wListener_Tests.)
 
         //  Test_6_1_1  A listener-less manager starts up and closes down cleanly, twice.

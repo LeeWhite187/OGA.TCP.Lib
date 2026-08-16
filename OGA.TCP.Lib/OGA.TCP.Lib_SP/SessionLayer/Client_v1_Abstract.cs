@@ -2369,7 +2369,7 @@ namespace OGA.TCP.SessionLayer
 
         /// <summary>
         /// Transfers an oversized encoded body via the chunking layer: a start declaration, binary segments of
-        ///     raw byte slices, and an end declaration — interleaving with other channels' traffic between frames.
+        ///     raw byte slices, and an end declaration - interleaving with other channels' traffic between frames.
         /// Used by both the json and binary send paths; the frame type tells the receiver how to re-inject
         ///     the reassembled bytes.
         /// Returns 1 on success, 0 when cancelled, negatives on failure (a best-effort cancel is sent so the
@@ -2970,7 +2970,7 @@ namespace OGA.TCP.SessionLayer
 
         /// <summary>
         /// First-handler of any received frame: the merge point of the receive paths.
-        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type —
+        /// Order of processing: the raw tap (exclusive, when assigned), then interpretation by frame type -
         ///     json bodies flow through envelope processing (internal messages, chunking, dispatch),
         ///     binary bodies through routing-header parsing and binary dispatch.
         /// Returns 1 handled, 0 recoverable problem (message disregarded), -1 fatal to the connection.
@@ -3026,7 +3026,7 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// Parses a binary message body (routing header plus raw payload) and dispatches it.
         /// Chunk-data messages are diverted to the chunking layer by their message type; everything else routes
-        ///     through the dispatcher — to the channel's binary-kind adapter, or the no-channel binary fallback.
+        ///     through the dispatcher - to the channel's binary-kind adapter, or the no-channel binary fallback.
         /// Returns 1 handled, 0 recoverable problem (message disregarded).
         /// </summary>
         /// <param name="body">The binary frame's body bytes.</param>

@@ -83,7 +83,7 @@ namespace OGA.TCP.Messages
         /// <summary>
         /// Parses a binary frame body into its header and payload.
         /// Returns 1 on success; negatives when the body is malformed (too short, bad header length,
-        ///     or an undeserializable header) — the caller treats those as a malformed message, not a
+        ///     or an undeserializable header) - the caller treats those as a malformed message, not a
         ///     connection fault.
         /// </summary>
         /// <param name="body">The received binary frame body.</param>

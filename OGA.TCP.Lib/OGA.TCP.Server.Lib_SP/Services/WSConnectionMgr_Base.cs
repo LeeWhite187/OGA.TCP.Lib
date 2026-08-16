@@ -10,7 +10,7 @@ namespace OGA.TCP.Server
     /// <summary>
     /// WebSocket-flavored listener-less connection manager: connections are accepted by an external HTTP
     ///     request handler and handed in via AddConnection.
-    /// NOTE: Part of the WebSocket file set excluded from this library's scope (OI-01) — retained only so
+    /// NOTE: Part of the WebSocket file set excluded from this library's scope (OI-01) - retained only so
     ///     the projects compile until the owner's backport to OGA.WSClient_Base removes it.
     /// </summary>
     public class WSConnectionMgr_Base : ConnectionMgr_Abstract

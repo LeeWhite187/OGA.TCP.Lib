@@ -12,7 +12,7 @@ namespace OGA.TCP.Server
     /// Spawns a new connection for each connected client.
     /// Each instance of this class can listen on one IP/port combination.
     /// You must create a second instance to listen to a different port or IP address.
-    /// SYNC NOTE: This class has a testing copy — TESTINGSRVR_cListener in Testing_CommonHelpers_SP —
+    /// SYNC NOTE: This class has a testing copy - TESTINGSRVR_cListener in Testing_CommonHelpers_SP -
     ///     compiled into the client test projects so client tests can run against live server behavior on
     ///     the .NET Framework targets this library does not support. When modifying this class, mirror the
     ///     change into that copy, so client testing remains viable and correct while the client library
@@ -572,7 +572,7 @@ namespace OGA.TCP.Server
 
                 // Declare a client reference and get the passed back client instance.
                 // The end-accept is guarded on its own: a SocketException here belongs to the ONE inbound
-                //  connection being accepted (e.g. a client that reset between connect and accept — routine
+                //  connection being accepted (e.g. a client that reset between connect and accept - routine
                 //  on real networks), NOT to the listener socket. Such a failure discards that connection
                 //  and falls through to re-arm the accept, so one bad handshake can never permanently stop
                 //  the server from accepting connections (OI-27).

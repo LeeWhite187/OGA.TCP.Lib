@@ -33,7 +33,7 @@ namespace OGA.TCP.Chunking.Helpers
     /// <summary>
     /// Splits an oversized message's encoded body bytes into a chunked transfer:
     ///     a json ChunkStartDTO, N binary chunk-segment messages carrying raw byte slices, then a json ChunkEndDTO.
-    /// The sender never interprets the bytes it slices — a chunked json message and a chunked binary message
+    /// The sender never interprets the bytes it slices - a chunked json message and a chunked binary message
     ///     are handled identically, and the start message's InnerFrameType tells the receiver how to re-inject
     ///     the reassembled bytes.
     /// Slicing is byte-true: each segment's complete binary body (routing header plus payload slice) is measured
@@ -107,7 +107,7 @@ namespace OGA.TCP.Chunking.Helpers
         /// <summary>
         /// One timestamp for every segment header of the transfer, captured at Load.
         /// Segment headers are serialized twice per offset (once to measure, once to send), and json
-        ///     DateTime serialization is variable-length (trailing zeros of the fraction are trimmed) —
+        ///     DateTime serialization is variable-length (trailing zeros of the fraction are trimmed) -
         ///     a per-serialization timestamp would make the measured size differ from the sent size.
         /// </summary>
         private DateTime _headertimestamp;
@@ -151,7 +151,7 @@ namespace OGA.TCP.Chunking.Helpers
         }
 
         /// <summary>
-        /// Performs the transfer: start message, segments, end message — awaiting each send.
+        /// Performs the transfer: start message, segments, end message - awaiting each send.
         /// On cancellation or a mid-sequence send failure, a best-effort cancel message is sent so the
         ///     receiver can tear down its state, and the method returns 0 (cancelled) or a negative (failure).
         /// Returns 1 when the full transfer was sent.
@@ -267,7 +267,7 @@ namespace OGA.TCP.Chunking.Helpers
         /// Measures the payload size of the segment starting at the given offset: the remaining bytes, capped by
         ///     the configured chunk payload size and by what fits under MaxFrameSize after the measured
         ///     routing-header overhead of THIS segment (header size varies with the offset's digit count).
-        /// Returns 0 or negative when nothing can fit — a configuration error.
+        /// Returns 0 or negative when nothing can fit - a configuration error.
         /// </summary>
         /// <param name="offset">Byte offset of the segment within the transfer.</param>
         /// <returns></returns>

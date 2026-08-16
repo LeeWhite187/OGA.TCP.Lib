@@ -38,10 +38,10 @@ namespace OGA.TCP
         /// Primary path: the fragment is parsed as the json object property it is ('{fragment}'), which
         ///     preserves colons inside values and honors escaping.
         /// Fallback path: fragments that fail json parsing (possible from hand-built legacy senders) are
-        ///     split on the FIRST colon only, with quotes trimmed — everything the historical
+        ///     split on the FIRST colon only, with quotes trimmed - everything the historical
         ///     split-on-every-colon parser handled, without its value truncation.
         /// Returns true when a key was recovered; false for null/empty/keyless fragments.
-        /// NOTE: Key matching policy belongs to the caller — match recovered keys with exact,
+        /// NOTE: Key matching policy belongs to the caller - match recovered keys with exact,
         ///     case-insensitive comparison, never by substring.
         /// </summary>
         /// <param name="fragment">The prop fragment to parse.</param>

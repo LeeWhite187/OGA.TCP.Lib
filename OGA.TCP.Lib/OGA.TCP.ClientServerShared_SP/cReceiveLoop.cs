@@ -26,13 +26,13 @@ namespace OGA.TCP
 
     /// <summary>
     /// Delegate signature for connection-failure notification.
-    /// Fired when the connection is lost, errored, or closed by the peer — never for a locally initiated CloseDown or Dispose.
+    /// Fired when the connection is lost, errored, or closed by the peer - never for a locally initiated CloseDown or Dispose.
     /// </summary>
     /// <param name="mep">The receive loop reporting the failure.</param>
     public delegate void dConnection_Went_Bad(cReceiveLoop mep);
 
     /// <summary>
-    /// TCP frame-reading engine: supplies what raw TCP lacks and websocket framing provides natively — message
+    /// TCP frame-reading engine: supplies what raw TCP lacks and websocket framing provides natively - message
     ///     boundaries and a frame-type discriminator.
     /// Reads the five-byte preamble (4-byte little-endian body length + 1-byte frame type from the FrameTypes
     ///     registry), validates it, accumulates the body, and hands (frametype, bytes) to the assigned delegate.
@@ -374,7 +374,7 @@ namespace OGA.TCP
         #region Read Pump
 
         /// <summary>
-        /// The single async read pump: preamble, validate, body, deliver — for the life of the connection.
+        /// The single async read pump: preamble, validate, body, deliver - for the life of the connection.
         /// All failure classification happens here; the pump exits exactly once, through Fail_and_Close
         ///     or through a quiet locally-initiated exit.
         /// </summary>
@@ -526,7 +526,7 @@ namespace OGA.TCP
             {
                 // NOTE: The read is deliberately started WITHOUT the cancellation token.
                 // Cancelling a pending socket read aborts the connection itself, and a locally closed
-                //  loop must leave the socket usable — the parent endpoint owns the transport.
+                //  loop must leave the socket usable - the parent endpoint owns the transport.
                 // Local closedown instead cancels the delay this read is raced against, and the
                 //  abandoned read is observed (see Observe_AbandonedRead).
                 readtask = stream.ReadAsync(buffer, offset, count, CancellationToken.None);

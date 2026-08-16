@@ -133,7 +133,7 @@ namespace OGA.TCP.Server.Services
         /// <summary>
         /// When set (the default), a client's registration prop 'keepalive:off' is honored, exempting that
         ///     connection from the server's silence check.
-        /// Clear it for deployments where keepalives must flow regardless of client preference — e.g.
+        /// Clear it for deployments where keepalives must flow regardless of client preference - e.g.
         ///     conversations that traverse firewalls or NAT devices whose idle-connection reaping must be
         ///     preempted by traffic.
         /// Applied to each connection at accept time (Cfg_Allow_KeepAliveExemption on the endpoint).

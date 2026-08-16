@@ -541,7 +541,7 @@ namespace OGA.TCP_Test_SP
                     Assert.Fail("Failed to start receive loop.");
 
                 // Compose a LEGACY-framed message: 4-byte length then the raw json body, NO frame-type byte.
-                // The receiver reads the json open brace (0x7B) in the frame-type position — the reserved
+                // The receiver reads the json open brace (0x7B) in the frame-type position - the reserved
                 // legacy-framing detector value...
                 var me = new MessageEnvelope();
                 me.MsgId = "1";
@@ -696,7 +696,7 @@ namespace OGA.TCP_Test_SP
                 Assert.Fail("Registration Failed");
 
             // The server marks the client registered before the client has processed the registration
-            // reply that opens its send gate — wait for the client side to be ready to send as well...
+            // reply that opens its send gate - wait for the client side to be ready to send as well...
             WaitforCondition(() => client.AllowSend, 3000);
             if (!client.AllowSend)
                 Assert.Fail("Client send gate did not open");
