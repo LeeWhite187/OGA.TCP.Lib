@@ -215,6 +215,8 @@ Contracts to respect: declare the channel's kind at construction; return `1` han
 var client = new TCPClient_v1_Impl("srv.example.local", 5030, logger);
 
 // Identity, carried in registration:
+// Depending on implementation, these are used by the server-endpoint, to identify what is using each client connection.
+// Leave them blank if your server-side implementation doesn't require them for registration.
 client.DeviceId  = deviceId;
 client.UserId    = userId;          // Guid.Empty if no user context yet
 client.RuntimeId = runtimeId;       // The client application's runtimeid.

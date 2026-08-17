@@ -89,7 +89,7 @@ namespace OGA.TCP.Server.Model
 
         /// <summary>
         /// Defines the selected language of the connected client.
-        /// Should follow the culture string, like these: https://oga.atlassian.net/wiki/spaces/~311198967/pages/118554625/Language+and+Culture+Support
+        /// Should follow the culture string, like these: https://wiki.galaxydump.com/books/net/page/language-and-culture-support
         ///     Will be of the form: language-region
         /// </summary>
         public string Language { get; set; }
