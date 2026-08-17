@@ -324,6 +324,17 @@ namespace OGA.TCP.SessionLayer
         public int Cfg_NetworkLoss_WaitDelay { get; set; } = 5000;
 
         /// <summary>
+        /// Set if the connection supports chunking of large messages at the channel layer.
+        /// </summary>
+        public bool Cfg_EnableChannelLayerChunking { get; set; } = true;
+
+        /// <summary>
+        /// This determines if we consider a failed binary frame handler call as fatal or ignore it.
+        /// Defaults to ignore but logged.
+        /// </summary>
+        public bool Cfg_BinaryFrameHandling_IsFatal { get; set; } = false;
+
+        /// <summary>
         /// Instance Id of the endpoint.
         /// </summary>
         public int InstanceId { get; protected set; }
@@ -433,17 +444,6 @@ namespace OGA.TCP.SessionLayer
         /// </summary>
         public eEndpoint_ConnectionStatus State { get; protected set; }
 
-        /// <summary>
-        /// Set if the connection supports chunking of large messages at the channel layer.
-        /// </summary>
-        public bool Cfg_EnableChannelLayerChunking { get; set; } = true;
-
-        /// <summary>
-        /// This determines if we consider a failed binary frame handler call as fatal or ignore it.
-        /// Defaults to ignore but logged.
-        /// </summary>
-        public bool Cfg_BinaryFrameHandling_IsFatal { get; set; } = false;
-
         #endregion
 
 
@@ -511,20 +511,37 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Delegate signature for connection-loss notification.
-        /// Fires at most once per established connection's loss; a consumer-initiated stop does not fire it.
+        /// Delegate signature for connection-change notifications.
         /// </summary>
         /// <param name="mep">The client instance whose connection was lost.</param>
-        public delegate void DelConnectionLost(Client_v1_Abstract mep);
+        public delegate void dConnectionChange(Client_v1_Abstract mep);
+        /// <summary>
+        /// Consumer's connection-available handler. Assigned via OnConnectionAvailable; nulled on stop.
+        /// Fires at most once per connection available.
+        /// </summary>
+        protected dConnectionChange _del_OnConnectionAvailable;
+        /// <summary>
+        /// Assign a handler to this delegate to be notified when the connection becomes available.
+        /// Fires at most once per connection available.
+        /// </summary>
+        public dConnectionChange OnConnectionAvailable
+        {
+            set
+            {
+                this._del_OnConnectionAvailable = value;
+            }
+        }
+
         /// <summary>
         /// Consumer's connection-lost handler. Assigned via OnConnectionLost; nulled on stop.
+        /// Fires at most once per established connection's loss; a consumer-initiated stop does not fire it.
         /// </summary>
-        protected DelConnectionLost _delConnectionLost;
+        protected dConnectionChange _delConnectionLost;
         /// <summary>
         /// Add a callback, here, to watch for lost connection events.
         /// NOTE: Do not block this call, as it runs on the Connection loop thread.
         /// </summary>
-        public DelConnectionLost OnConnectionLost
+        public dConnectionChange OnConnectionLost
         {
             set
             {
@@ -681,6 +698,8 @@ namespace OGA.TCP.SessionLayer
 
         /// <summary>
         /// Call this method, once the client is configured, to begin connection.
+        /// This method does not block while connecting.
+        /// Instead, it returns after spawning the connection loop thread.
         /// </summary>
         /// <returns></returns>
         public async Task<int> Start_Async()
@@ -3982,8 +4001,9 @@ namespace OGA.TCP.SessionLayer
         }
 
         /// <summary>
-        /// Override this method to publish connection made event.
+        /// Override this method if you need to do something more than just published a connection available event.
         /// Make sure that any override calls the base method, first.
+        /// NOTE: For history, this used to be in derived TCP clients, but was moved here, so both transports (TCP and WS) can have it.
         /// </summary>
         protected virtual void DispatchConnected()
         {
@@ -3996,6 +4016,16 @@ namespace OGA.TCP.SessionLayer
             {
                 // Arm the connection closure delegate...
                 this._connectionclosuredelegate_armed = true;
+            }
+
+            // Call the connection available delegate if set...
+            if(this._del_OnConnectionAvailable != null)
+            {
+                try
+                {
+                    this._del_OnConnectionAvailable(this);
+                }
+                catch(Exception e) { }
             }
         }
 

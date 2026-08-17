@@ -17,10 +17,12 @@ using System.Threading.Tasks;
 namespace OGA.TCP.SessionLayer
 {
     /// <summary>
-    /// Provides connectivity to a TCP endpoint, creating an easy abstraction for message exchange.
-    /// This class has been declared abstract, so usage of it is forced to provide an implementation for determining the websocket connection url.
-    /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
-    /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
+    /// This is a minimal TCP client implementation.
+    /// It includes both means to set the host/port.
+    /// And, it uses the base class's send method.
+    /// You can use this, directly, as a minimal TCP client.
+    /// Or, inherit from it or TCPClient_v1_Abstract, to compose a richer client surface,
+    ///     with maybe domain-specific send methods and auto-registering channel adapters.
     /// </summary>
     public class TCPClient_v1_Impl : TCPClient_v1_Abstract, IDisposable
     {
@@ -67,6 +69,7 @@ namespace OGA.TCP.SessionLayer
         }
         /// <summary>
         /// Constructor requires a logger instance.
+        /// If you use this constructor, you must set the host/port properties.
         /// </summary>
         public TCPClient_v1_Impl(NLog.ILogger logger = null) : base(logger)
         {
@@ -77,32 +80,6 @@ namespace OGA.TCP.SessionLayer
 
 
         #region Connection Management
-
-        /// <summary>
-        /// This is a hook, in the Setup Before Connection logic flow, to provide a call point for determining any dynamic connection info, such as host, port, or url.
-        /// This is especially used by websocket clients, whose connection url is determined by server load balancing and region.
-        /// For a simple TCP socket client connecting to a static, target server, this method will simply return success (1).
-        /// NOTE: This method is called each time the client attempts to connect.
-        /// </summary>
-        /// <returns></returns>
-        override protected async Task<int> Get_ConnectionInfo()
-        {
-            // NOTE: This method is called each time the client attempts to create and connect a new transport connection.
-            // This is called each time, in case your code is connecting to a service that provides dynamic connection info.
-            // Such is the case for some websocket implementations, in that multiple WS host services may be available.
-            //  But, you must ask a central clearinghouse for which one to connect to, and you will be given connection info based on closest service, or load balancing.
-
-            // Include in your override method, the logic necessary to retrieve, lookup, or ask for, the transport's connection info.
-            // For a websocket connection, this would be logic that gets a connection URL, like the below example call to Get_ConnectionUrl().
-            // Or. If the connection URL is fixed, maybe there is nothing to do, here.
-            // Tcp socket connection info works similar, it's just not a url, but a host and port instead.
-
-            //return await this.Get_ConnectionUrl();
-            // For a tcp socket, this may be a call to get the host and port of listening server.
-            this._connection_string = (this.tcpconnection_host ?? "") + ":" + this.tcpconnection_port.ToString();
-
-            return 1;
-        }
 
         #endregion
     }

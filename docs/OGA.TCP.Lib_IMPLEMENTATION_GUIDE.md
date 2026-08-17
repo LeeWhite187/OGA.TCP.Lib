@@ -91,7 +91,7 @@ When a message's encoded size exceeds the frame limit, the library chunks it: a 
 
 | Component | Package | Purpose |
 |---|---|---|
-| `TCPClient_v1_Impl` | client | The ready-to-use TCP client: host/port + logger, start it, use it |
+| `TCPClient_v1_Impl` | client | The minimal, ready-to-use TCP client: host/port + logger, start it, use it |
 | `TCPClient_v1_Abstract` / `Client_v1_Abstract` | client | The transport and session base classes, for derivation (§10) |
 | `ChannelAdapter_DelegateType` | both | Wraps your delegate as a channel adapter; created for you by `Add_ChannelHandler` |
 | `TCPConnMgr_wListener` | server | Connection manager with integrated listener - the standard server entry point |
@@ -217,7 +217,7 @@ var client = new TCPClient_v1_Impl("srv.example.local", 5030, logger);
 // Identity, carried in registration:
 client.DeviceId  = deviceId;
 client.UserId    = userId;          // Guid.Empty if no user context yet
-client.RuntimeId = runtimeId;
+client.RuntimeId = runtimeId;       // The client application's runtimeid.
 client.Pid       = Environment.ProcessId;
 
 // App identity - MANDATORY for a v3 registration (the server refuses without it):
@@ -226,10 +226,13 @@ client.AppVersion = appVersion;
 client.Language   = "en-us";        // optional; the server defaults it
 
 // Session events:
+client.OnConnectionAvailable = (c) => appState.MarkOnline();
 client.OnConnectionLost = (c) => appState.MarkOffline();
+// If you require more granular status updates, connect to this...
 client.OnStatus_Change  = (c, status) => logger.Info($"conn status: {status}");
 
 // Channels (register before Start, or any time after):
+// Register channel adapters, to receive messages from a specified channel, to a callback method...
 client.Add_ChannelHandler("commands", (host, messagetype, json) =>
 {
     // json-kind channel
@@ -241,6 +244,7 @@ client.Add_ChannelHandler("filesync", (host, messagetype, payload) =>
     return 1;
 });
 
+// Attempt to start the connection loop...
 var res = await client.Start_Async();   // 1 = loop started; connection proceeds in background
 ```
 

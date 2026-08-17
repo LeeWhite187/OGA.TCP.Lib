@@ -17,10 +17,11 @@ using System.Threading.Tasks;
 namespace OGA.TCP.SessionLayer
 {
     /// <summary>
-    /// Provides connectivity to a TCPHost websocket, creating an easy abstraction for message exchange.
-    /// This class has been declared abstract, so usage of it is forced to provide an implementation for determining the websocket connection url.
-    /// Implementations of this abstract must override, Get_ConnectionUrl(), with a method that populates the connection url.
-    /// Implementations of this abstract may override: Dispose(), IsInternetAvailable(), Determine_AuthToken(), Send_RegistrationMessage(), FireMessageReceivedEvent(), DispatchConnected().
+    /// Provides connectivity to a TCPHost endpoint, creating an easy abstraction for message exchange.
+    /// This class implements the TCP-specific method overrides that the Client_v1_Abstract requires, to function.
+    /// To implement this client:
+    /// - Include a means to set the host and port via construction or public property,
+    /// - Decide if your derived client type will include your domain-specific send message methods on its surface, or use the generic send.
     /// </summary>
     public abstract class TCPClient_v1_Abstract : Client_v1_Abstract, IDisposable
     {
@@ -198,7 +199,10 @@ namespace OGA.TCP.SessionLayer
         /// <summary>
         /// This is a hook, in the Setup Before Connection logic flow, to provide a call point for determining any dynamic connection info, such as host, port, or url.
         /// This is especially used by websocket clients, whose connection url is determined by server load balancing and region.
-        /// For a simple TCP socket client connecting to a static, target server, this method will simply return success (1).
+        /// For a TCP client connecting to a static, target server, this method will populate the connection string field.
+        /// For more complex TCP client connections, this method can query a separate listener for the actual connection info.
+        /// Overriding it is mainly done in websocket implementations, to setup a connection string from host and port, or to query for connection info.
+        /// We will override it, to set the transport-common connection string, even though, it's not required for TCP.
         /// NOTE: This method is called each time the client attempts to connect.
         /// </summary>
         /// <returns></returns>
@@ -214,8 +218,11 @@ namespace OGA.TCP.SessionLayer
             // Or. If the connection URL is fixed, maybe there is nothing to do, here.
             // Tcp socket connection info works similar, it's just not a url, but a host and port instead.
 
-            //return await this.Get_ConnectionUrl();
-            // For a tcp socket, this may be a call to get the host and port of listening server.
+            // Since our TCP client already accepts a host and port at construction, we don't have to do much.
+            // Instead, we will simply set the connection string field, same as a websocket implementation would, just for symmetry.
+
+            // Set the connection string...
+            this._connection_string = (this.tcpconnection_host ?? "") + ":" + this.tcpconnection_port.ToString();
             return 1;
         }
 
